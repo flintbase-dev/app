@@ -4,51 +4,26 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
-	"os"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/internal/testdb"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
-	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
-func TestMain(m *testing.M) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		panic("failed to open test db: " + err.Error())
-	}
-	sqlDB, err := db.DB()
-	if err != nil {
-		panic("failed to get sql.DB: " + err.Error())
-	}
-	sqlDB.SetMaxOpenConns(1)
-
+func ensureTaskBillingTestDB(t *testing.T) {
+	t.Helper()
+	db := testdb.Open(t)
 	model.DB = db
 	model.LOG_DB = db
 
-	common.UsingSQLite = true
 	common.RedisEnabled = false
 	common.BatchUpdateEnabled = false
 	common.LogConsumeEnabled = true
-
-	if err := db.AutoMigrate(
-		&model.Task{},
-		&model.User{},
-		&model.Token{},
-		&model.Log{},
-		&model.Channel{},
-		&model.TopUp{},
-		&model.UserSubscription{},
-	); err != nil {
-		panic("failed to initialize schema: " + err.Error())
-	}
-
-	os.Exit(m.Run())
 }
 
 // ---------------------------------------------------------------------------
@@ -57,6 +32,8 @@ func TestMain(m *testing.M) {
 
 func truncate(t *testing.T) {
 	t.Helper()
+	ensureTaskBillingTestDB(t)
+	testdb.Reset(t, model.DB)
 	t.Cleanup(func() {
 		model.DB.Exec("DELETE FROM tasks")
 		model.DB.Exec("DELETE FROM users")

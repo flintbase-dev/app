@@ -2,56 +2,31 @@ package model
 
 import (
 	"encoding/json"
-	"os"
 	"sync"
 	"testing"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/glebarez/sqlite"
+	"github.com/QuantumNous/new-api/internal/testdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gorm.io/gorm"
 )
 
-func TestMain(m *testing.M) {
-	db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
-	if err != nil {
-		panic("failed to open test db: " + err.Error())
-	}
+func ensureTaskCASTestDB(t *testing.T) {
+	t.Helper()
+	db := testdb.Open(t)
 	DB = db
 	LOG_DB = db
 
-	common.UsingSQLite = true
 	common.RedisEnabled = false
 	common.BatchUpdateEnabled = false
 	common.LogConsumeEnabled = true
-
-	sqlDB, err := db.DB()
-	if err != nil {
-		panic("failed to get sql.DB: " + err.Error())
-	}
-	sqlDB.SetMaxOpenConns(1)
-
-	if err := db.AutoMigrate(
-		&Task{},
-		&User{},
-		&Token{},
-		&Log{},
-		&Channel{},
-		&TopUp{},
-		&SubscriptionPlan{},
-		&SubscriptionOrder{},
-		&UserSubscription{},
-	); err != nil {
-		panic("failed to initialize schema: " + err.Error())
-	}
-
-	os.Exit(m.Run())
 }
 
 func truncateTables(t *testing.T) {
 	t.Helper()
+	ensureTaskCASTestDB(t)
+	testdb.Reset(t, DB)
 	t.Cleanup(func() {
 		DB.Exec("DELETE FROM tasks")
 		DB.Exec("DELETE FROM users")

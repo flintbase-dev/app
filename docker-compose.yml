@@ -4,17 +4,29 @@
 #   1. docker-compose up -d
 #   2. Access at http://localhost:3000
 #
-# Using MySQL instead of PostgreSQL:
-#   1. Comment out the postgres service and SQL_DSN line 15
-#   2. Uncomment the mysql service and SQL_DSN line 16
-#   3. Uncomment mysql in depends_on (line 28)
-#   4. Uncomment mysql_data in volumes section (line 64)
-#
 # ⚠️  IMPORTANT: Change all default passwords before deploying to production!
 
-version: '3.4' # For compatibility with older Docker versions
-
 services:
+  db-migrate:
+    image: calciumion/new-api:latest
+    container_name: new-api-db-migrate
+    restart: "no"
+    entrypoint: ["/new-api-migrator"]
+    environment:
+      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
+      - MIGRATION_DIR=/migrations
+      - INIT_ROOT_USERNAME=root
+      - INIT_ROOT_PASSWORD=12345678
+      - INIT_ROOT_QUOTA=100000000
+      - INIT_SELF_USE_MODE_ENABLED=false
+      - INIT_DEMO_SITE_ENABLED=false
+      - TZ=Asia/Shanghai
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - new-api-network
+
   new-api:
     image: calciumion/new-api:latest
     container_name: new-api
@@ -27,7 +39,6 @@ services:
       - ./logs:/app/logs
     environment:
       - SQL_DSN=postgresql://root:123456@postgres:5432/new-api # ⚠️ IMPORTANT: Change the password in production!
-#      - SQL_DSN=root:123456@tcp(mysql:3306)/new-api  # Point to the mysql service, uncomment if using MySQL
       - REDIS_CONN_STRING=redis://:123456@redis:6379 # ⚠️ IMPORTANT: Change the password in production!
       - TZ=Asia/Shanghai
       - ERROR_LOG_ENABLED=true # 是否启用错误日志记录 (Whether to enable error log recording)
@@ -41,9 +52,12 @@ services:
 #      - UMAMI_SCRIPT_URL=https://analytics.umami.is/script.js  # Umami 脚本 URL，默认为官方地址 (Umami Script URL, defaults to official URL)
 
     depends_on:
-      - redis
-      - postgres
-#      - mysql  # Uncomment if using MySQL
+      redis:
+        condition: service_started
+      postgres:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
     networks:
       - new-api-network
     healthcheck:
@@ -72,26 +86,16 @@ services:
       - pg_data:/var/lib/postgresql/data
     networks:
       - new-api-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U root -d new-api"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
 #    ports:
 #      - "5432:5432"  # Uncomment if you need to access PostgreSQL from outside Docker
 
-#  mysql:
-#    image: mysql:8.2
-#    container_name: mysql
-#    restart: always
-#    environment:
-#      MYSQL_ROOT_PASSWORD: 123456  # ⚠️ IMPORTANT: Change this password in production!
-#      MYSQL_DATABASE: new-api
-#    volumes:
-#      - mysql_data:/var/lib/mysql
-#    networks:
-#      - new-api-network
-#    ports:
-#      - "3306:3306"  # Uncomment if you need to access MySQL from outside Docker
-
 volumes:
   pg_data:
-#  mysql_data:
 
 networks:
   new-api-network:

@@ -15,6 +15,29 @@
 #   docker compose -f docker-compose.dev.yml down -v
 
 services:
+  db-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: new-api-dev:local
+    container_name: new-api-dev-db-migrate
+    restart: "no"
+    entrypoint: ["/new-api-migrator"]
+    environment:
+      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
+      - MIGRATION_DIR=/migrations
+      - INIT_ROOT_USERNAME=root
+      - INIT_ROOT_PASSWORD=12345678
+      - INIT_ROOT_QUOTA=100000000
+      - INIT_SELF_USE_MODE_ENABLED=false
+      - INIT_DEMO_SITE_ENABLED=false
+      - TZ=Asia/Shanghai
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dev-network
+
   new-api:
     build:
       context: .
@@ -36,6 +59,8 @@ services:
         condition: service_started
       postgres:
         condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
     networks:
       - dev-network
 

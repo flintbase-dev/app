@@ -20,6 +20,7 @@ RUN mkdir -p web/classic/dist && \
     echo '<!doctype html><html><head><title>dev</title></head><body>use frontend dev server</body></html>' > web/classic/dist/index.html
 
 RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api
+RUN go build -ldflags "-s -w -X 'github.com/QuantumNous/new-api/common.Version=$(cat VERSION)'" -o new-api-migrator ./cmd/migrator
 
 FROM debian:bookworm-slim
 
@@ -29,6 +30,8 @@ RUN apt-get update \
     && update-ca-certificates
 
 COPY --from=builder /build/new-api /
+COPY --from=builder /build/new-api-migrator /
+COPY --from=builder /build/migrations /migrations
 EXPOSE 3000
 WORKDIR /data
 ENTRYPOINT ["/new-api"]

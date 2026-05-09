@@ -127,23 +127,22 @@ docker-compose up -d
 # Pull the latest image
 docker pull calciumion/new-api:latest
 
-# Using SQLite (default)
-docker run --name new-api -d --restart always \
-  -p 3000:3000 \
-  -e TZ=Asia/Shanghai \
-  -v ./data:/data \
+# Run database migrations and bootstrap data first
+docker run --rm \
+  -e SQL_DSN="postgresql://root:123456@postgres-host:5432/new-api" \
+  --entrypoint /new-api-migrator \
   calciumion/new-api:latest
 
-# Using MySQL
+# Start the application with PostgreSQL
 docker run --name new-api -d --restart always \
   -p 3000:3000 \
-  -e SQL_DSN="root:123456@tcp(localhost:3306)/oneapi" \
+  -e SQL_DSN="postgresql://root:123456@postgres-host:5432/new-api" \
   -e TZ=Asia/Shanghai \
   -v ./data:/data \
   calciumion/new-api:latest
 ```
 
-> **💡 Tip:** `-v ./data:/data` will save data in the `data` folder of the current directory, you can also change it to an absolute path like `-v /your/custom/path:/data`
+> **💡 Tip:** Replace `postgres-host` with a PostgreSQL host reachable from the container. `-v ./data:/data` will save runtime files in the `data` folder of the current directory, you can also change it to an absolute path like `-v /your/custom/path:/data`
 
 </details>
 
@@ -297,8 +296,7 @@ docker run --name new-api -d --restart always \
 
 | Component | Requirement |
 |------|------|
-| **Local database** | SQLite (Docker must mount `/data` directory)|
-| **Remote database** | MySQL ≥ 5.7.8 or PostgreSQL ≥ 9.6 |
+| **Database** | PostgreSQL |
 | **Container engine** | Docker / Docker Compose |
 
 ### ⚙️ Environment Variable Configuration
@@ -351,26 +349,26 @@ docker-compose up -d
 <details>
 <summary><strong>Method 2: Docker Commands</strong></summary>
 
-**Using SQLite:**
+**Run database migrations and bootstrap data:**
 ```bash
-docker run --name new-api -d --restart always \
-  -p 3000:3000 \
-  -e TZ=Asia/Shanghai \
-  -v ./data:/data \
+docker run --rm \
+  -e SQL_DSN="postgresql://root:123456@postgres-host:5432/new-api" \
+  --entrypoint /new-api-migrator \
   calciumion/new-api:latest
 ```
 
-**Using MySQL:**
+**Start with PostgreSQL:**
 ```bash
 docker run --name new-api -d --restart always \
   -p 3000:3000 \
-  -e SQL_DSN="root:123456@tcp(localhost:3306)/oneapi" \
+  -e SQL_DSN="postgresql://root:123456@postgres-host:5432/new-api" \
   -e TZ=Asia/Shanghai \
   -v ./data:/data \
   calciumion/new-api:latest
 ```
 
 > **💡 Path explanation:**
+> - Replace `postgres-host` with a PostgreSQL host reachable from the container
 > - `./data:/data` - Relative path, data saved in the data folder of the current directory
 > - You can also use absolute path, e.g.: `/your/custom/path:/data`
 

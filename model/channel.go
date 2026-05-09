@@ -346,18 +346,8 @@ func GetChannelsByTag(tag string, idSort bool, selectAll bool, sortOptions ...Ch
 
 func SearchChannels(keyword string, group string, model string, idSort bool, sortOptions ...ChannelSortOptions) ([]*Channel, error) {
 	var channels []*Channel
-	modelsCol := "`models`"
-
-	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
-		modelsCol = `"models"`
-	}
-
-	baseURLCol := "`base_url`"
-	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
-		baseURLCol = `"base_url"`
-	}
+	modelsCol := `"models"`
+	baseURLCol := `"base_url"`
 
 	order := resolveChannelSortOptions(idSort, sortOptions)
 
@@ -368,13 +358,7 @@ func SearchChannels(keyword string, group string, model string, idSort bool, sor
 	var whereClause string
 	var args []interface{}
 	if group != "" && group != "null" {
-		var groupCondition string
-		if common.UsingMySQL {
-			groupCondition = `CONCAT(',', ` + commonGroupCol + `, ',') LIKE ?`
-		} else {
-			// sqlite, PostgreSQL
-			groupCondition = `(',' || ` + commonGroupCol + ` || ',') LIKE ?`
-		}
+		groupCondition := `(',' || ` + commonGroupCol + ` || ',') LIKE ?`
 		whereClause = "(id = ? OR name LIKE ? OR " + commonKeyCol + " = ? OR " + baseURLCol + " LIKE ?) AND " + modelsCol + ` LIKE ? AND ` + groupCondition
 		args = append(args, common.String2Int(keyword), "%"+keyword+"%", keyword, "%"+keyword+"%", "%"+model+"%", "%,"+group+",%")
 	} else {
@@ -838,18 +822,8 @@ func GetPaginatedTags(offset int, limit int) ([]*string, error) {
 
 func SearchTags(keyword string, group string, model string, idSort bool) ([]*string, error) {
 	var tags []*string
-	modelsCol := "`models`"
-
-	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
-		modelsCol = `"models"`
-	}
-
-	baseURLCol := "`base_url`"
-	// 如果是 PostgreSQL，使用双引号
-	if common.UsingPostgreSQL {
-		baseURLCol = `"base_url"`
-	}
+	modelsCol := `"models"`
+	baseURLCol := `"base_url"`
 
 	order := "priority desc"
 	if idSort {
@@ -863,13 +837,7 @@ func SearchTags(keyword string, group string, model string, idSort bool) ([]*str
 	var whereClause string
 	var args []interface{}
 	if group != "" && group != "null" {
-		var groupCondition string
-		if common.UsingMySQL {
-			groupCondition = `CONCAT(',', ` + commonGroupCol + `, ',') LIKE ?`
-		} else {
-			// sqlite, PostgreSQL
-			groupCondition = `(',' || ` + commonGroupCol + ` || ',') LIKE ?`
-		}
+		groupCondition := `(',' || ` + commonGroupCol + ` || ',') LIKE ?`
 		whereClause = "(id = ? OR name LIKE ? OR " + commonKeyCol + " = ? OR " + baseURLCol + " LIKE ?) AND " + modelsCol + ` LIKE ? AND ` + groupCondition
 		args = append(args, common.String2Int(keyword), "%"+keyword+"%", keyword, "%"+keyword+"%", "%"+model+"%", "%,"+group+",%")
 	} else {

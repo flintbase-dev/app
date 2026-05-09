@@ -3,7 +3,6 @@ package controller
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strconv"
@@ -11,9 +10,9 @@ import (
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/internal/testdb"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -38,44 +37,21 @@ type tokenKeyResponse struct {
 	Key string `json:"key"`
 }
 
-type sqliteColumnInfo struct {
-	Name string `gorm:"column:name"`
-	Type string `gorm:"column:type"`
-}
-
 func openTokenControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
 	gin.SetMode(gin.TestMode)
-	common.UsingSQLite = true
-	common.UsingMySQL = false
-	common.UsingPostgreSQL = false
 	common.RedisEnabled = false
 
-	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
-	if err != nil {
-		t.Fatalf("failed to open sqlite db: %v", err)
-	}
+	db := testdb.OpenAndReset(t)
 	model.DB = db
 	model.LOG_DB = db
-
-	t.Cleanup(func() {
-		sqlDB, err := db.DB()
-		if err == nil {
-			_ = sqlDB.Close()
-		}
-	})
 
 	return db
 }
 
 func initTokenControllerTestDB(t *testing.T, db *gorm.DB) {
 	t.Helper()
-
-	if err := db.AutoMigrate(&model.Token{}); err != nil {
-		t.Fatalf("failed to initialize token table: %v", err)
-	}
 }
 
 func setupTokenControllerTestDB(t *testing.T) *gorm.DB {
@@ -139,32 +115,6 @@ func decodeAPIResponse(t *testing.T, recorder *httptest.ResponseRecorder) tokenA
 		t.Fatalf("failed to decode api response: %v", err)
 	}
 	return response
-}
-
-func getSQLiteColumnType(t *testing.T, db *gorm.DB, tableName string, columnName string) string {
-	t.Helper()
-
-	var columns []sqliteColumnInfo
-	if err := db.Raw("PRAGMA table_info(" + tableName + ")").Scan(&columns).Error; err != nil {
-		t.Fatalf("failed to inspect %s schema: %v", tableName, err)
-	}
-
-	for _, column := range columns {
-		if column.Name == columnName {
-			return strings.ToLower(column.Type)
-		}
-	}
-
-	t.Fatalf("column %s not found in %s schema", columnName, tableName)
-	return ""
-}
-
-func TestTokenAutoMigrateUsesVarchar128KeyColumn(t *testing.T) {
-	db := setupTokenControllerTestDB(t)
-
-	if got := getSQLiteColumnType(t, db, "tokens", "key"); got != "varchar(128)" {
-		t.Fatalf("expected key column type varchar(128), got %q", got)
-	}
 }
 
 func TestGetAllTokensMasksKeyInResponse(t *testing.T) {

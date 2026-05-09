@@ -82,46 +82,6 @@
             "Combination1243": []
           }
         ]
-      },
-      "post": {
-        "summary": "初始化系统",
-        "deprecated": false,
-        "description": "🔓 无需鉴权",
-        "tags": [
-          "系统"
-        ],
-        "parameters": [],
-        "requestBody": {
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "properties": {
-                  "username": {
-                    "type": "string"
-                  },
-                  "password": {
-                    "type": "string"
-                  }
-                }
-              }
-            }
-          }
-        },
-        "responses": {
-          "200": {
-            "description": "成功",
-            "headers": {}
-          }
-        },
-        "security": [
-          {
-            "Combination343": []
-          },
-          {
-            "Combination1243": []
-          }
-        ]
       }
     },
     "/api/status": {
