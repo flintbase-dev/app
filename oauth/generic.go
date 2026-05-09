@@ -284,9 +284,6 @@ func (p *GenericOAuthProvider) GetUserInfo(ctx context.Context, token *OAuthToke
 		Username:       username,
 		DisplayName:    displayName,
 		Email:          email,
-		Extra: map[string]any{
-			"provider": p.config.Slug,
-		},
 	}, nil
 }
 

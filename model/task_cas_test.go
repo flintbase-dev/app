@@ -44,7 +44,7 @@ func TestMain(m *testing.M) {
 		&SubscriptionOrder{},
 		&UserSubscription{},
 	); err != nil {
-		panic("failed to migrate: " + err.Error())
+		panic("failed to initialize schema: " + err.Error())
 	}
 
 	os.Exit(m.Run())

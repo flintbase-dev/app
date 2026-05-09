@@ -118,7 +118,7 @@ type TaskBillingContext struct {
 }
 
 // GetUpstreamTaskID 获取上游真实 task ID（用于与 provider 通信）
-// 旧数据没有 UpstreamTaskID 时，TaskID 本身就是上游 ID
+// 部分 provider 不返回独立上游 ID，此时公开任务 ID 本身就是上游 ID。
 func (t *Task) GetUpstreamTaskID() string {
 	if t.PrivateData.UpstreamTaskID != "" {
 		return t.PrivateData.UpstreamTaskID
@@ -127,12 +127,8 @@ func (t *Task) GetUpstreamTaskID() string {
 }
 
 // GetResultURL 获取任务结果 URL（视频地址等）
-// 新数据存在 PrivateData.ResultURL 中；旧数据回退到 FailReason（历史兼容）
 func (t *Task) GetResultURL() string {
-	if t.PrivateData.ResultURL != "" {
-		return t.PrivateData.ResultURL
-	}
-	return t.FailReason
+	return t.PrivateData.ResultURL
 }
 
 // GenerateTaskID 生成对外暴露的 task_xxxx 格式 ID

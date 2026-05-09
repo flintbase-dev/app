@@ -159,11 +159,6 @@ func (p *LinuxDOProvider) GetUserInfo(ctx context.Context, token *OAuthToken) (*
 		ProviderUserID: strconv.Itoa(linuxdoUser.Id),
 		Username:       linuxdoUser.Username,
 		DisplayName:    linuxdoUser.Name,
-		Extra: map[string]any{
-			"trust_level": linuxdoUser.TrustLevel,
-			"active":      linuxdoUser.Active,
-			"silenced":    linuxdoUser.Silenced,
-		},
 	}, nil
 }
 

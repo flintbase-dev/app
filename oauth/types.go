@@ -20,8 +20,6 @@ type OAuthUser struct {
 	DisplayName string
 	// Email is the email from the OAuth provider
 	Email string
-	// Extra contains any additional provider-specific data
-	Extra map[string]any
 }
 
 // OAuthError represents a translatable OAuth error

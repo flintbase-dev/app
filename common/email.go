@@ -34,9 +34,6 @@ func getSMTPAuth() smtp.Auth {
 }
 
 func SendEmail(subject string, receiver string, content string) error {
-	if SMTPFrom == "" { // for compatibility
-		SMTPFrom = SMTPAccount
-	}
 	id, err2 := generateMessageID()
 	if err2 != nil {
 		return err2

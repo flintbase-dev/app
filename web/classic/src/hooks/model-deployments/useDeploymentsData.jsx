@@ -99,7 +99,6 @@ export const useDeploymentsData = () => {
       hardware_info: 'hardware_info',
       created_at: 'created_at',
       actions: 'actions',
-      // Legacy keys for compatibility
       deployment_name: 'deployment_name',
       model_name: 'model_name',
       instance_count: 'instance_count',

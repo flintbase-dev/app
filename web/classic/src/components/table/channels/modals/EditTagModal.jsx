@@ -585,10 +585,7 @@ const EditTagModal = (props) => {
                     placeholder={
                       t('此项可选，用于覆盖请求参数。不支持覆盖 stream 参数') +
                       '\n' +
-                      t('旧格式（直接覆盖）：') +
-                      '\n{\n  "temperature": 0,\n  "max_tokens": 1000\n}' +
-                      '\n\n' +
-                      t('新格式（支持条件判断与json自定义）：') +
+                      t('规则格式（支持条件判断与json自定义）：') +
                       '\n{\n  "operations": [\n    {\n      "path": "temperature",\n      "mode": "set",\n      "value": 0.7,\n      "conditions": [\n        {\n          "path": "model",\n          "mode": "prefix",\n          "value": "gpt"\n        }\n      ]\n    }\n  ]\n}'
                     }
                     autosize
@@ -598,17 +595,6 @@ const EditTagModal = (props) => {
                     }
                     extraText={
                       <div className='flex gap-2 flex-wrap'>
-                        <Text
-                          className='!text-semi-color-primary cursor-pointer'
-                          onClick={() =>
-                            handleInputChange(
-                              'param_override',
-                              JSON.stringify({ temperature: 0 }, null, 2),
-                            )
-                          }
-                        >
-                          {t('旧格式模板')}
-                        </Text>
                         <Text
                           className='!text-semi-color-primary cursor-pointer'
                           onClick={() =>
@@ -638,7 +624,7 @@ const EditTagModal = (props) => {
                             )
                           }
                         >
-                          {t('新格式模板')}
+                          {t('规则模板')}
                         </Text>
                         <Text
                           className='!text-semi-color-primary cursor-pointer'

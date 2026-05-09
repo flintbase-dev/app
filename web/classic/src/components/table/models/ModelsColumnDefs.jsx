@@ -96,7 +96,7 @@ const renderTags = (text) => {
   });
 };
 
-// Render endpoints (supports object map or legacy array)
+// Render endpoints object map.
 const renderEndpoints = (value) => {
   try {
     const parsed = typeof value === 'string' ? JSON.parse(value) : value;
@@ -108,18 +108,6 @@ const renderEndpoints = (value) => {
         renderItem: (key, idx) => (
           <Tag key={idx} size='small' shape='circle' color={stringToColor(key)}>
             {key}
-          </Tag>
-        ),
-        maxDisplay: 3,
-      });
-    }
-    if (Array.isArray(parsed)) {
-      if (parsed.length === 0) return '-';
-      return renderLimitedItems({
-        items: parsed,
-        renderItem: (ep, idx) => (
-          <Tag key={idx} color='white' size='small' shape='circle'>
-            {ep}
           </Tag>
         ),
         maxDisplay: 3,

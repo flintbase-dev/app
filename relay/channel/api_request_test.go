@@ -97,8 +97,8 @@ func TestProcessHeaderOverride_RuntimeOverrideIsFinalHeaderMap(t *testing.T) {
 		},
 		ChannelMeta: &relaycommon.ChannelMeta{
 			HeadersOverride: map[string]any{
-				"X-Static": "legacy-value",
-				"X-Legacy": "legacy-only",
+				"X-Static": "static-value",
+				"X-Stale":  "stale-only",
 			},
 		},
 	}
@@ -107,7 +107,7 @@ func TestProcessHeaderOverride_RuntimeOverrideIsFinalHeaderMap(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, "runtime-value", headers["x-static"])
 	require.Equal(t, "runtime-only", headers["x-runtime"])
-	_, exists := headers["x-legacy"]
+	_, exists := headers["x-stale"]
 	require.False(t, exists)
 }
 
@@ -164,7 +164,7 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 				},
 			},
 			HeadersOverride: map[string]any{
-				"X-Static": "legacy-value",
+				"X-Static": "static-value",
 			},
 		},
 	}
@@ -176,7 +176,7 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	require.Equal(t, "sess-123", info.RuntimeHeadersOverride["session_id"])
 	_, exists := info.RuntimeHeadersOverride["x-codex-beta-features"]
 	require.False(t, exists)
-	require.Equal(t, "legacy-value", info.RuntimeHeadersOverride["x-static"])
+	require.Equal(t, "static-value", info.RuntimeHeadersOverride["x-static"])
 
 	headers, err := processHeaderOverride(info, ctx)
 	require.NoError(t, err)

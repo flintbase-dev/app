@@ -158,7 +158,7 @@ func TestCacheWriteTokensTotal(t *testing.T) {
 		require.Equal(t, 50, cacheWriteTokensTotal(summary))
 	})
 
-	t.Run("legacy cache creation", func(t *testing.T) {
+	t.Run("aggregate cache creation", func(t *testing.T) {
 		summary := textQuotaSummary{CacheCreationTokens: 50}
 		require.Equal(t, 50, cacheWriteTokensTotal(summary))
 	})

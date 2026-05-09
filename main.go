@@ -66,7 +66,6 @@ func main() {
 	}()
 
 	if common.RedisEnabled {
-		// for compatibility with old versions
 		common.MemoryCacheEnabled = true
 	}
 	if common.MemoryCacheEnabled {
@@ -279,7 +278,7 @@ func InitResources() error {
 	// Initialize options, should after model.InitDB()
 	model.InitOptionMap()
 
-	// 清理旧的磁盘缓存文件
+	// 清理过期的磁盘缓存文件
 	common.CleanupOldCacheFiles()
 
 	// 初始化模型
