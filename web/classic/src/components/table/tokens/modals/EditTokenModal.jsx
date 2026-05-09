@@ -103,7 +103,7 @@ const EditTokenModal = (props) => {
   };
 
   const loadModels = async () => {
-    let res = await API.get(`/api/user/models`);
+    let res = await API.query('userModels');
     const { success, message, data } = res.data;
     if (success) {
       const categories = getModelCategories(t);
@@ -132,7 +132,7 @@ const EditTokenModal = (props) => {
   };
 
   const loadGroups = async () => {
-    let res = await API.get(`/api/user/self/groups`);
+    let res = await API.query('selfGroups');
     const { success, message, data } = res.data;
     if (success) {
       let localGroupOptions = Object.entries(data).map(([group, info]) => ({
@@ -156,7 +156,9 @@ const EditTokenModal = (props) => {
 
   const loadToken = async () => {
     setLoading(true);
-    let res = await API.get(`/api/token/${props.editingToken.id}`);
+    let res = await API.query('token', {
+      id: props.editingToken.id,
+    });
     const { success, message, data } = res.data;
     if (success) {
       if (data.expired_time !== -1) {
@@ -234,7 +236,7 @@ const EditTokenModal = (props) => {
       }
       localInputs.model_limits = localInputs.model_limits.join(',');
       localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
-      let res = await API.put(`/api/token/`, {
+      let res = await API.mutation('updateToken', {
         ...localInputs,
         id: parseInt(props.editingToken.id),
       });
@@ -278,7 +280,7 @@ const EditTokenModal = (props) => {
         }
         localInputs.model_limits = localInputs.model_limits.join(',');
         localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
-        let res = await API.post(`/api/token/`, localInputs);
+        let res = await API.mutation('createToken', localInputs);
         const { success, message } = res.data;
         if (success) {
           successCount++;

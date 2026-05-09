@@ -167,7 +167,7 @@ const EditTagModal = (props) => {
 
   const fetchModels = async () => {
     try {
-      let res = await API.get(`/api/channel/models`);
+      let res = await API.query('channelModels');
       let localModelOptions = res.data.data.map((model) => ({
         label: model.id,
         value: model.id,
@@ -180,7 +180,7 @@ const EditTagModal = (props) => {
 
   const fetchGroups = async () => {
     try {
-      let res = await API.get(`/api/group/`);
+      let res = await API.query('groups');
       if (res === undefined) {
         return;
       }
@@ -266,7 +266,7 @@ const EditTagModal = (props) => {
 
   const submit = async (data) => {
     try {
-      const res = await API.put('/api/channel/tag', data);
+      const res = await API.mutation('editTagChannels', data);
       if (res?.data?.success) {
         showSuccess('标签更新成功！');
         refresh();
@@ -295,7 +295,7 @@ const EditTagModal = (props) => {
       if (!tag) return;
       setLoading(true);
       try {
-        const res = await API.get(`/api/channel/tag/models?tag=${tag}`);
+        const res = await API.query('tagModels', { tag });
         if (res?.data?.success) {
           const models = res.data.data ? res.data.data.split(',') : [];
           handleInputChange('models', models);

@@ -70,7 +70,7 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
   const loadGroups = async () => {
     setLoading(true);
     try {
-      const res = await API.get('/api/prefill_group');
+      const res = await API.query('prefillGroups');
       if (res.data.success) {
         setGroups(res.data.data || []);
       } else {
@@ -85,7 +85,7 @@ const PrefillGroupManagement = ({ visible, onClose }) => {
   // 删除组
   const deleteGroup = async (id) => {
     try {
-      const res = await API.delete(`/api/prefill_group/${id}`);
+      const res = await API.mutation('deletePrefillGroup', { id });
       if (res.data.success) {
         showSuccess(t('删除成功'));
         loadGroups();

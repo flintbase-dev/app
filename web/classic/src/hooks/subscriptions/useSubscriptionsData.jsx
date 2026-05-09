@@ -43,7 +43,7 @@ export const useSubscriptionsData = () => {
   const loadPlans = async () => {
     setLoading(true);
     try {
-      const res = await API.get('/api/subscription/admin/plans');
+      const res = await API.query('adminSubscriptionPlans');
       if (res.data?.success) {
         const next = res.data.data || [];
         setAllPlans(next);
@@ -84,7 +84,8 @@ export const useSubscriptionsData = () => {
     if (!planId) return;
     setLoading(true);
     try {
-      const res = await API.patch(`/api/subscription/admin/plans/${planId}`, {
+      const res = await API.mutation('updateSubscriptionPlanStatus', {
+        id: planId,
         enabled: !!enabled,
       });
       if (res.data?.success) {

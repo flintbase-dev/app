@@ -85,7 +85,7 @@ const SubscriptionPlansCard = ({
     }
     setPaying(true);
     try {
-      const res = await API.post('/api/subscription/stripe/pay', {
+      const res = await API.mutation('subscriptionStripePay', {
         plan_id: selectedPlan.plan.id,
       });
       if (res.data?.message === 'success') {

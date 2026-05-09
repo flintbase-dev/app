@@ -113,8 +113,8 @@ export const useChannelUpstreamUpdates = ({ t, refresh }) => {
         (model) => !selectedAddSet.has(model),
       );
 
-      const res = await API.post(
-        '/api/channel/upstream_updates/apply',
+      const res = await API.mutation(
+        'applyChannelUpstreamUpdates',
         {
           id: upstreamUpdateChannel.id,
           add_models: normalizedSelectedAddModels,
@@ -166,8 +166,8 @@ export const useChannelUpstreamUpdates = ({ t, refresh }) => {
     applyAllUpstreamUpdatesInFlightRef.current = true;
     setApplyAllUpstreamUpdatesLoading(true);
     try {
-      const res = await API.post(
-        '/api/channel/upstream_updates/apply_all',
+      const res = await API.mutation(
+        'applyAllChannelUpstreamUpdates',
         {},
         { skipErrorHandler: true },
       );
@@ -213,8 +213,8 @@ export const useChannelUpstreamUpdates = ({ t, refresh }) => {
     }
     detectChannelUpstreamUpdatesInFlightRef.current = true;
     try {
-      const res = await API.post(
-        '/api/channel/upstream_updates/detect',
+      const res = await API.mutation(
+        'detectChannelUpstreamUpdates',
         {
           id: channel.id,
         },
@@ -252,8 +252,8 @@ export const useChannelUpstreamUpdates = ({ t, refresh }) => {
     detectAllUpstreamUpdatesInFlightRef.current = true;
     setDetectAllUpstreamUpdatesLoading(true);
     try {
-      const res = await API.post(
-        '/api/channel/upstream_updates/detect_all',
+      const res = await API.mutation(
+        'detectAllChannelUpstreamUpdates',
         {},
         { skipErrorHandler: true },
       );

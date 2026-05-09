@@ -143,7 +143,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     userDispatch({ type: 'logout' });
     localStorage.removeItem('user');
     showSuccess(t('注销成功!'));
-    window.location.assign('/api/workos/logout');
+    await API.redirect('workosLogout');
   }, [t, userDispatch]);
 
   const handleLanguageChange = useCallback(
@@ -156,7 +156,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
       // If user is logged in, save preference to backend
       if (userState?.user?.id) {
         try {
-          const res = await API.put('/api/user/self', {
+          const res = await API.mutation('updateSelf', {
             language: lang,
           });
           if (res.data.success) {

@@ -92,7 +92,7 @@ export const useChannelsData = () => {
 
   const fetchGlobalPassThroughEnabled = async () => {
     try {
-      const res = await API.get('/api/option/');
+      const res = await API.query('options');
       const { success, data } = res?.data || {};
       if (!success || !Array.isArray(data)) {
         return;
@@ -341,11 +341,14 @@ export const useChannelsData = () => {
 
     const reqId = ++requestCounter.current;
     setLoading(true);
-    const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
-    const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
-    const res = await API.get(
-      `/api/channel/?p=${page}&page_size=${pageSize}&id_sort=${idSort}&tag_mode=${enableTagMode}${typeParam}${statusParam}`,
-    );
+    const res = await API.query('channels', {
+      p: page,
+      page_size: pageSize,
+      id_sort: idSort,
+      tag_mode: enableTagMode,
+      ...(typeKey !== 'all' ? { type: typeKey } : {}),
+      ...(statusF !== 'all' ? { status: statusF } : {}),
+    });
 
     if (res === undefined || reqId !== requestCounter.current) {
       return;
@@ -393,11 +396,17 @@ export const useChannelsData = () => {
         return;
       }
 
-      const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
-      const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
-      const res = await API.get(
-        `/api/channel/search?keyword=${searchKeyword}&group=${searchGroup}&model=${searchModel}&id_sort=${sortFlag}&tag_mode=${enableTagMode}&p=${page}&page_size=${pageSz}${typeParam}${statusParam}`,
-      );
+      const res = await API.query('searchChannels', {
+        keyword: searchKeyword,
+        group: searchGroup,
+        model: searchModel,
+        id_sort: sortFlag,
+        tag_mode: enableTagMode,
+        p: page,
+        page_size: pageSz,
+        ...(typeKey !== 'all' ? { type: typeKey } : {}),
+        ...(statusF !== 'all' ? { status: statusF } : {}),
+      });
       const { success, message, data } = res.data;
       if (success) {
         const { items = [], total = 0, type_counts = {} } = data;
@@ -442,31 +451,31 @@ export const useChannelsData = () => {
     let res;
     switch (action) {
       case 'delete':
-        res = await API.delete(`/api/channel/${id}/`);
+        res = await API.mutation('deleteChannel', { id });
         break;
       case 'enable':
         data.status = 1;
-        res = await API.put('/api/channel/', data);
+        res = await API.mutation('updateChannel', data);
         break;
       case 'disable':
         data.status = 2;
-        res = await API.put('/api/channel/', data);
+        res = await API.mutation('updateChannel', data);
         break;
       case 'priority':
         if (value === '') return;
         data.priority = parseInt(value);
-        res = await API.put('/api/channel/', data);
+        res = await API.mutation('updateChannel', data);
         break;
       case 'weight':
         if (value === '') return;
         data.weight = parseInt(value);
         if (data.weight < 0) data.weight = 0;
-        res = await API.put('/api/channel/', data);
+        res = await API.mutation('updateChannel', data);
         break;
       case 'enable_all':
         data.channel_info = record.channel_info;
         data.channel_info.multi_key_status_list = {};
-        res = await API.put('/api/channel/', data);
+        res = await API.mutation('updateChannel', data);
         break;
     }
     const { success, message } = res.data;
@@ -488,10 +497,10 @@ export const useChannelsData = () => {
     let res;
     switch (action) {
       case 'enable':
-        res = await API.post('/api/channel/tag/enabled', { tag: tag });
+        res = await API.mutation('enableTagChannels', { tag: tag });
         break;
       case 'disable':
-        res = await API.post('/api/channel/tag/disabled', { tag: tag });
+        res = await API.mutation('disableTagChannels', { tag: tag });
         break;
     }
     const { success, message } = res.data;
@@ -557,7 +566,7 @@ export const useChannelsData = () => {
   // Fetch groups
   const fetchGroups = async () => {
     try {
-      let res = await API.get(`/api/group/`);
+      let res = await API.query('groups');
       if (res === undefined) return;
       setGroupOptions(
         res.data.data.map((group) => ({
@@ -573,7 +582,9 @@ export const useChannelsData = () => {
   // Copy channel
   const copySelectedChannel = async (record) => {
     try {
-      const res = await API.post(`/api/channel/copy/${record.id}`);
+      const res = await API.mutation('copyChannel', {
+        id: record.id,
+      });
       if (res?.data?.success) {
         showSuccess(t('渠道复制成功'));
         await refresh();
@@ -636,7 +647,7 @@ export const useChannelsData = () => {
     }
 
     try {
-      const res = await API.put('/api/channel/tag', data);
+      const res = await API.mutation('editTagChannels', data);
       if (res?.data?.success) {
         showSuccess('更新成功！');
         await refresh();
@@ -675,7 +686,7 @@ export const useChannelsData = () => {
       return;
     }
     let ids = selectedChannels.map((channel) => channel.id);
-    const res = await API.post('/api/channel/batch/tag', {
+    const res = await API.mutation('batchSetChannelTag', {
       ids: ids,
       tag: batchSetTagValue === '' ? null : batchSetTagValue,
     });
@@ -700,7 +711,7 @@ export const useChannelsData = () => {
     selectedChannels.forEach((channel) => {
       ids.push(channel.id);
     });
-    const res = await API.post(`/api/channel/batch`, { ids: ids });
+    const res = await API.mutation('deleteChannels', { ids: ids });
     const { success, message, data } = res.data;
     if (success) {
       showSuccess(t('已删除 ${data} 个通道！').replace('${data}', data));
@@ -718,7 +729,7 @@ export const useChannelsData = () => {
 
   // Channel operations
   const testAllChannels = async () => {
-    const res = await API.get(`/api/channel/test`);
+    const res = await API.mutation('testAllChannels');
     const { success, message } = res.data;
     if (success) {
       showInfo(t('已成功开始测试所有已启用通道，请刷新页面查看结果。'));
@@ -728,7 +739,7 @@ export const useChannelsData = () => {
   };
 
   const deleteAllDisabledChannels = async () => {
-    const res = await API.delete(`/api/channel/disabled`);
+    const res = await API.mutation('deleteDisabledChannels');
     const { success, message, data } = res.data;
     if (success) {
       showSuccess(
@@ -741,7 +752,7 @@ export const useChannelsData = () => {
   };
 
   const updateAllChannelsBalance = async () => {
-    const res = await API.get(`/api/channel/update_balance`);
+    const res = await API.mutation('updateAllChannelBalance');
     const { success, message } = res.data;
     if (success) {
       showInfo(t('已更新完毕所有已启用通道余额！'));
@@ -751,7 +762,9 @@ export const useChannelsData = () => {
   };
 
   const updateChannelBalance = async (record) => {
-    const res = await API.get(`/api/channel/update_balance/${record.id}/`);
+    const res = await API.mutation('updateChannelBalance', {
+      id: record.id,
+    });
     const { success, message, balance } = res.data;
     if (success) {
       updateChannelProperty(record.id, (channel) => {
@@ -767,7 +780,7 @@ export const useChannelsData = () => {
   };
 
   const fixChannelsAbilities = async () => {
-    const res = await API.post(`/api/channel/fix`);
+    const res = await API.mutation('fixChannelsAbilities');
     const { success, message, data } = res.data;
     if (success) {
       showSuccess(
@@ -799,14 +812,14 @@ export const useChannelsData = () => {
     setTestingModels((prev) => new Set([...prev, model]));
 
     try {
-      let url = `/api/channel/test/${record.id}?model=${model}`;
-      if (endpointType) {
-        url += `&endpoint_type=${endpointType}`;
-      }
-      if (stream) {
-        url += `&stream=true`;
-      }
-      const res = await API.get(url);
+      const res = await API.mutation('testChannel', {
+        input: { id: record.id },
+        params: {
+          model,
+          ...(endpointType ? { endpoint_type: endpointType } : {}),
+          ...(stream ? { stream: true } : {}),
+        },
+      });
 
       // 检查是否在请求期间被停止
       if (shouldStopBatchTestingRef.current && isBatchTesting) {

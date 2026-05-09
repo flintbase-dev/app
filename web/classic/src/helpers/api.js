@@ -17,55 +17,22 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import {
-  showError,
-  formatMessageForAPI,
-  isValidMessage,
-} from './utils';
+import { showError, formatMessageForAPI, isValidMessage } from './utils';
 import axios from 'axios';
 import { MESSAGE_ROLES } from '../constants/playground.constants';
+import {
+  API_OPERATIONS,
+  buildGraphQLDocument,
+  getAPIOperationType,
+} from './apiOperations';
 
-export let API = axios.create({
-  baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
-    ? import.meta.env.VITE_REACT_APP_SERVER_URL
-    : '',
-  headers: {
-    'Cache-Control': 'no-store',
-  },
-});
+const GRAPHQL_API_ENDPOINT = '/api/graphql';
 
-function patchAPIInstance(instance) {
-  const originalGet = instance.get.bind(instance);
-  const inFlightGetRequests = new Map();
+let graphQLClient = createGraphQLClient();
+let inFlightQueryRequests = new Map();
 
-  const genKey = (url, config = {}) => {
-    const params = config.params ? JSON.stringify(config.params) : '{}';
-    return `${url}?${params}`;
-  };
-
-  instance.get = (url, config = {}) => {
-    if (config?.disableDuplicate) {
-      return originalGet(url, config);
-    }
-
-    const key = genKey(url, config);
-    if (inFlightGetRequests.has(key)) {
-      return inFlightGetRequests.get(key);
-    }
-
-    const reqPromise = originalGet(url, config).finally(() => {
-      inFlightGetRequests.delete(key);
-    });
-
-    inFlightGetRequests.set(key, reqPromise);
-    return reqPromise;
-  };
-}
-
-patchAPIInstance(API);
-
-export function updateAPI() {
-  API = axios.create({
+function createGraphQLClient() {
+  const client = axios.create({
     baseURL: import.meta.env.VITE_REACT_APP_SERVER_URL
       ? import.meta.env.VITE_REACT_APP_SERVER_URL
       : '',
@@ -74,20 +41,131 @@ export function updateAPI() {
     },
   });
 
-  patchAPIInstance(API);
+  client.interceptors.response.use(
+    (response) => response,
+    (error) => {
+      if (error.config && error.config.skipErrorHandler) {
+        return Promise.reject(error);
+      }
+      showError(error);
+      return Promise.reject(error);
+    },
+  );
+
+  return client;
 }
 
-API.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    // 如果请求配置中显式要求跳过全局错误处理，则不弹出默认错误提示
-    if (error.config && error.config.skipErrorHandler) {
-      return Promise.reject(error);
-    }
-    showError(error);
-    return Promise.reject(error);
-  },
-);
+function normalizeGraphQLVariables(variables = {}, operationType = 'query') {
+  const hasExplicitShape =
+    Object.prototype.hasOwnProperty.call(variables, 'input') ||
+    Object.prototype.hasOwnProperty.call(variables, 'params');
+  if (!hasExplicitShape) {
+    return operationType === 'query'
+      ? { input: null, params: variables }
+      : { input: variables, params: null };
+  }
+  return {
+    input: variables.input ?? null,
+    params: variables.params ?? null,
+  };
+}
+
+function createGraphQLError(response, operation) {
+  const message =
+    response.data?.errors?.[0]?.message ||
+    `GraphQL API operation failed: ${operation}`;
+  const error = new Error(message);
+  error.response = response;
+  return error;
+}
+
+async function executeGraphQLOperation(operation, variables = {}, config = {}) {
+  const operationType = getAPIOperationType(operation);
+  const payload = {
+    query: buildGraphQLDocument(operation),
+    variables: normalizeGraphQLVariables(variables, operationType),
+  };
+
+  const request = graphQLClient.post(GRAPHQL_API_ENDPOINT, payload, config);
+  const response = await request;
+  if (Array.isArray(response.data?.errors) && response.data.errors.length > 0) {
+    const error = createGraphQLError(response, operation);
+    error.config = config;
+    throw error;
+  }
+  return {
+    ...response,
+    data: response.data?.data?.[operation],
+    operation,
+    operationType,
+  };
+}
+
+function executeDedupedGraphQLQuery(operation, variables = {}, config = {}) {
+  if (config?.disableDuplicate) {
+    return executeGraphQLOperation(operation, variables, config);
+  }
+
+  const key = JSON.stringify({ operation, variables });
+  if (inFlightQueryRequests.has(key)) {
+    return inFlightQueryRequests.get(key);
+  }
+
+  const request = executeGraphQLOperation(operation, variables, config).finally(
+    () => {
+      inFlightQueryRequests.delete(key);
+    },
+  );
+  inFlightQueryRequests.set(key, request);
+  return request;
+}
+
+function createGraphQLAPI() {
+  return {
+    request(operation, variables = {}, config = {}) {
+      const operationType = getAPIOperationType(operation);
+      if (operationType === 'query') {
+        return executeDedupedGraphQLQuery(operation, variables, config);
+      }
+      return executeGraphQLOperation(operation, variables, config);
+    },
+    query(operation, variables = {}, config = {}) {
+      const operationType = getAPIOperationType(operation);
+      if (operationType !== 'query') {
+        throw new Error(`${operation} is not a GraphQL query operation`);
+      }
+      return executeDedupedGraphQLQuery(operation, variables, config);
+    },
+    mutation(operation, variables = {}, config = {}) {
+      const operationType = getAPIOperationType(operation);
+      if (operationType !== 'mutation') {
+        throw new Error(`${operation} is not a GraphQL mutation operation`);
+      }
+      return executeGraphQLOperation(operation, variables, config);
+    },
+    async redirect(operation, variables = {}, config = {}) {
+      const response = await this.mutation(operation, variables, config);
+      const location = response.data?.data?.location;
+      if (!location) {
+        throw new Error(
+          `GraphQL redirect operation ${operation} returned no location`,
+        );
+      }
+      window.location.assign(location);
+      return response;
+    },
+  };
+}
+
+export { API_OPERATIONS };
+
+export let API = createGraphQLAPI();
+
+export function updateAPI() {
+  graphQLClient = createGraphQLClient();
+  inFlightQueryRequests = new Map();
+  API = createGraphQLAPI();
+}
 
 // playground
 
@@ -223,7 +301,7 @@ export const processGroupsData = (data, userGroup) => {
 
 let channelModels = undefined;
 export async function loadChannelModels() {
-  const res = await API.get('/api/models');
+  const res = await API.query(API_OPERATIONS.dashboardModels);
   const { success, data } = res.data;
   if (!success) {
     return;

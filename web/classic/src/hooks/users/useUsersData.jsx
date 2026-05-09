@@ -71,7 +71,10 @@ export const useUsersData = () => {
   // Load users data
   const loadUsers = async (startIdx, pageSize) => {
     setLoading(true);
-    const res = await API.get(`/api/user/?p=${startIdx}&page_size=${pageSize}`);
+    const res = await API.query('users', {
+      p: startIdx,
+      page_size: pageSize,
+    });
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;
@@ -104,9 +107,12 @@ export const useUsersData = () => {
       return;
     }
     setSearching(true);
-    const res = await API.get(
-      `/api/user/search?keyword=${searchKeyword}&group=${searchGroup}&p=${startIdx}&page_size=${pageSize}`,
-    );
+    const res = await API.query('searchUsers', {
+      keyword: searchKeyword,
+      group: searchGroup,
+      p: startIdx,
+      page_size: pageSize,
+    });
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;
@@ -124,7 +130,7 @@ export const useUsersData = () => {
     // Trigger loading state to force table re-render
     setLoading(true);
 
-    const res = await API.post('/api/user/manage', {
+    const res = await API.mutation('manageUser', {
       id: userId,
       action,
     });
@@ -202,7 +208,7 @@ export const useUsersData = () => {
   // Fetch groups data
   const fetchGroups = async () => {
     try {
-      let res = await API.get(`/api/group/`);
+      let res = await API.query('groups');
       if (res === undefined) {
         return;
       }

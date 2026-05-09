@@ -68,7 +68,7 @@ export default function ModelPriceSettings(props) {
               typeof inputs[item.key] === 'boolean'
                 ? String(inputs[item.key])
                 : inputs[item.key];
-            return API.put('/api/option/', { key: item.key, value });
+            return API.mutation('updateOption', { key: item.key, value });
           });
 
           setLoading(true);
@@ -110,7 +110,7 @@ export default function ModelPriceSettings(props) {
 
   async function resetModelPrices() {
     try {
-      let res = await API.post(`/api/option/reset_model_prices`);
+      let res = await API.mutation('resetModelPrices');
       if (res.data.success) {
         showSuccess(res.data.message);
         props.refresh();

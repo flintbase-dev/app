@@ -128,7 +128,7 @@ const AddEditSubscriptionModal = ({
   useEffect(() => {
     if (!visible) return;
     setGroupLoading(true);
-    API.get('/api/group')
+    API.query('groups')
       .then((res) => {
         if (res.data?.success) {
           setGroupOptions(res.data?.data || []);
@@ -165,10 +165,10 @@ const AddEditSubscriptionModal = ({
         },
       };
       if (editingPlan?.plan?.id) {
-        const res = await API.put(
-          `/api/subscription/admin/plans/${editingPlan.plan.id}`,
-          payload,
-        );
+        const res = await API.mutation('updateSubscriptionPlan', {
+          id: editingPlan.plan.id,
+          ...payload,
+        });
         if (res.data?.success) {
           showSuccess(t('更新成功'));
           handleClose();
@@ -177,7 +177,7 @@ const AddEditSubscriptionModal = ({
           showError(res.data?.message || t('更新失败'));
         }
       } else {
-        const res = await API.post('/api/subscription/admin/plans', payload);
+        const res = await API.mutation('createSubscriptionPlan', payload);
         if (res.data?.success) {
           showSuccess(t('创建成功'));
           handleClose();

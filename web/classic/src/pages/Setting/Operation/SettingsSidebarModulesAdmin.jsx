@@ -132,7 +132,7 @@ export default function SettingsSidebarModulesAdmin(props) {
   async function onSubmit() {
     setLoading(true);
     try {
-      const res = await API.put('/api/option/', {
+      const res = await API.mutation('updateOption', {
         key: 'SidebarModulesAdmin',
         value: JSON.stringify(sidebarModulesAdmin),
       });

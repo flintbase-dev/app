@@ -85,7 +85,7 @@ const NoticeModal = ({
   const displayNotice = async () => {
     setLoading(true);
     try {
-      const res = await API.get('/api/notice');
+      const res = await API.query('notice');
       const { success, message, data } = res.data;
       if (success) {
         if (data !== '') {

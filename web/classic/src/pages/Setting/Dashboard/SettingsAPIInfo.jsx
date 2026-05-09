@@ -85,7 +85,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
   ];
 
   const updateOption = async (key, value) => {
-    const res = await API.put('/api/option/', {
+    const res = await API.mutation('updateOption', {
       key,
       value,
     });
@@ -222,7 +222,7 @@ const SettingsAPIInfo = ({ options, refresh }) => {
   const handleToggleEnabled = async (checked) => {
     const newValue = checked ? 'true' : 'false';
     try {
-      const res = await API.put('/api/option/', {
+      const res = await API.mutation('updateOption', {
         key: 'console_setting.api_info_enabled',
         value: newValue,
       });

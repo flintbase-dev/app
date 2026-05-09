@@ -104,7 +104,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const loadTokens = async (page = 1, size = pageSize) => {
     setLoading(true);
     setSearchMode(false);
-    const res = await API.get(`/api/token/?p=${page}&size=${size}`);
+    const res = await API.query('tokens', { p: page, size });
     const { success, message, data } = res.data;
     if (success) {
       syncPageData(data);
@@ -277,15 +277,21 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     let res;
     switch (action) {
       case 'delete':
-        res = await API.delete(`/api/token/${id}/`);
+        res = await API.mutation('deleteToken', { id });
         break;
       case 'enable':
         data.status = 1;
-        res = await API.put('/api/token/?status_only=true', data);
+        res = await API.mutation('updateToken', {
+          input: data,
+          params: { status_only: true },
+        });
         break;
       case 'disable':
         data.status = 2;
-        res = await API.put('/api/token/?status_only=true', data);
+        res = await API.mutation('updateToken', {
+          input: data,
+          params: { status_only: true },
+        });
         break;
     }
     const { success, message } = res.data;
@@ -306,8 +312,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   // Search tokens function
   const searchTokens = async (page = 1, size = pageSize) => {
     const normalizedPage = Number.isInteger(page) && page > 0 ? page : 1;
-    const normalizedSize =
-      Number.isInteger(size) && size > 0 ? size : pageSize;
+    const normalizedSize = Number.isInteger(size) && size > 0 ? size : pageSize;
 
     const { searchKeyword, searchToken } = getFormValues();
     if (searchKeyword === '' && searchToken === '') {
@@ -316,9 +321,12 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       return;
     }
     setSearching(true);
-    const res = await API.get(
-      `/api/token/search?keyword=${encodeURIComponent(searchKeyword)}&token=${encodeURIComponent(searchToken)}&p=${normalizedPage}&size=${normalizedSize}`,
-    );
+    const res = await API.query('searchTokens', {
+      keyword: searchKeyword,
+      token: searchToken,
+      p: normalizedPage,
+      size: normalizedSize,
+    });
     const { success, message, data } = res.data;
     if (success) {
       setSearchMode(true);
@@ -393,7 +401,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     setLoading(true);
     try {
       const ids = selectedKeys.map((token) => token.id);
-      const res = await API.post('/api/token/batch', { ids });
+      const res = await API.mutation('deleteTokens', { ids });
       if (res?.data?.success) {
         const count = res.data.data || 0;
         showSuccess(t('已删除 {{count}} 个令牌！', { count }));
@@ -448,7 +456,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       .catch((reason) => {
         showError(reason);
       });
-    API.get('/api/user/self/groups')
+    API.query('selfGroups')
       .then((res) => {
         if (res.data.success && res.data.data) {
           const ratios = {};

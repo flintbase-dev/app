@@ -13,9 +13,7 @@ const WorkOSCallback = () => {
 
     const loadSelf = async () => {
       try {
-        const res = await API.get('/api/user/self', {
-          skipErrorHandler: true,
-        });
+        const res = await API.query('self', {}, { skipErrorHandler: true });
         const { success, message, data } = res.data;
         if (!success) {
           throw new Error(message || 'WorkOS session was not established');

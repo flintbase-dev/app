@@ -88,7 +88,7 @@ function TokensPage() {
 
   const loadModels = async () => {
     try {
-      const res = await API.get('/api/user/models');
+      const res = await API.query('userModels');
       const { success, message, data } = res.data || {};
       if (success) {
         const categories = getModelCategories(tokensData.t);

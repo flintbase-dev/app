@@ -32,19 +32,10 @@ import { StatusContext } from '../../context/Status';
 import { useActualTheme } from '../../context/Theme';
 import { marked } from 'marked';
 import { useTranslation } from 'react-i18next';
-import {
-  IconPlay,
-  IconFile,
-  IconCopy,
-} from '@douyinfe/semi-icons';
+import { IconPlay, IconFile, IconCopy } from '@douyinfe/semi-icons';
 import { Link } from 'react-router-dom';
 import NoticeModal from '../../components/layout/NoticeModal';
-import {
-  OpenAI,
-  Claude,
-  Gemini,
-  AzureAI,
-} from '@lobehub/icons';
+import { OpenAI, Claude, Gemini, AzureAI } from '@lobehub/icons';
 
 const { Text } = Typography;
 
@@ -65,7 +56,7 @@ const Home = () => {
 
   const displayHomePageContent = async () => {
     setHomePageContent(localStorage.getItem('home_page_content') || '');
-    const res = await API.get('/api/home_page_content');
+    const res = await API.query('homePageContent');
     const { success, message, data } = res.data;
     if (success) {
       let content = data;
@@ -105,7 +96,7 @@ const Home = () => {
       const today = new Date().toDateString();
       if (lastCloseDate !== today) {
         try {
-          const res = await API.get('/api/notice');
+          const res = await API.query('notice');
           const { success, data } = res.data;
           if (success && data && data.trim() !== '') {
             setNoticeVisible(true);

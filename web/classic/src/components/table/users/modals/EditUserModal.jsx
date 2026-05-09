@@ -82,7 +82,7 @@ const EditUserModal = (props) => {
       return;
     }
     setLoading(true);
-    const res = await API.get(`/api/user/${userId}`);
+    const res = await API.query('user', { id: userId });
     const { success, message, data } = res.data;
     if (success) {
       const next = {
@@ -100,7 +100,7 @@ const EditUserModal = (props) => {
 
   const fetchGroups = async () => {
     try {
-      const res = await API.get('/api/group/');
+      const res = await API.query('groups');
       setGroupOptions(res.data.data.map((g) => ({ label: g, value: g })));
     } catch (e) {
       showError(e.message);
@@ -129,7 +129,7 @@ const EditUserModal = (props) => {
       group: values.group,
       remark: values.remark,
     };
-    const res = await API.put('/api/user/', payload);
+    const res = await API.mutation('updateUser', payload);
     const { success, message } = res.data;
     if (success) {
       showSuccess(t('用户信息更新成功！'));
@@ -146,7 +146,7 @@ const EditUserModal = (props) => {
     if (!quotaVal) return;
     setAdjustLoading(true);
     try {
-      const res = await API.post('/api/user/manage', {
+      const res = await API.mutation('manageUser', {
         id: parseInt(userId),
         action: 'add_quota',
         mode: adjustMode,

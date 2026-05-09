@@ -84,7 +84,7 @@ export default function SettingsMonitoring(props) {
         };
         value = normalizedMap[item.key] ?? inputs[item.key];
       }
-      return API.put('/api/option/', {
+      return API.mutation('updateOption', {
         key: item.key,
         value,
       });

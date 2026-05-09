@@ -33,7 +33,7 @@ const PerformanceSetting = () => {
   let [loading, setLoading] = useState(false);
 
   const getOptions = async () => {
-    const res = await API.get('/api/option/');
+    const res = await API.query('options');
     const { success, message, data } = res.data;
     if (success) {
       let newInputs = {};

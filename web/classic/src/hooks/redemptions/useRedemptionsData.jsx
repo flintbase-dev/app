@@ -74,9 +74,10 @@ export const useRedemptionsData = () => {
   const loadRedemptions = async (page = 1, pageSize) => {
     setLoading(true);
     try {
-      const res = await API.get(
-        `/api/redemption/?p=${page}&page_size=${pageSize}`,
-      );
+      const res = await API.query('redemptions', {
+        p: page,
+        page_size: pageSize,
+      });
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
@@ -102,9 +103,11 @@ export const useRedemptionsData = () => {
 
     setSearching(true);
     try {
-      const res = await API.get(
-        `/api/redemption/search?keyword=${searchKeyword}&p=1&page_size=${pageSize}`,
-      );
+      const res = await API.query('searchRedemptions', {
+        keyword: searchKeyword,
+        p: 1,
+        page_size: pageSize,
+      });
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = data.items;
@@ -129,15 +132,21 @@ export const useRedemptionsData = () => {
     try {
       switch (action) {
         case REDEMPTION_ACTIONS.DELETE:
-          res = await API.delete(`/api/redemption/${id}/`);
+          res = await API.mutation('deleteRedemption', { id });
           break;
         case REDEMPTION_ACTIONS.ENABLE:
           data.status = REDEMPTION_STATUS.UNUSED;
-          res = await API.put('/api/redemption/?status_only=true', data);
+          res = await API.mutation('updateRedemption', {
+            input: data,
+            params: { status_only: true },
+          });
           break;
         case REDEMPTION_ACTIONS.DISABLE:
           data.status = REDEMPTION_STATUS.DISABLED;
-          res = await API.put('/api/redemption/?status_only=true', data);
+          res = await API.mutation('updateRedemption', {
+            input: data,
+            params: { status_only: true },
+          });
           break;
         default:
           throw new Error('Unknown operation type');
@@ -259,7 +268,7 @@ export const useRedemptionsData = () => {
       content: t('将删除已使用、已禁用及过期的兑换码，此操作不可撤销。'),
       onOk: async () => {
         setLoading(true);
-        const res = await API.delete('/api/redemption/invalid');
+        const res = await API.mutation('deleteInvalidRedemptions');
         const { success, message, data } = res.data;
         if (success) {
           showSuccess(t('已删除 {{count}} 条失效兑换码', { count: data }));

@@ -115,7 +115,7 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
   const loadPlans = async () => {
     setPlansLoading(true);
     try {
-      const res = await API.get('/api/subscription/admin/plans');
+      const res = await API.query('adminSubscriptionPlans');
       if (res.data?.success) {
         setPlans(res.data.data || []);
       } else {
@@ -132,9 +132,9 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
     if (!user?.id) return;
     setLoading(true);
     try {
-      const res = await API.get(
-        `/api/subscription/admin/users/${user.id}/subscriptions`,
-      );
+      const res = await API.query('userSubscriptions', {
+        id: user.id,
+      });
       if (res.data?.success) {
         const next = res.data.data || [];
         setSubs(next);
@@ -172,12 +172,10 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
     }
     setCreating(true);
     try {
-      const res = await API.post(
-        `/api/subscription/admin/users/${user.id}/subscriptions`,
-        {
-          plan_id: selectedPlanId,
-        },
-      );
+      const res = await API.mutation('createUserSubscription', {
+        id: user.id,
+        plan_id: selectedPlanId,
+      });
       if (res.data?.success) {
         const msg = res.data?.data?.message;
         showSuccess(msg ? msg : t('新增成功'));
@@ -201,9 +199,9 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
       centered: true,
       onOk: async () => {
         try {
-          const res = await API.post(
-            `/api/subscription/admin/user_subscriptions/${subId}/invalidate`,
-          );
+          const res = await API.mutation('invalidateUserSubscription', {
+            id: subId,
+          });
           if (res.data?.success) {
             const msg = res.data?.data?.message;
             showSuccess(msg ? msg : t('已作废'));
@@ -227,9 +225,9 @@ const UserSubscriptionsModal = ({ visible, onCancel, user, t, onSuccess }) => {
       okType: 'danger',
       onOk: async () => {
         try {
-          const res = await API.delete(
-            `/api/subscription/admin/user_subscriptions/${subId}`,
-          );
+          const res = await API.mutation('deleteUserSubscription', {
+            id: subId,
+          });
           if (res.data?.success) {
             const msg = res.data?.data?.message;
             showSuccess(msg ? msg : t('已删除'));

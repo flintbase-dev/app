@@ -166,7 +166,7 @@ export default function SettingsSidebarModulesUser() {
     setLoading(true);
     try {
       console.log('保存用户边栏配置:', sidebarModulesUser);
-      const res = await API.put('/api/user/self', {
+      const res = await API.mutation('updateSelf', {
         sidebar_modules: JSON.stringify(sidebarModulesUser),
       });
       const { success, message } = res.data;
@@ -217,7 +217,7 @@ export default function SettingsSidebarModulesUser() {
         }
 
         // 获取用户个人配置
-        const userRes = await API.get('/api/user/self');
+        const userRes = await API.query('self');
         if (userRes.data.success && userRes.data.data.sidebar_modules) {
           let userConf;
           // 检查sidebar_modules是字符串还是对象

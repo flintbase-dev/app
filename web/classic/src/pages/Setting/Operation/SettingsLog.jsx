@@ -114,9 +114,12 @@ export default function SettingsLog() {
       onOk: async () => {
         try {
           setLoadingCleanHistoryLog(true);
-          const res = await API.delete(
-            `/api/log/?category=${inputs.historyCategory}&target_timestamp=${Date.parse(inputs.historyTimestamp) / 1000}`,
-          );
+          const res = await API.mutation('deleteHistoryLogs', {
+            params: {
+              category: inputs.historyCategory,
+              target_timestamp: Date.parse(inputs.historyTimestamp) / 1000,
+            },
+          });
           const { success, message, data } = res.data;
           if (success) {
             showSuccess(`${data} ${t('条日志已清理！')}`);

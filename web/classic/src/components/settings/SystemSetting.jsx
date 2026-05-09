@@ -82,7 +82,7 @@ const SystemSetting = () => {
 
   const getOptions = async () => {
     setLoading(true);
-    const res = await API.get('/api/option/');
+    const res = await API.query('options');
     const { success, message, data } = res.data;
     if (success) {
       let newInputs = {};
@@ -175,7 +175,7 @@ const SystemSetting = () => {
 
       // 处理 checkbox 类型的选项
       for (const opt of checkboxOptions) {
-        const res = await API.put('/api/option/', {
+        const res = await API.mutation('updateOption', {
           key: opt.key,
           value: opt.value.toString(),
         });
@@ -188,7 +188,7 @@ const SystemSetting = () => {
       // 处理其他选项
       if (otherOptions.length > 0) {
         const requestQueue = otherOptions.map((opt) =>
-          API.put('/api/option/', {
+          API.mutation('updateOption', {
             key: opt.key,
             value:
               typeof opt.value === 'boolean' ? opt.value.toString() : opt.value,

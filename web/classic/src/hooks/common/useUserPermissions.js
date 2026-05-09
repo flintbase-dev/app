@@ -33,7 +33,7 @@ export const useUserPermissions = () => {
     try {
       setLoading(true);
       setError(null);
-      const res = await API.get('/api/user/self');
+      const res = await API.query('self');
       if (res.data.success) {
         const userPermissions = res.data.data.permissions;
         setPermissions(userPermissions);

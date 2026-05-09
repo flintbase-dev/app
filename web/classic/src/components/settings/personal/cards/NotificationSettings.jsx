@@ -134,7 +134,7 @@ const NotificationSettings = ({
   const saveSidebarSettings = async () => {
     setSidebarLoading(true);
     try {
-      const res = await API.put('/api/user/self', {
+      const res = await API.mutation('updateSelf', {
         sidebar_modules: JSON.stringify(sidebarModulesUser),
       });
       if (res.data.success) {
@@ -193,7 +193,7 @@ const NotificationSettings = ({
         }
 
         // 获取用户个人配置
-        const userRes = await API.get('/api/user/self');
+        const userRes = await API.query('self');
         if (userRes.data.success && userRes.data.data.sidebar_modules) {
           let userConf;
           if (typeof userRes.data.data.sidebar_modules === 'string') {

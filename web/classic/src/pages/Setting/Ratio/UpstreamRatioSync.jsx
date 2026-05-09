@@ -143,7 +143,7 @@ export default function UpstreamRatioSync(props) {
   const fetchAllChannels = async () => {
     setLoading(true);
     try {
-      const res = await API.get('/api/ratio_sync/channels');
+      const res = await API.query('syncableChannels');
 
       if (res.data.success) {
         const channels = res.data.data || [];
@@ -226,7 +226,7 @@ export default function UpstreamRatioSync(props) {
     };
 
     try {
-      const res = await API.post('/api/ratio_sync/fetch', payload);
+      const res = await API.mutation('fetchUpstreamRatios', payload);
 
       if (!res.data.success) {
         showError(res.data.message || t('后端请求失败'));
@@ -564,7 +564,7 @@ export default function UpstreamRatioSync(props) {
       let success = false;
       try {
         const updates = Object.entries(finalRatios).map(([key, value]) =>
-          API.put('/api/option/', {
+          API.mutation('updateOption', {
             key,
             value: JSON.stringify(value, null, 2),
           }),

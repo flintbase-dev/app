@@ -116,7 +116,7 @@ export default function SettingGlobalModel(props) {
       );
       let value = String(normalizedValue);
 
-      return API.put('/api/option/', {
+      return API.mutation('updateOption', {
         key: item.key,
         value,
       });

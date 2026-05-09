@@ -46,7 +46,7 @@ const MissingModelsModal = ({ visible, onClose, onConfigureModel, t }) => {
   const fetchMissing = async () => {
     setLoading(true);
     try {
-      const res = await API.get('/api/models/missing');
+      const res = await API.query('missingModels');
       if (res.data.success) {
         setMissingModels(res.data.data || []);
       } else {

@@ -267,9 +267,13 @@ export const useLogsData = () => {
       getFormValues();
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    let url = `/api/log/self/stat?token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}`;
-    url = encodeURI(url);
-    let res = await API.get(url);
+    let res = await API.query('logsSelfStat', {
+      token_name,
+      model_name,
+      start_timestamp: localStartTimestamp,
+      end_timestamp: localEndTimestamp,
+      group,
+    });
     const { success, message, data } = res.data;
     if (success) {
       setStat(data);
@@ -290,9 +294,15 @@ export const useLogsData = () => {
     } = getFormValues();
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    let url = `/api/log/stat?username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}`;
-    url = encodeURI(url);
-    let res = await API.get(url);
+    let res = await API.query('logsStat', {
+      username,
+      token_name,
+      model_name,
+      start_timestamp: localStartTimestamp,
+      end_timestamp: localEndTimestamp,
+      channel,
+      group,
+    });
     const { success, message, data } = res.data;
     if (success) {
       setStat(data);
@@ -326,7 +336,7 @@ export const useLogsData = () => {
     if (!isAdminUser) {
       return;
     }
-    const res = await API.get(`/api/user/${userId}`);
+    const res = await API.query('user', { id: userId });
     const { success, message, data } = res.data;
     if (success) {
       setUserInfoData(data);
@@ -762,13 +772,18 @@ export const useLogsData = () => {
 
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    if (isAdminUser) {
-      url = `/api/log/?p=${startIdx}&page_size=${pageSize}&category=${currentLogCategory}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
-    } else {
-      url = `/api/log/self/?p=${startIdx}&page_size=${pageSize}&category=${currentLogCategory}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
-    }
-    url = encodeURI(url);
-    const res = await API.get(url);
+    const res = await API.query(isAdminUser ? 'logs' : 'userLogs', {
+      p: startIdx,
+      page_size: pageSize,
+      category: currentLogCategory,
+      ...(isAdminUser ? { username, channel } : {}),
+      token_name,
+      model_name,
+      start_timestamp: localStartTimestamp,
+      end_timestamp: localEndTimestamp,
+      group,
+      request_id,
+    });
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;

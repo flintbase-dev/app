@@ -35,7 +35,7 @@ const About = () => {
 
   const displayAbout = async () => {
     setAbout(localStorage.getItem('about') || '');
-    const res = await API.get('/api/about');
+    const res = await API.query('about');
     const { success, message, data } = res.data;
     if (success) {
       let aboutContent = data;

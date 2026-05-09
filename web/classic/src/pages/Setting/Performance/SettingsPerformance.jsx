@@ -89,7 +89,7 @@ export default function SettingsPerformance(props) {
       } else {
         value = String(inputs[item.key]);
       }
-      return API.put('/api/option/', {
+      return API.mutation('updateOption', {
         key: item.key,
         value,
       });
@@ -118,7 +118,7 @@ export default function SettingsPerformance(props) {
   async function fetchStats() {
     setStatsLoading(true);
     try {
-      const res = await API.get('/api/performance/stats');
+      const res = await API.query('performanceStats');
       if (res.data.success) {
         setStats(res.data.data);
       }
@@ -131,7 +131,7 @@ export default function SettingsPerformance(props) {
 
   async function clearDiskCache() {
     try {
-      const res = await API.delete('/api/performance/disk_cache');
+      const res = await API.mutation('clearDiskCache');
       if (res.data.success) {
         showSuccess(t('磁盘缓存已清理'));
         fetchStats();
@@ -145,7 +145,7 @@ export default function SettingsPerformance(props) {
 
   async function resetStats() {
     try {
-      const res = await API.post('/api/performance/reset_stats');
+      const res = await API.mutation('resetPerformanceStats');
       if (res.data.success) {
         showSuccess(t('统计已重置'));
         fetchStats();
@@ -157,7 +157,7 @@ export default function SettingsPerformance(props) {
 
   async function forceGC() {
     try {
-      const res = await API.post('/api/performance/gc');
+      const res = await API.mutation('forceGC');
       if (res.data.success) {
         showSuccess(t('GC 已执行'));
         fetchStats();

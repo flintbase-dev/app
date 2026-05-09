@@ -61,7 +61,7 @@ export default function GeneralSettings(props) {
       } else {
         value = inputs[item.key];
       }
-      return API.put('/api/option/', {
+      return API.mutation('updateOption', {
         key: item.key,
         value,
       });

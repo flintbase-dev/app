@@ -31,7 +31,7 @@ import { useTranslation } from 'react-i18next';
 import Text from '@douyinfe/semi-ui/lib/es/typography/text';
 
 const GEMINI_SETTING_EXAMPLE = {
-  default: 'OFF'
+  default: 'OFF',
 };
 
 const GEMINI_VERSION_EXAMPLE = {
@@ -64,7 +64,7 @@ export default function SettingGeminiModel(props) {
         if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
         const requestQueue = updateArray.map((item) => {
           let value = String(inputs[item.key]);
-          return API.put('/api/option/', {
+          return API.mutation('updateOption', {
             key: item.key,
             value,
           });

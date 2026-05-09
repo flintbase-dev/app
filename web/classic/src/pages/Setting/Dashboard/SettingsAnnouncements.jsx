@@ -198,7 +198,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
   ];
 
   const updateOption = async (key, value) => {
-    const res = await API.put('/api/option/', {
+    const res = await API.mutation('updateOption', {
       key,
       value,
     });
@@ -353,7 +353,7 @@ const SettingsAnnouncements = ({ options, refresh }) => {
   const handleToggleEnabled = async (checked) => {
     const newValue = checked ? 'true' : 'false';
     try {
-      const res = await API.put('/api/option/', {
+      const res = await API.mutation('updateOption', {
         key: 'console_setting.announcements_enabled',
         value: newValue,
       });

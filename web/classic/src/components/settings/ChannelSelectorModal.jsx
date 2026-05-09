@@ -125,8 +125,8 @@ const ChannelSelectorModal = forwardRef(
       const currentEndpoint = channelEndpoints[channelId] || '';
 
       const getEndpointType = (ep) => {
-        if (ep === '/api/ratio_config') return 'ratio_config';
-        if (ep === '/api/pricing') return 'pricing';
+        if (ep === 'ratioConfig') return 'ratio_config';
+        if (ep === 'pricing') return 'pricing';
         return 'custom';
       };
 
@@ -134,9 +134,9 @@ const ChannelSelectorModal = forwardRef(
 
       const handleTypeChange = (val) => {
         if (val === 'ratio_config') {
-          updateEndpoint(channelId, '/api/ratio_config');
+          updateEndpoint(channelId, 'ratioConfig');
         } else if (val === 'pricing') {
-          updateEndpoint(channelId, '/api/pricing');
+          updateEndpoint(channelId, 'pricing');
         } else {
           if (currentType !== 'custom') {
             updateEndpoint(channelId, '');

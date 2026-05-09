@@ -113,7 +113,7 @@ export default function SettingsGeneralPayment(props) {
 
       const results = await Promise.all(
         options.map((option) =>
-          API.put('/api/option/', {
+          API.mutation('updateOption', {
             key: option.key,
             value: option.value,
           }),

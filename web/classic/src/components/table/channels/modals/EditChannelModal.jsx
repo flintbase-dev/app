@@ -577,7 +577,7 @@ const EditChannelModal = (props) => {
 
   const loadChannel = async () => {
     setLoading(true);
-    let res = await API.get(`/api/channel/${channelId}`);
+    let res = await API.query('channel', { id: channelId });
     if (res === undefined) {
       return;
     }
@@ -742,8 +742,6 @@ const EditChannelModal = (props) => {
       initialModelMappingRef.current = data.model_mapping || '';
       initialStatusCodeMappingRef.current = data.status_code_mapping || '';
 
-
-
       // Smart expand: auto-open advanced settings if any advanced field has a value
       const hasAdvancedValues =
         (data.model_mapping && data.model_mapping.trim()) ||
@@ -782,9 +780,11 @@ const EditChannelModal = (props) => {
 
     if (isEdit) {
       // 如果是编辑模式，使用已有的 channelId 获取模型列表
-      const res = await API.get('/api/channel/fetch_models/' + channelId, {
-        skipErrorHandler: true,
-      });
+      const res = await API.mutation(
+        'fetchUpstreamModels',
+        { id: channelId },
+        { skipErrorHandler: true },
+      );
       if (res && res.data && res.data.success) {
         models.push(...res.data.data);
       } else {
@@ -797,8 +797,8 @@ const EditChannelModal = (props) => {
         err = true;
       } else {
         try {
-          const res = await API.post(
-            '/api/channel/fetch_models',
+          const res = await API.mutation(
+            'fetchModels',
             {
               base_url: inputs['base_url'],
               type: inputs['type'],
@@ -872,7 +872,7 @@ const EditChannelModal = (props) => {
 
   const fetchModels = async () => {
     try {
-      let res = await API.get(`/api/channel/models`);
+      let res = await API.query('channelModels');
       const localModelOptions = res.data.data.map((model) => {
         const id = (model.id || '').trim();
         return {
@@ -897,7 +897,7 @@ const EditChannelModal = (props) => {
 
   const fetchGroups = async () => {
     try {
-      let res = await API.get(`/api/group/`);
+      let res = await API.query('groups');
       if (res === undefined) {
         return;
       }
@@ -914,7 +914,7 @@ const EditChannelModal = (props) => {
 
   const fetchModelGroups = async () => {
     try {
-      const res = await API.get('/api/prefill_group?type=model');
+      const res = await API.query('prefillGroups', { type: 'model' });
       if (res?.data?.success) {
         setModelGroups(res.data.data || []);
       }
@@ -926,7 +926,9 @@ const EditChannelModal = (props) => {
   // 查看渠道密钥。身份和 MFA 由 WorkOS Hosted UI 负责，应用侧只做 Root 授权。
   const handleShowChannelKey = async () => {
     try {
-      const response = await API.post(`/api/channel/${channelId}/key`, {});
+      const response = await API.mutation('channelKey', {
+        id: channelId,
+      });
       const result = response.data;
       if (result && result.success && result.data?.key) {
         showSuccess(t('密钥获取成功'));
@@ -1227,8 +1229,6 @@ const EditChannelModal = (props) => {
     let localInputs = { ...formValues };
     localInputs.param_override = inputs.param_override;
 
-
-
     if (localInputs.type === 41) {
       const keyType = localInputs.vertex_key_type || 'json';
       if (keyType === 'api_key') {
@@ -1489,13 +1489,13 @@ const EditChannelModal = (props) => {
     }
 
     if (isEdit) {
-      res = await API.put(`/api/channel/`, {
+      res = await API.mutation('updateChannel', {
         ...localInputs,
         id: parseInt(channelId),
         key_mode: isMultiKeyChannel ? keyMode : undefined, // 只在多key模式下传递
       });
     } else {
-      res = await API.post(`/api/channel/`, {
+      res = await API.mutation('createChannel', {
         mode: mode,
         multi_key_mode: mode === 'multi_to_single' ? multiKeyMode : undefined,
         channel: localInputs,
@@ -2431,8 +2431,6 @@ const EditChannelModal = (props) => {
                         </div>
                       </div>
 
-
-
                       <Form.Select
                         field='type'
                         label={t('类型')}
@@ -2449,8 +2447,6 @@ const EditChannelModal = (props) => {
                         renderOptionItem={renderChannelOption}
                         onChange={(value) => handleInputChange('type', value)}
                       />
-
-
 
                       <Form.Input
                         field='name'
@@ -2947,7 +2943,9 @@ const EditChannelModal = (props) => {
                           <div>
                             <Form.Input
                               field='azure_responses_version'
-                              label={t('默认 Responses API 版本，为空则使用上方版本')}
+                              label={t(
+                                '默认 Responses API 版本，为空则使用上方版本',
+                              )}
                               placeholder={t('例如：preview')}
                               onChange={(value) =>
                                 handleChannelOtherSettingsChange(

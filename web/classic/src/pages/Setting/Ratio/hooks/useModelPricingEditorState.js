@@ -983,13 +983,13 @@ export function useModelPricingEditorState({
 
       const requestQueue = [
         ...Object.entries(output).map(([key, value]) =>
-          API.put('/api/option/', {
+          API.mutation('updateOption', {
             key,
             value: JSON.stringify(value, null, 2),
           }),
         ),
         ...Object.entries(tieredOutput).map(([key, value]) =>
-          API.put('/api/option/', {
+          API.mutation('updateOption', {
             key,
             value: JSON.stringify(value, null, 2),
           }),

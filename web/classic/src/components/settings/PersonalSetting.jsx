@@ -58,7 +58,7 @@ const PersonalSetting = () => {
   useEffect(() => {
     (async () => {
       try {
-        const res = await API.get('/api/status');
+        const res = await API.query('status');
         const { success, data } = res.data;
         if (success && data) {
           setStatus(data);
@@ -111,7 +111,7 @@ const PersonalSetting = () => {
   };
 
   const generateAccessToken = async () => {
-    const res = await API.get('/api/user/token');
+    const res = await API.mutation('generateAccessToken');
     const { success, message, data } = res.data;
     if (success) {
       setSystemToken(data);
@@ -129,7 +129,7 @@ const PersonalSetting = () => {
       showError(t('请输入正确的用户名以确认删除'));
       return;
     }
-    const res = await API.delete('/api/user/self');
+    const res = await API.mutation('deleteSelf');
     if (res.data.success) {
       showSuccess(t('账户已删除'));
       userDispatch({ type: 'logout' });
@@ -142,7 +142,7 @@ const PersonalSetting = () => {
   };
 
   const saveNotificationSettings = async () => {
-    const res = await API.put('/api/user/setting', {
+    const res = await API.mutation('updateUserSetting', {
       notify_type: notificationSettings.warningType,
       quota_warning_threshold: notificationSettings.warningThreshold,
       webhook_url: notificationSettings.webhookUrl,

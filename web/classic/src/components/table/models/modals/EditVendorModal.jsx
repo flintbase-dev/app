@@ -50,7 +50,9 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
 
     setLoading(true);
     try {
-      const res = await API.get(`/api/vendors/${editingVendor.id}`);
+      const res = await API.query('vendor', {
+        id: editingVendor.id,
+      });
       const { success, message, data } = res.data;
       if (success) {
         // 将数字状态转为布尔值
@@ -90,7 +92,7 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
 
       if (isEdit) {
         submitData.id = editingVendor.id;
-        const res = await API.put('/api/vendors/', submitData);
+        const res = await API.mutation('updateVendor', submitData);
         const { success, message } = res.data;
         if (success) {
           showSuccess(t('供应商更新成功！'));
@@ -100,7 +102,7 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
           showError(t(message));
         }
       } else {
-        const res = await API.post('/api/vendors/', submitData);
+        const res = await API.mutation('createVendor', submitData);
         const { success, message } = res.data;
         if (success) {
           showSuccess(t('供应商创建成功！'));

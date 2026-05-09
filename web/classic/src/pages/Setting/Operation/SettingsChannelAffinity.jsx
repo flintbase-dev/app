@@ -375,7 +375,7 @@ export default function SettingsChannelAffinity(props) {
   const refreshCacheStats = async () => {
     try {
       setCacheLoading(true);
-      const res = await API.get('/api/option/channel_affinity_cache', {
+      const res = await API.query('channelAffinityCache', {
         disableDuplicate: true,
       });
       const { success, message, data } = res.data;
@@ -397,7 +397,7 @@ export default function SettingsChannelAffinity(props) {
         </div>
       ),
       onOk: async () => {
-        const res = await API.delete('/api/option/channel_affinity_cache', {
+        const res = await API.mutation('clearChannelAffinityCache', {
           params: { all: true },
         });
         const { success, message } = res.data;
@@ -428,7 +428,7 @@ export default function SettingsChannelAffinity(props) {
         </div>
       ),
       onOk: async () => {
-        const res = await API.delete('/api/option/channel_affinity_cache', {
+        const res = await API.mutation('clearChannelAffinityCache', {
           params: { rule_name: name },
         });
         const { success, message } = res.data;
@@ -826,7 +826,7 @@ export default function SettingsChannelAffinity(props) {
       } else {
         value = String(inputs[item.key] ?? '');
       }
-      return API.put('/api/option/', { key: item.key, value });
+      return API.mutation('updateOption', { key: item.key, value });
     });
 
     setLoading(true);

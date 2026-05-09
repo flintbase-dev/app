@@ -86,7 +86,7 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
     const isFirstLoad = !initialLoaded;
     setLoading(true);
     try {
-      const res = await API.get(`/api/user/checkin?month=${month}`);
+      const res = await API.query('checkinStatus', { month });
       const { success, data, message } = res.data;
       if (success) {
         setCheckinData(data);
@@ -114,10 +114,9 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
   };
 
   const postCheckin = async (token) => {
-    const url = token
-      ? `/api/user/checkin?turnstile=${encodeURIComponent(token)}`
-      : '/api/user/checkin';
-    return API.post(url);
+    return API.mutation('checkin', {
+      params: token ? { turnstile: token } : {},
+    });
   };
 
   const shouldTriggerTurnstile = (message) => {

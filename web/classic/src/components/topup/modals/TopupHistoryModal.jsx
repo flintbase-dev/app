@@ -64,12 +64,11 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const loadTopups = async (currentPage, currentPageSize) => {
     setLoading(true);
     try {
-      const base = isAdmin() ? '/api/user/topup' : '/api/user/topup/self';
-      const qs =
-        `p=${currentPage}&page_size=${currentPageSize}` +
-        (keyword ? `&keyword=${encodeURIComponent(keyword)}` : '');
-      const endpoint = `${base}?${qs}`;
-      const res = await API.get(endpoint);
+      const res = await API.query(isAdmin() ? 'adminTopups' : 'userTopups', {
+        p: currentPage,
+        page_size: currentPageSize,
+        ...(keyword ? { keyword } : {}),
+      });
       const { success, message, data } = res.data;
       if (success) {
         setTopups(data.items || []);
@@ -107,7 +106,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   // 管理员补单
   const handleAdminComplete = async (tradeNo) => {
     try {
-      const res = await API.post('/api/user/topup/complete', {
+      const res = await API.mutation('completeTopup', {
         trade_no: tradeNo,
       });
       const { success, message } = res.data;

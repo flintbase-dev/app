@@ -28,7 +28,7 @@ export default function ModelPriceNotSetEditor(props) {
 
   const getAllEnabledModels = async () => {
     try {
-      const res = await API.get('/api/channel/models_enabled');
+      const res = await API.query('enabledChannelModels');
       const { success, message, data } = res.data;
       if (success) {
         setEnabledModels(data);

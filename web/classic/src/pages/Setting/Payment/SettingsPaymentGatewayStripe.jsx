@@ -125,7 +125,7 @@ export default function SettingsPaymentGateway(props) {
 
       // 发送请求
       const requestQueue = options.map((opt) =>
-        API.put('/api/option/', {
+        API.mutation('updateOption', {
           key: opt.key,
           value: opt.value,
         }),

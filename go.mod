@@ -58,6 +58,7 @@ require (
 	github.com/ClickHouse/clickhouse-go/v2 v2.30.0 // indirect
 	github.com/go-faster/city v1.0.1 // indirect
 	github.com/go-faster/errors v0.7.1 // indirect
+	github.com/graphql-go/graphql v0.8.1 // indirect
 	github.com/hashicorp/go-version v1.6.0 // indirect
 	github.com/paulmach/orb v0.11.1 // indirect
 	github.com/pierrec/lz4/v4 v4.1.21 // indirect

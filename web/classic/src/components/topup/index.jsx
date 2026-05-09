@@ -116,7 +116,7 @@ const TopUp = () => {
     }
     setIsSubmitting(true);
     try {
-      const res = await API.post('/api/user/topup', {
+      const res = await API.mutation('topup', {
         key: redemptionCode,
       });
       const { success, message, data } = res.data;
@@ -196,7 +196,7 @@ const TopUp = () => {
     }
     setConfirmLoading(true);
     try {
-      const res = await API.post('/api/user/stripe/pay', {
+      const res = await API.mutation('stripePay', {
         amount: parseInt(topUpCount),
         payment_method: 'stripe',
       });
@@ -222,7 +222,7 @@ const TopUp = () => {
   };
 
   const getUserQuota = async () => {
-    let res = await API.get(`/api/user/self`);
+    let res = await API.query('self');
     const { success, message, data } = res.data;
     if (success) {
       userDispatch({ type: 'login', payload: data });
@@ -234,7 +234,7 @@ const TopUp = () => {
   const getSubscriptionPlans = async () => {
     setSubscriptionLoading(true);
     try {
-      const res = await API.get('/api/subscription/plans');
+      const res = await API.query('subscriptionPlans');
       if (res.data?.success) {
         setSubscriptionPlans(res.data.data || []);
       }
@@ -247,7 +247,7 @@ const TopUp = () => {
 
   const getSubscriptionSelf = async () => {
     try {
-      const res = await API.get('/api/subscription/self');
+      const res = await API.query('subscriptionSelf');
       if (res.data?.success) {
         setBillingPreference(
           res.data.data?.billing_preference || 'subscription_first',
@@ -268,7 +268,7 @@ const TopUp = () => {
     const previousPref = billingPreference;
     setBillingPreference(pref);
     try {
-      const res = await API.put('/api/subscription/self/preference', {
+      const res = await API.mutation('updateSubscriptionPreference', {
         billing_preference: pref,
       });
       if (res.data?.success) {
@@ -289,7 +289,7 @@ const TopUp = () => {
   // 获取充值配置信息
   const getTopupInfo = async () => {
     try {
-      const res = await API.get('/api/user/topup/info');
+      const res = await API.query('topupInfo');
       const { message, data, success } = res.data;
       if (success) {
         setTopupInfo({
@@ -372,7 +372,7 @@ const TopUp = () => {
 
   // 获取邀请链接
   const getAffLink = async () => {
-    const res = await API.get('/api/user/aff');
+    const res = await API.query('affCode');
     const { success, message, data } = res.data;
     if (success) {
       const params = new URLSearchParams({
@@ -394,7 +394,7 @@ const TopUp = () => {
       );
       return;
     }
-    const res = await API.post(`/api/user/aff_transfer`, {
+    const res = await API.mutation('affTransfer', {
       quota: transferAmount,
     });
     const { success, message } = res.data;
@@ -462,7 +462,7 @@ const TopUp = () => {
     }
     setAmountLoading(true);
     try {
-      const res = await API.post('/api/user/stripe/amount', {
+      const res = await API.mutation('stripeAmount', {
         amount: parseFloat(value),
       });
       if (res !== undefined) {

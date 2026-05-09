@@ -38,7 +38,7 @@ const SetupWizard = () => {
   const fetchSetupStatus = async () => {
     setLoading(true);
     try {
-      const res = await API.get('/api/setup');
+      const res = await API.query('setup');
       const { success, data } = res.data;
       if (success) {
         setSetupStatus(data);

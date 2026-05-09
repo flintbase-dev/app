@@ -76,7 +76,9 @@ const EditRedemptionModal = (props) => {
 
   const loadRedemption = async () => {
     setLoading(true);
-    let res = await API.get(`/api/redemption/${props.editingRedemption.id}`);
+    let res = await API.query('redemption', {
+      id: props.editingRedemption.id,
+    });
     const { success, message, data } = res.data;
     if (success) {
       if (data.expired_time === 0) {
@@ -126,12 +128,12 @@ const EditRedemptionModal = (props) => {
     }
     let res;
     if (isEdit) {
-      res = await API.put(`/api/redemption/`, {
+      res = await API.mutation('updateRedemption', {
         ...localInputs,
         id: parseInt(props.editingRedemption.id),
       });
     } else {
-      res = await API.post(`/api/redemption/`, {
+      res = await API.mutation('createRedemption', {
         ...localInputs,
       });
     }

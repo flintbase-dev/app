@@ -97,7 +97,7 @@ export default function SettingsHeaderNavModules(props) {
   async function onSubmit() {
     setLoading(true);
     try {
-      const res = await API.put('/api/option/', {
+      const res = await API.mutation('updateOption', {
         key: 'HeaderNavModules',
         value: JSON.stringify(headerNavModules),
       });

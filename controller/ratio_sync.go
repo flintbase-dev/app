@@ -29,7 +29,7 @@ import (
 
 const (
 	defaultTimeoutSeconds        = 10
-	defaultEndpoint              = "/api/pricing"
+	defaultEndpoint              = "pricing"
 	maxConcurrentFetches         = 8
 	maxPricingConfigBytes        = 10 << 20 // 10MB
 	floatEpsilon                 = 1e-9
@@ -223,10 +223,13 @@ func FetchUpstreamRatios(c *gin.Context) {
 			sem <- struct{}{}
 			defer func() { <-sem }()
 
-			endpoint := chItem.Endpoint
+			endpoint := strings.TrimSpace(chItem.Endpoint)
 			var fullURL string
+			graphQLOperation := ratioSyncGraphQLOperation(endpoint)
 			if strings.HasPrefix(endpoint, "http://") || strings.HasPrefix(endpoint, "https://") {
 				fullURL = endpoint
+			} else if graphQLOperation != "" {
+				fullURL = chItem.BaseURL + "/api/graphql"
 			} else {
 				if endpoint == "" {
 					endpoint = defaultEndpoint
@@ -235,7 +238,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 				}
 				fullURL = chItem.BaseURL + endpoint
 			}
-			isModelsDev := isModelsDevAPIEndpoint(fullURL)
+			isModelsDev := graphQLOperation == "" && isModelsDevAPIEndpoint(fullURL)
 
 			uniqueName := chItem.Name
 			if chItem.ID != 0 {
@@ -245,11 +248,20 @@ func FetchUpstreamRatios(c *gin.Context) {
 			ctx, cancel := context.WithTimeout(c.Request.Context(), time.Duration(req.Timeout)*time.Second)
 			defer cancel()
 
-			httpReq, err := http.NewRequestWithContext(ctx, http.MethodGet, fullURL, nil)
+			method := http.MethodGet
+			var requestBody io.Reader
+			if graphQLOperation != "" {
+				method = http.MethodPost
+				requestBody = strings.NewReader(fmt.Sprintf(`{"query":"query { %s }"}`, graphQLOperation))
+			}
+			httpReq, err := http.NewRequestWithContext(ctx, method, fullURL, requestBody)
 			if err != nil {
 				logger.LogWarn(c.Request.Context(), "build request failed: "+err.Error())
 				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
 				return
+			}
+			if graphQLOperation != "" {
+				httpReq.Header.Set("Content-Type", "application/json")
 			}
 
 			// 简单重试：最多 3 次，指数退避
@@ -285,6 +297,14 @@ func FetchUpstreamRatios(c *gin.Context) {
 				ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
 				return
 			}
+			if graphQLOperation != "" {
+				bodyBytes, err = unwrapGraphQLRatioSyncResponse(bodyBytes, graphQLOperation)
+				if err != nil {
+					logger.LogWarn(c.Request.Context(), "graphql response parse failed from "+chItem.Name+": "+err.Error())
+					ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
+					return
+				}
+			}
 
 			// type4: models.dev /api.json -> convert provider model pricing to local pricing fields
 			if isModelsDev {
@@ -298,9 +318,9 @@ func FetchUpstreamRatios(c *gin.Context) {
 				return
 			}
 
-			// 支持两种上游接口格式：
-			//  type1: /api/ratio_config -> data 为 map[string]any，包含 model_price/completion_price/cache_ratio/model_fixed_price
-			//  type2: /api/pricing      -> data 为 []Pricing 列表，需要转换为与 type1 相同的 map 格式
+			// 支持两种上游 GraphQL operation 返回格式：
+			//  type1: ratioConfig -> data 为 map[string]any，包含 model_price/completion_price/cache_ratio/model_fixed_price
+			//  type2: pricing     -> data 为 []Pricing 列表，需要转换为与 type1 相同的 map 格式
 			var body struct {
 				Success bool            `json:"success"`
 				Data    json.RawMessage `json:"data"`
@@ -337,7 +357,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 				}
 			}
 
-			// 如果不是 type1，则尝试按 type2 (/api/pricing) 解析
+			// 如果不是 type1，则尝试按 type2 (pricing) 解析
 			var pricingItems []struct {
 				ModelName            string   `json:"model_name"`
 				QuotaType            int      `json:"quota_type"`
@@ -621,6 +641,37 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
 
 func roundRatioValue(value float64) float64 {
 	return math.Round(value*1e6) / 1e6
+}
+
+func ratioSyncGraphQLOperation(endpoint string) string {
+	switch strings.TrimSpace(endpoint) {
+	case "", "pricing":
+		return "pricing"
+	case "ratioConfig":
+		return "ratioConfig"
+	default:
+		return ""
+	}
+}
+
+func unwrapGraphQLRatioSyncResponse(bodyBytes []byte, operation string) ([]byte, error) {
+	var payload struct {
+		Data   map[string]json.RawMessage `json:"data"`
+		Errors []struct {
+			Message string `json:"message"`
+		} `json:"errors"`
+	}
+	if err := common.DecodeJson(bytes.NewReader(bodyBytes), &payload); err != nil {
+		return nil, err
+	}
+	if len(payload.Errors) > 0 {
+		return nil, fmt.Errorf("%s", payload.Errors[0].Message)
+	}
+	data, ok := payload.Data[operation]
+	if !ok || len(data) == 0 {
+		return nil, fmt.Errorf("missing GraphQL data field %q", operation)
+	}
+	return data, nil
 }
 
 func isModelsDevAPIEndpoint(rawURL string) bool {

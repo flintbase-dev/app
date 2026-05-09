@@ -59,7 +59,7 @@ const OtherSetting = () => {
 
   const updateOption = async (key, value) => {
     setLoading(true);
-    const res = await API.put('/api/option/', {
+    const res = await API.mutation('updateOption', {
       key,
       value,
     });
@@ -235,12 +235,6 @@ const OtherSetting = () => {
         CheckUpdate: true,
       }));
       // Use a CORS proxy to avoid direct cross-origin requests to GitHub API
-      // Option 1: Use a public CORS proxy service
-      // const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-      // const res = await API.get(
-      //   `${proxyUrl}https://api.github.com/repos/Calcium-Ion/new-api/releases/latest`,
-      // );
-
       // Option 2: Use the JSON proxy approach which often works better with GitHub API
       const res = await fetch(
         'https://api.github.com/repos/Calcium-Ion/new-api/releases/latest',
@@ -253,10 +247,6 @@ const OtherSetting = () => {
           },
         },
       ).then((response) => response.json());
-
-      // Option 3: Use a local proxy endpoint
-      // Create a cached version of the response to avoid frequent GitHub API calls
-      // const res = await API.get('/api/status/github-latest-release');
 
       const { tag_name, body } = res;
       if (tag_name === statusState?.status?.version) {
@@ -280,7 +270,7 @@ const OtherSetting = () => {
   };
 
   const getOptions = async () => {
-    const res = await API.get('/api/option/');
+    const res = await API.query('options');
     const { success, message, data } = res.data;
     if (success) {
       let newInputs = {};

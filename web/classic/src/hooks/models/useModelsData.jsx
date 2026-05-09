@@ -109,7 +109,7 @@ export const useModelsData = () => {
   // Load vendor list
   const loadVendors = async () => {
     try {
-      const res = await API.get('/api/vendors/?page_size=1000');
+      const res = await API.query('vendors', { page_size: 1000 });
       if (res.data.success) {
         const items = res.data.data.items || res.data.data || [];
         setVendors(Array.isArray(items) ? items : []);
@@ -127,13 +127,14 @@ export const useModelsData = () => {
   ) => {
     setLoading(true);
     try {
-      let url = `/api/models/?p=${page}&page_size=${size}`;
+      let operation = 'modelsMeta';
+      let params = { p: page, page_size: size };
       if (vendorKey && vendorKey !== 'all') {
-        // Filter by vendor ID
-        url = `/api/models/search?vendor=${vendorKey}&p=${page}&page_size=${size}`;
+        operation = 'searchModelsMeta';
+        params = { vendor: vendorKey, p: page, page_size: size };
       }
 
-      const res = await API.get(url);
+      const res = await API.query(operation, params);
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = extractItems(data);
@@ -172,7 +173,7 @@ export const useModelsData = () => {
     try {
       const body = {};
       if (locale) body.locale = locale;
-      const res = await API.post('/api/models/sync_upstream', body);
+      const res = await API.mutation('syncUpstreamModels', body);
       const { success, message, data } = res.data || {};
       if (success) {
         const createdModels = data?.created_models || 0;
@@ -199,8 +200,10 @@ export const useModelsData = () => {
     const locale = opts?.locale;
     setPreviewing(true);
     try {
-      const url = `/api/models/sync_upstream/preview${locale ? `?locale=${locale}` : ''}`;
-      const res = await API.get(url);
+      const res = await API.query(
+        'syncUpstreamPreview',
+        locale ? { locale } : {},
+      );
       const { success, message, data } = res.data || {};
       if (success) {
         return data || { missing: [], conflicts: [] };
@@ -224,7 +227,7 @@ export const useModelsData = () => {
     try {
       const body = { overwrite };
       if (locale) body.locale = locale;
-      const res = await API.post('/api/models/sync_upstream', body);
+      const res = await API.mutation('syncUpstreamModels', body);
       const { success, message, data } = res.data || {};
       if (success) {
         const createdModels = data?.created_models || 0;
@@ -262,9 +265,12 @@ export const useModelsData = () => {
 
     setSearching(true);
     try {
-      const res = await API.get(
-        `/api/models/search?keyword=${searchKeyword}&vendor=${searchVendor}&p=1&page_size=${pageSize}`,
-      );
+      const res = await API.query('searchModelsMeta', {
+        keyword: searchKeyword,
+        vendor: searchVendor,
+        p: 1,
+        page_size: pageSize,
+      });
       const { success, message, data } = res.data;
       if (success) {
         const newPageData = extractItems(data);
@@ -295,13 +301,19 @@ export const useModelsData = () => {
     let res;
     switch (action) {
       case 'delete':
-        res = await API.delete(`/api/models/${id}`);
+        res = await API.mutation('deleteModelMeta', { id });
         break;
       case 'enable':
-        res = await API.put('/api/models/?status_only=true', { id, status: 1 });
+        res = await API.mutation('updateModelMeta', {
+          input: { id, status: 1 },
+          params: { status_only: true },
+        });
         break;
       case 'disable':
-        res = await API.put('/api/models/?status_only=true', { id, status: 0 });
+        res = await API.mutation('updateModelMeta', {
+          input: { id, status: 0 },
+          params: { status_only: true },
+        });
         break;
       default:
         return;
@@ -382,7 +394,7 @@ export const useModelsData = () => {
 
     try {
       const deletePromises = selectedKeys.map((model) =>
-        API.delete(`/api/models/${model.id}`),
+        API.mutation('deleteModelMeta', { id: model.id }),
       );
 
       const results = await Promise.all(deletePromises);

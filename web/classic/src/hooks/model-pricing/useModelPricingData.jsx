@@ -193,8 +193,7 @@ export const useModelPricingData = () => {
 
   const loadPricing = async () => {
     setLoading(true);
-    let url = '/api/pricing';
-    const res = await API.get(url);
+    const res = await API.query('pricing');
     const {
       success,
       message,
