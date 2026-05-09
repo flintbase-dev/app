@@ -24,7 +24,7 @@ import {
 } from '../components/requestRuleExpr';
 
 export const PAGE_SIZE = 10;
-export const PRICE_SUFFIX = '$/Mtk';
+export const PRICE_SUFFIX = '/Mtk';
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
 
 const EMPTY_MODEL = {

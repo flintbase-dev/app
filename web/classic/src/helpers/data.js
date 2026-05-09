@@ -22,8 +22,14 @@ export function setStatusData(data) {
   localStorage.setItem('system_name', data.system_name);
   localStorage.setItem('logo', data.logo);
   localStorage.setItem('footer_html', data.footer_html);
-  localStorage.setItem('quota_per_unit', data.quota_per_unit);
-  localStorage.setItem('quota_display_type', data.quota_display_type || 'USD');
+  localStorage.setItem(
+    'site_credits_per_price_unit',
+    data.site_credits_per_price_unit,
+  );
+  localStorage.setItem(
+    'quota_display_type',
+    data.quota_display_type === 'CNY' ? 'CNY' : 'USD',
+  );
   localStorage.setItem('enable_drawing', data.enable_drawing);
   localStorage.setItem('enable_data_export', data.enable_data_export);
   localStorage.setItem('chats', JSON.stringify(data.chats));

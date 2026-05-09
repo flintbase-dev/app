@@ -419,7 +419,6 @@ CREATE TABLE subscription_plans (
     title VARCHAR(128) NOT NULL,
     subtitle VARCHAR(255) DEFAULT '',
     price_amount NUMERIC(10,6) NOT NULL DEFAULT 0,
-    currency VARCHAR(8) NOT NULL DEFAULT 'USD',
     duration_unit VARCHAR(16) NOT NULL DEFAULT 'month',
     duration_value BIGINT NOT NULL DEFAULT 1,
     custom_seconds BIGINT NOT NULL DEFAULT 0,

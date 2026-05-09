@@ -145,7 +145,7 @@ export default function ModelPriceSettings(props) {
           <Col xs={24} sm={16}>
             <Form.TextArea
               label={t('模型价格（每 Mtk）')}
-              extraText={t('模型输入价格，单位为每 Mtk 的美元价格')}
+              extraText={t('模型输入价格，单位为每 Mtk 的当前全站货币价格')}
               placeholder={t(
                 '为一个 JSON 文本，键为模型名称，值为每 Mtk 价格，例如：{"gpt-4o": 2.5}',
               )}

@@ -21,6 +21,7 @@ import React from 'react';
 import { Modal, Typography, Card, Skeleton } from '@douyinfe/semi-ui';
 import { SiStripe } from 'react-icons/si';
 import { CreditCard } from 'lucide-react';
+import { formatSiteCurrency } from '../../../helpers';
 
 const { Text } = Typography;
 
@@ -97,7 +98,7 @@ const PaymentConfirmModal = ({
                     {t('原价')}：
                   </Text>
                   <Text delete className='text-slate-500 dark:text-slate-400'>
-                    {`${originalAmount.toFixed(2)} ${t('元')}`}
+                    {formatSiteCurrency(originalAmount, 2)}
                   </Text>
                 </div>
                 <div className='flex justify-between items-center'>
@@ -105,7 +106,7 @@ const PaymentConfirmModal = ({
                     {t('优惠')}：
                   </Text>
                   <Text className='text-emerald-600 dark:text-emerald-400'>
-                    {`- ${discountAmount.toFixed(2)} ${t('元')}`}
+                    {`- ${formatSiteCurrency(discountAmount, 2)}`}
                   </Text>
                 </div>
               </>
@@ -145,11 +146,7 @@ const PaymentConfirmModal = ({
                   } else {
                     return (
                       <>
-                        <SiStripe
-                          className='mr-2'
-                          size={16}
-                          color='#635BFF'
-                        />
+                        <SiStripe className='mr-2' size={16} color='#635BFF' />
                         <Text className='text-slate-900 dark:text-slate-100'>
                           Stripe
                         </Text>

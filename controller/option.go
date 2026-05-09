@@ -216,6 +216,15 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "general_setting.quota_display_type":
+		value := option.Value.(string)
+		if value != operation_setting.QuotaDisplayTypeUSD && value != operation_setting.QuotaDisplayTypeCNY {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "货币仅支持 USD 或 CNY",
+			})
+			return
+		}
 	}
 	err = model.UpdateOption(option.Key, option.Value.(string))
 	if err != nil {

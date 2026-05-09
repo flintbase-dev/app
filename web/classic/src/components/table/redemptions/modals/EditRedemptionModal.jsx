@@ -25,7 +25,6 @@ import {
   showError,
   showSuccess,
   renderQuota,
-  getCurrencyConfig,
 } from '../../../../helpers';
 import {
   quotaToDisplayAmount,
@@ -62,12 +61,11 @@ const EditRedemptionModal = (props) => {
   const [loading, setLoading] = useState(isEdit);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
-  const [showQuotaInput, setShowQuotaInput] = useState(false);
 
   const getInitValues = () => ({
     name: '',
     quota: 100000,
-    amount: Number(quotaToDisplayAmount(100000).toFixed(6)),
+    amount: quotaToDisplayAmount(100000),
     count: 1,
     expired_time: null,
   });
@@ -86,7 +84,7 @@ const EditRedemptionModal = (props) => {
       } else {
         data.expired_time = new Date(data.expired_time * 1000);
       }
-      data.amount = Number(quotaToDisplayAmount(data.quota || 0).toFixed(6));
+      data.amount = quotaToDisplayAmount(data.quota || 0);
       formApiRef.current?.setValues({ ...getInitValues(), ...data });
     } else {
       showError(message);
@@ -114,7 +112,7 @@ const EditRedemptionModal = (props) => {
     localInputs.count = parseInt(localInputs.count) || 0;
     localInputs.quota = displayAmountToQuota(localInputs.amount);
     if (localInputs.quota <= 0) {
-      showError(t('请输入金额'));
+      showError(t('请输入额度'));
       setLoading(false);
       return;
     }
@@ -301,12 +299,11 @@ const EditRedemptionModal = (props) => {
                     <Col span={24}>
                       <Form.InputNumber
                         field='amount'
-                        label={t('金额')}
-                        prefix={getCurrencyConfig().symbol}
-                        placeholder={t('输入金额')}
-                        precision={6}
+                        label={t('额度')}
+                        placeholder={t('输入额度')}
+                        precision={0}
                         min={0}
-                        step={0.000001}
+                        step={1}
                         style={{ width: '100%' }}
                         onChange={(val) => {
                           const amount = val === '' || val == null ? 0 : val;
@@ -318,43 +315,6 @@ const EditRedemptionModal = (props) => {
                         }}
                         showClear
                       />
-                      <div
-                        className='text-xs cursor-pointer mt-1'
-                        style={{ color: 'var(--semi-color-text-2)' }}
-                        onClick={() => setShowQuotaInput((v) => !v)}
-                      >
-                        {showQuotaInput
-                          ? `▾ ${t('收起原生额度输入')}`
-                          : `▸ ${t('使用原生额度输入')}`}
-                      </div>
-                      <div style={{ display: showQuotaInput ? 'block' : 'none' }} className='mt-2'>
-                        <Form.InputNumber
-                          field='quota'
-                          label={t('额度')}
-                          placeholder={t('输入额度')}
-                          rules={[
-                            { required: true, message: t('请输入额度') },
-                            {
-                              validator: (rule, v) => {
-                                const num = parseInt(v, 10);
-                                return num > 0
-                                  ? Promise.resolve()
-                                  : Promise.reject(t('额度必须大于0'));
-                              },
-                            },
-                          ]}
-                          onChange={(val) => {
-                            const quota = val === '' || val == null ? 0 : val;
-                            formApiRef.current?.setValue('quota', quota);
-                            formApiRef.current?.setValue(
-                              'amount',
-                              Number(quotaToDisplayAmount(quota).toFixed(6)),
-                            );
-                          }}
-                          style={{ width: '100%' }}
-                          showClear
-                        />
-                      </div>
                     </Col>
                     {!isEdit && (
                       <Col span={12}>

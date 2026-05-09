@@ -115,12 +115,12 @@ func ModelPriceHelper(c *gin.Context, info *relaycommon.RelayInfo, promptTokens 
 		if completionPrice > modelPrice {
 			preConsumePrice = completionPrice
 		}
-		preConsumedQuota = int(float64(preConsumedTokens) / 1_000_000 * preConsumePrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		preConsumedQuota = int(float64(preConsumedTokens) / 1_000_000 * preConsumePrice * common.SiteCreditsPerPriceUnit * groupRatioInfo.GroupRatio)
 	} else {
 		if meta.ImagePriceRatio != 0 {
 			modelFixedPrice = modelFixedPrice * meta.ImagePriceRatio
 		}
-		preConsumedQuota = int(modelFixedPrice * common.QuotaPerUnit * groupRatioInfo.GroupRatio)
+		preConsumedQuota = int(modelFixedPrice * common.SiteCreditsPerPriceUnit * groupRatioInfo.GroupRatio)
 	}
 
 	// check if free model pre-consume is disabled
@@ -205,8 +205,8 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 		return types.PriceData{}, fmt.Errorf("model %s tiered expr run failed: %w", info.OriginModelName, err)
 	}
 
-	// Expression coefficients are $/1M tokens prices; convert to quota the same way per-call billing does.
-	quotaBeforeGroup := rawCost / 1_000_000 * common.QuotaPerUnit
+	// Expression coefficients are current site-currency prices per 1M tokens; convert to quota the same way per-call billing does.
+	quotaBeforeGroup := rawCost / 1_000_000 * common.SiteCreditsPerPriceUnit
 	preConsumedQuota := billingexpr.QuotaRound(quotaBeforeGroup * groupRatioInfo.GroupRatio)
 
 	freeModel := false
@@ -229,7 +229,7 @@ func modelPriceHelperTiered(c *gin.Context, info *relaycommon.RelayInfo, promptT
 		EstimatedQuotaBeforeGroup: quotaBeforeGroup,
 		EstimatedQuotaAfterGroup:  preConsumedQuota,
 		EstimatedTier:             trace.MatchedTier,
-		QuotaPerUnit:              common.QuotaPerUnit,
+		SiteCreditsPerPriceUnit:   common.SiteCreditsPerPriceUnit,
 		ExprVersion:               billingexpr.ExprVersion(exprStr),
 	}
 	info.TieredBillingSnapshot = snapshot

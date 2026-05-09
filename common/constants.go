@@ -19,7 +19,8 @@ var TopUpLink = ""
 
 // var ChatLink = ""
 // var ChatLink2 = ""
-var QuotaPerUnit = 500 * 1000.0 // $0.002 / 1K tokens
+const SiteCreditsPerPriceUnit = 1_000_000.0
+
 var DisplayTokenStatEnabled = true
 var DrawingEnabled = true
 var DataExportEnabled = true

@@ -30,7 +30,7 @@ import {
   Tooltip,
 } from '@douyinfe/semi-ui';
 import { renderQuota } from '../../../helpers';
-import { convertUSDToCurrency } from '../../../helpers/render';
+import { formatSiteCurrency } from '../../../helpers/render';
 
 const { Text } = Typography;
 
@@ -79,11 +79,11 @@ const renderPlanTitle = (text, record, t) => {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
         <Text type='tertiary'>{t('价格')}</Text>
         <Text strong style={{ color: 'var(--semi-color-success)' }}>
-          {convertUSDToCurrency(Number(plan?.price_amount || 0), 2)}
+          {formatSiteCurrency(Number(plan?.price_amount || 0), 2)}
         </Text>
         <Text type='tertiary'>{t('总额度')}</Text>
         {plan?.total_amount > 0 ? (
-          <Tooltip content={`${t('原生额度')}：${plan.total_amount}`}>
+          <Tooltip content={`${t('站内额度')}：${plan.total_amount}`}>
             <Text>{renderQuota(plan.total_amount)}</Text>
           </Tooltip>
         ) : (
@@ -128,7 +128,7 @@ const renderPlanTitle = (text, record, t) => {
 const renderPrice = (text) => {
   return (
     <Text strong style={{ color: 'var(--semi-color-success)' }}>
-      {convertUSDToCurrency(Number(text || 0), 2)}
+      {formatSiteCurrency(Number(text || 0), 2)}
     </Text>
   );
 };
@@ -173,7 +173,7 @@ const renderTotalAmount = (text, record, t) => {
   return (
     <Text type={total > 0 ? 'secondary' : 'tertiary'}>
       {total > 0 ? (
-        <Tooltip content={`${t('原生额度')}：${total}`}>
+        <Tooltip content={`${t('站内额度')}：${total}`}>
           <span>{renderQuota(total)}</span>
         </Tooltip>
       ) : (
@@ -265,11 +265,7 @@ const renderOperations = (text, record, { openEdit, setPlanEnabled, t }) => {
   );
 };
 
-export const getSubscriptionsColumns = ({
-  t,
-  openEdit,
-  setPlanEnabled,
-}) => {
+export const getSubscriptionsColumns = ({ t, openEdit, setPlanEnabled }) => {
   return [
     {
       title: 'ID',

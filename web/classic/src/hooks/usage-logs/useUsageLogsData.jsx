@@ -157,9 +157,7 @@ export const useLogsData = () => {
     if (savedMode === 'price' || savedMode === 'ratio') {
       return savedMode;
     }
-    return localStorage.getItem('quota_display_type') === 'TOKENS'
-      ? 'ratio'
-      : 'price';
+    return 'price';
   };
 
   // Column visibility state

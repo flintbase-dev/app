@@ -5,8 +5,8 @@ package billingexpr
 // that may use a different conversion formula.
 func quotaConversion(exprOutput float64, snap *BillingSnapshot) float64 {
 	switch snap.ExprVersion {
-	default: // v1: coefficients are $/1M tokens prices
-		return exprOutput / 1_000_000 * snap.QuotaPerUnit
+	default: // v1: coefficients are current site-currency prices per 1M tokens
+		return exprOutput / 1_000_000 * snap.SiteCreditsPerPriceUnit
 	}
 }
 

@@ -12,7 +12,7 @@ The expression is the billing contract between the administrator and the system.
 
 2. **Variables are opt-in** — `p` (prompt) and `c` (completion) are the base. Cache (`cr`, `cc`, `cc1h`), image (`img`), and audio (`ai`, `ao`) variables are optional. If omitted, those tokens are included in `p`/`c` and priced at their rate. The system automatically detects which variables the expression uses (via AST introspection) and adjusts token normalization accordingly.
 
-3. **Prices are real prices** — Expression coefficients are actual $/1M tokens prices as published by providers. No ratio conversion, no `/2` convention. `p * 2.5` means $2.50 per 1M prompt tokens.
+3. **Prices are real prices** — Expression coefficients are current site-currency prices per 1M tokens. No ratio conversion, no `/2` convention. `p * 2.5` means 2.50 current-currency units per 1M prompt tokens.
 
 4. **Upstream-agnostic** — The expression doesn't need to know whether the upstream API is OpenAI-format (prompt_tokens includes cache) or Claude-format (input_tokens excludes cache). The system normalizes token counts before evaluation based on the upstream response format.
 
@@ -58,16 +58,16 @@ Powered by [expr-lang/expr](https://github.com/expr-lang/expr). Expressions are 
 
 | 表达式 | `p` 的值 | 说明 |
 |--------|---------|------|
-| `p * 3 + c * 15` | 1000 | 没用 `cr`/`img`，所以缓存和图片都包含在 `p` 里，全按 $3 计费 |
-| `p * 3 + c * 15 + cr * 0.3` | 800 | 用了 `cr`，缓存 200 从 `p` 中扣除，按 $0.3 单独计费；图片仍在 `p` 里按 $3 计费 |
+| `p * 3 + c * 15` | 1000 | 没用 `cr`/`img`，所以缓存和图片都包含在 `p` 里，全按 3 个当前货币单位计费 |
+| `p * 3 + c * 15 + cr * 0.3` | 800 | 用了 `cr`，缓存 200 从 `p` 中扣除，按 0.3 个当前货币单位单独计费；图片仍在 `p` 里按 3 个当前货币单位计费 |
 | `p * 3 + c * 15 + cr * 0.3 + img * 2` | 700 | 用了 `cr` 和 `img`，都从 `p` 中扣除，各自按自己的价格计费 |
 
 输出侧同理（假设 completion_tokens=500，其中包含 100 audio output）：
 
 | 表达式 | `c` 的值 | 说明 |
 |--------|---------|------|
-| `p * 3 + c * 15` | 500 | 没用 `ao`，音频输出包含在 `c` 里按 $15 计费 |
-| `p * 3 + c * 15 + ao * 50` | 400 | 用了 `ao`，音频 100 从 `c` 中扣除按 $50 计费 |
+| `p * 3 + c * 15` | 500 | 没用 `ao`，音频输出包含在 `c` 里按 15 个当前货币单位计费 |
+| `p * 3 + c * 15 + ao * 50` | 400 | 用了 `ao`，音频 100 从 `c` 中扣除按 50 个当前货币单位计费 |
 
 > **注意：** 这个自动排除仅针对 GPT/OpenAI 格式的 API（prompt_tokens 包含所有子类别）。Claude 格式的 API（input_tokens 本身就只包含纯文本）不做任何减法。系统根据上游返回格式自动判断，表达式作者无需关心。
 
@@ -158,7 +158,7 @@ When a request arrives and the model uses `tiered_expr` billing:
 1. Loads expression from `billing_setting.GetBillingExpr()`
 2. Builds `RequestInput` (headers + body) for `param()` / `header()` functions
 3. Runs expression with estimated tokens: `RunExprWithRequest(expr, {P, C}, requestInput)`
-4. Converts output to quota: `rawCost / 1,000,000 * QuotaPerUnit`
+4. Converts output to quota: `rawCost / 1,000,000 * SiteCreditsPerPriceUnit`
 5. Creates `BillingSnapshot` (frozen state for settlement) and stores on `RelayInfo`
 
 ### 4. Settlement (Actual Billing)
@@ -200,7 +200,7 @@ The system normalizes `p` to mean "tokens not separately priced" by subtracting 
 
 Example: `p * 2.5 + c * 15 + cr * 0.25`
 - Expression uses `cr` → cache read tokens subtracted from `p`
-- Expression doesn't use `img` → image tokens stay in `p`, priced at $2.50
+- Expression doesn't use `img` → image tokens stay in `p`, priced at 2.50 current-currency units
 
 ### `len` — Context Length Variable
 
@@ -214,13 +214,13 @@ This ensures that heavy cache usage doesn't cause the tier condition to incorrec
 
 ### Quota Conversion
 
-Expression coefficients are $/1M tokens. Conversion to internal quota:
+Expression coefficients are current site-currency prices per 1M tokens. Conversion to internal quota:
 
 ```
-quota = exprOutput / 1,000,000 * QuotaPerUnit * groupRatio
+quota = exprOutput / 1,000,000 * SiteCreditsPerPriceUnit * groupRatio
 ```
 
-This matches the per-call billing pattern: `quota = modelPrice * QuotaPerUnit * groupRatio`.
+This matches the per-call billing pattern: `quota = modelPrice * SiteCreditsPerPriceUnit * groupRatio`.
 
 ### Expression Versioning
 

@@ -27,7 +27,8 @@ import {
   renderQuota,
   renderQuotaWithAmount,
   copy,
-  getQuotaPerUnit,
+  getSiteCreditsPerPriceUnit,
+  formatSiteCurrency,
 } from '../../helpers';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
@@ -296,8 +297,8 @@ const TopUp = () => {
           discount: data.discount || {},
         });
 
-          // 处理 Stripe 支付方式
-          let stripePaymentOptions = data.pay_methods || [];
+        // 处理 Stripe 支付方式
+        let stripePaymentOptions = data.pay_methods || [];
         try {
           if (typeof stripePaymentOptions === 'string') {
             stripePaymentOptions = JSON.parse(stripePaymentOptions);
@@ -387,8 +388,10 @@ const TopUp = () => {
 
   // 划转邀请额度
   const transfer = async () => {
-    if (transferAmount < getQuotaPerUnit()) {
-      showError(t('划转金额最低为') + ' ' + renderQuota(getQuotaPerUnit()));
+    if (transferAmount < getSiteCreditsPerPriceUnit()) {
+      showError(
+        t('划转额度最低为') + ' ' + renderQuota(getSiteCreditsPerPriceUnit()),
+      );
       return;
     }
     const res = await API.post(`/api/user/aff_transfer`, {
@@ -422,7 +425,7 @@ const TopUp = () => {
   useEffect(() => {
     // 始终获取最新用户数据，确保余额等统计信息准确
     getUserQuota().then();
-    setTransferAmount(getQuotaPerUnit());
+    setTransferAmount(getSiteCreditsPerPriceUnit());
   }, []);
 
   useEffect(() => {
@@ -450,7 +453,7 @@ const TopUp = () => {
   }, [statusState?.status]);
 
   const renderAmount = () => {
-    return amount + ' ' + t('元');
+    return formatSiteCurrency(amount, 2);
   };
 
   const getStripeAmount = async (value) => {
@@ -530,7 +533,7 @@ const TopUp = () => {
         handleTransferCancel={handleTransferCancel}
         userState={userState}
         renderQuota={renderQuota}
-        getQuotaPerUnit={getQuotaPerUnit}
+        getSiteCreditsPerPriceUnit={getSiteCreditsPerPriceUnit}
         transferAmount={transferAmount}
         setTransferAmount={setTransferAmount}
       />

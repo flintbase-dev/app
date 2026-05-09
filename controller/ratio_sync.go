@@ -41,7 +41,6 @@ const (
 	modelsDevPresetBaseURL       = "https://models.dev"
 	modelsDevHost                = "models.dev"
 	modelsDevPath                = "/api.json"
-	modelsDevInputCostBase       = 1000.0
 )
 
 func nearlyEqual(a, b float64) bool {
@@ -727,7 +726,8 @@ func shouldReplaceModelsDevCandidate(current, next modelsDevCandidate) bool {
 
 // convertModelsDevToPricingData parses models.dev /api.json and converts
 // provider pricing metadata into local pricing format.
-// models.dev costs are USD per 1M tokens:
+// models.dev costs are provider price values per 1M tokens. The imported
+// numbers are stored directly as current site-currency price configuration:
 //
 //	model_price = input_cost_per_1M
 //	completion_price = output_cost_per_1M
@@ -790,12 +790,10 @@ func convertModelsDevToPricingData(reader io.Reader) (map[string]any, error) {
 			continue
 		}
 
-		modelPrice := candidate.Input * float64(ratio_setting.USD) / modelsDevInputCostBase * 2
-		modelPriceMap[modelName] = roundRatioValue(modelPrice)
+		modelPriceMap[modelName] = roundRatioValue(candidate.Input)
 
 		if candidate.Output != nil {
-			completionPrice := *candidate.Output * float64(ratio_setting.USD) / modelsDevInputCostBase * 2
-			completionPriceMap[modelName] = roundRatioValue(completionPrice)
+			completionPriceMap[modelName] = roundRatioValue(*candidate.Output)
 		}
 
 		if candidate.CacheRead != nil {

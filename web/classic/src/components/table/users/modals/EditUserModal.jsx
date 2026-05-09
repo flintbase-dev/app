@@ -88,7 +88,7 @@ const EditUserModal = (props) => {
       const next = {
         ...getInitValues(),
         ...data,
-        quota_amount: Number(quotaToDisplayAmount(data.quota || 0).toFixed(6)),
+        quota_amount: quotaToDisplayAmount(data.quota || 0),
       };
       setUser(next);
       formApiRef.current?.setValues(next);
@@ -355,6 +355,8 @@ const EditUserModal = (props) => {
             className='w-full mt-4'
             value={adjustQuotaLocal}
             onChange={(value) => setAdjustQuotaLocal(value)}
+            precision={0}
+            step={1}
             placeholder={t('请输入额度')}
           />
         </Form>

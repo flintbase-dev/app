@@ -452,8 +452,8 @@ func settleTestQuota(info *relaycommon.RelayInfo, priceData types.PriceData, usa
 
 	quota := 0
 	if !priceData.UseFixedPrice {
-		promptQuota := float64(usage.PromptTokens) / 1_000_000 * priceData.ModelPrice * common.QuotaPerUnit * priceData.GroupRatioInfo.GroupRatio
-		completionQuota := float64(usage.CompletionTokens) / 1_000_000 * priceData.CompletionPrice * common.QuotaPerUnit * priceData.GroupRatioInfo.GroupRatio
+		promptQuota := float64(usage.PromptTokens) / 1_000_000 * priceData.ModelPrice * common.SiteCreditsPerPriceUnit * priceData.GroupRatioInfo.GroupRatio
+		completionQuota := float64(usage.CompletionTokens) / 1_000_000 * priceData.CompletionPrice * common.SiteCreditsPerPriceUnit * priceData.GroupRatioInfo.GroupRatio
 		quota = int(math.Round(promptQuota + completionQuota))
 		if priceData.ModelPrice != 0 && quota <= 0 {
 			quota = 1
@@ -461,7 +461,7 @@ func settleTestQuota(info *relaycommon.RelayInfo, priceData types.PriceData, usa
 		return quota, nil
 	}
 
-	return int(priceData.ModelFixedPrice * common.QuotaPerUnit * priceData.GroupRatioInfo.GroupRatio), nil
+	return int(priceData.ModelFixedPrice * common.SiteCreditsPerPriceUnit * priceData.GroupRatioInfo.GroupRatio), nil
 }
 
 func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData types.PriceData, usage *dto.Usage, tieredResult *billingexpr.TieredResult) map[string]interface{} {

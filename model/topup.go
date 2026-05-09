@@ -125,7 +125,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 			return err
 		}
 
-		quota = topUp.Money * common.QuotaPerUnit
+		quota = topUp.Money * common.SiteCreditsPerPriceUnit
 		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(map[string]interface{}{"stripe_customer": customerId, "quota": gorm.Expr("quota + ?", quota)}).Error
 		if err != nil {
 			return err
@@ -334,8 +334,8 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return ErrPaymentMethodMismatch
 		}
 
-		dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
-		quotaToAdd = int(decimal.NewFromFloat(topUp.Money).Mul(dQuotaPerUnit).IntPart())
+		dSiteCreditsPerPriceUnit := decimal.NewFromFloat(common.SiteCreditsPerPriceUnit)
+		quotaToAdd = int(decimal.NewFromFloat(topUp.Money).Mul(dSiteCreditsPerPriceUnit).IntPart())
 		if quotaToAdd <= 0 {
 			return errors.New("无效的充值额度")
 		}

@@ -28,7 +28,7 @@ const TransferModal = ({
   handleTransferCancel,
   userState,
   renderQuota,
-  getQuotaPerUnit,
+  getSiteCreditsPerPriceUnit,
   transferAmount,
   setTransferAmount,
 }) => {
@@ -59,10 +59,11 @@ const TransferModal = ({
         </div>
         <div>
           <Typography.Text strong className='block mb-2'>
-            {t('划转额度')} · {t('最低') + renderQuota(getQuotaPerUnit())}
+            {t('划转额度')} ·{' '}
+            {t('最低') + renderQuota(getSiteCreditsPerPriceUnit())}
           </Typography.Text>
           <InputNumber
-            min={getQuotaPerUnit()}
+            min={getSiteCreditsPerPriceUnit()}
             max={userState?.user?.aff_quota || 0}
             value={transferAmount}
             onChange={(value) => setTransferAmount(value)}
