@@ -223,7 +223,7 @@ func TestChannelAffinityHitClaudeTemplatePassHeadersEffective(t *testing.T) {
 	cacheKeySuffix := buildChannelAffinityCacheKeySuffix(*claudeRule, "claude-3-5-sonnet", "default", affinityValue)
 
 	cache := getChannelAffinityCache()
-	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, 9527, time.Minute))
+	require.NoError(t, cache.SetWithTTL(cacheKeySuffix, "chn_9527xx", time.Minute))
 	t.Cleanup(func() {
 		_, _ = cache.DeleteMany([]string{cacheKeySuffix})
 	})
@@ -235,7 +235,7 @@ func TestChannelAffinityHitClaudeTemplatePassHeadersEffective(t *testing.T) {
 
 	channelID, found := GetPreferredChannelByAffinity(ctx, "claude-3-5-sonnet", "default")
 	require.True(t, found)
-	require.Equal(t, 9527, channelID)
+	require.Equal(t, "chn_9527xx", channelID)
 
 	baseOverride := map[string]interface{}{
 		"operations": []map[string]interface{}{

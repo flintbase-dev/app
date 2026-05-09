@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -21,7 +20,7 @@ const UserNameMaxLength = 20
 // User if you add sensitive fields, don't forget to clean them in setupWorkOSLoginSession.
 // Otherwise, the sensitive information will be saved on local storage in plain text!
 type User struct {
-	Id                         int            `json:"id"`
+	Id                         string         `json:"id" gorm:"primaryKey;type:varchar(32)"`
 	Username                   string         `json:"username" gorm:"unique;index" validate:"max=128"`
 	WorkOSId                   string         `json:"workos_id" gorm:"column:workos_id;uniqueIndex"`
 	WorkOSOrganizationId       string         `json:"workos_organization_id" gorm:"column:workos_organization_id;index"`
@@ -39,7 +38,7 @@ type User struct {
 	AffCount                   int            `json:"aff_count" gorm:"type:int;default:0;column:aff_count"`
 	AffQuota                   int            `json:"aff_quota" gorm:"type:int;default:0;column:aff_quota"`           // 邀请剩余额度
 	AffHistoryQuota            int            `json:"aff_history_quota" gorm:"type:int;default:0;column:aff_history"` // 邀请历史额度
-	InviterId                  int            `json:"inviter_id" gorm:"type:int;column:inviter_id;index"`
+	InviterId                  string         `json:"inviter_id" gorm:"type:varchar(32);column:inviter_id;index"`
 	DeletedAt                  gorm.DeletedAt `gorm:"index"`
 	Setting                    string         `json:"setting" gorm:"type:text;column:setting"`
 	Remark                     string         `json:"remark,omitempty" gorm:"type:varchar(255)" validate:"max=255"`
@@ -152,7 +151,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 	return string(configBytes)
 }
 
-func GetMaxUserId() int {
+func GetMaxUserId() string {
 	var user User
 	DB.Unscoped().Last(&user)
 	return user.Id
@@ -214,27 +213,13 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 	// 构建搜索条件
 	likeCondition := "username LIKE ? OR email LIKE ? OR display_name LIKE ?"
 
-	// 尝试将关键字转换为整数ID
-	keywordInt, err := strconv.Atoi(keyword)
-	if err == nil {
-		// 如果是数字，同时搜索ID和其他字段
-		likeCondition = "id = ? OR " + likeCondition
-		if group != "" {
-			query = query.Where("("+likeCondition+") AND "+commonGroupCol+" = ?",
-				keywordInt, "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", group)
-		} else {
-			query = query.Where(likeCondition,
-				keywordInt, "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
-		}
+	likeCondition = "id = ? OR " + likeCondition
+	if group != "" {
+		query = query.Where("("+likeCondition+") AND "+commonGroupCol+" = ?",
+			keyword, "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", group)
 	} else {
-		// 非数字关键字，只搜索字符串字段
-		if group != "" {
-			query = query.Where("("+likeCondition+") AND "+commonGroupCol+" = ?",
-				"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%", group)
-		} else {
-			query = query.Where(likeCondition,
-				"%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
-		}
+		query = query.Where(likeCondition,
+			keyword, "%"+keyword+"%", "%"+keyword+"%", "%"+keyword+"%")
 	}
 
 	// 获取总数
@@ -259,8 +244,8 @@ func SearchUsers(keyword string, group string, startIdx int, num int) ([]*User, 
 	return users, total, nil
 }
 
-func GetUserById(id int, selectAll bool) (*User, error) {
-	if id == 0 {
+func GetUserById(id string, selectAll bool) (*User, error) {
+	if common.IsEmptyID(id) {
 		return nil, errors.New("id 为空！")
 	}
 	user := User{Id: id}
@@ -269,32 +254,32 @@ func GetUserById(id int, selectAll bool) (*User, error) {
 	return &user, err
 }
 
-func GetUserIdByAffCode(affCode string) (int, error) {
+func GetUserIdByAffCode(affCode string) (string, error) {
 	if affCode == "" {
-		return 0, errors.New("affCode 为空！")
+		return "", errors.New("affCode 为空！")
 	}
 	var user User
 	err := DB.Select("id").First(&user, "aff_code = ?", affCode).Error
 	return user.Id, err
 }
 
-func DeleteUserById(id int) (err error) {
-	if id == 0 {
+func DeleteUserById(id string) (err error) {
+	if common.IsEmptyID(id) {
 		return errors.New("id 为空！")
 	}
 	user := User{Id: id}
 	return user.Delete()
 }
 
-func HardDeleteUserById(id int) error {
-	if id == 0 {
+func HardDeleteUserById(id string) error {
+	if common.IsEmptyID(id) {
 		return errors.New("id 为空！")
 	}
 	err := DB.Unscoped().Delete(&User{}, "id = ?", id).Error
 	return err
 }
 
-func inviteUser(inviterId int) (err error) {
+func inviteUser(inviterId string) (err error) {
 	user, err := GetUserById(inviterId, true)
 	if err != nil {
 		return err
@@ -321,7 +306,7 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 	defer tx.Rollback() // 确保在函数退出时事务能回滚
 
 	// 加锁查询用户以确保数据一致性
-	err := tx.Set("gorm:query_option", "FOR UPDATE").First(&user, user.Id).Error
+	err := tx.Set("gorm:query_option", "FOR UPDATE").First(&user, "id = ?", user.Id).Error
 	if err != nil {
 		return err
 	}
@@ -344,7 +329,7 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 		Amount:     quota,
 		SourceType: "affiliate.transfer",
 		SourceId:   newLedgerSourceId("affiliate.transfer", user.Id),
-		RequestId:  common.GetUUID(),
+		RequestId:  common.NewRequestID(),
 		Reason:     "transfer affiliate credits to wallet",
 		Metadata: map[string]interface{}{
 			"affiliate_quota_delta": -quota,
@@ -361,9 +346,9 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 	return nil
 }
 
-func (user *User) Insert(inviterId int) error {
+func (user *User) Insert(inviterId string) error {
 	user.Quota = 0
-	//user.SetAccessToken(common.GetUUID())
+	//user.SetAccessToken(common.NewGeneralID())
 	user.AffCode = common.GetRandomString(4)
 
 	// 初始化用户设置，包括默认的边栏配置
@@ -398,8 +383,8 @@ func (user *User) Insert(inviterId int) error {
 			UserId:     user.Id,
 			Amount:     common.QuotaForNewUser,
 			SourceType: "signup.grant",
-			SourceId:   fmt.Sprintf("signup:%d", user.Id),
-			RequestId:  common.GetUUID(),
+			SourceId:   fmt.Sprintf("signup:%s", user.Id),
+			RequestId:  common.NewRequestID(),
 			Reason:     "new user registration grant",
 			Metadata: map[string]interface{}{
 				"quota": common.QuotaForNewUser,
@@ -412,18 +397,18 @@ func (user *User) Insert(inviterId int) error {
 			Event:        "quota.signup_grant",
 			Content:      fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)),
 			ResourceType: "credit_grant",
-			ResourceId:   fmt.Sprintf("signup:%d", user.Id),
+			ResourceId:   fmt.Sprintf("signup:%s", user.Id),
 			Quota:        common.QuotaForNewUser,
 		})
 	}
-	if inviterId != 0 {
+	if !common.IsEmptyID(inviterId) {
 		if common.QuotaForInvitee > 0 {
 			if err := GrantUserCredits(CreditGrantParams{
 				UserId:     user.Id,
 				Amount:     common.QuotaForInvitee,
 				SourceType: "invitee.grant",
-				SourceId:   fmt.Sprintf("invitee:%d:%d", inviterId, user.Id),
-				RequestId:  common.GetUUID(),
+				SourceId:   fmt.Sprintf("invitee:%s:%s", inviterId, user.Id),
+				RequestId:  common.NewRequestID(),
 				Reason:     "invitee registration grant",
 				Metadata: map[string]interface{}{
 					"inviter_id": inviterId,
@@ -438,7 +423,7 @@ func (user *User) Insert(inviterId int) error {
 				Event:        "quota.invitee_grant",
 				Content:      fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)),
 				ResourceType: "credit_grant",
-				ResourceId:   fmt.Sprintf("invitee:%d:%d", inviterId, user.Id),
+				ResourceId:   fmt.Sprintf("invitee:%s:%s", inviterId, user.Id),
 				Quota:        common.QuotaForInvitee,
 			})
 		}
@@ -449,7 +434,7 @@ func (user *User) Insert(inviterId int) error {
 				Event:        "quota.inviter_affiliate_grant",
 				Content:      fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)),
 				ResourceType: "affiliate_credit",
-				ResourceId:   fmt.Sprintf("invite:%d:%d", inviterId, user.Id),
+				ResourceId:   fmt.Sprintf("invite:%s:%s", inviterId, user.Id),
 				Quota:        common.QuotaForInviter,
 			})
 			_ = inviteUser(inviterId)
@@ -460,7 +445,7 @@ func (user *User) Insert(inviterId int) error {
 
 func (user *User) Update(_ bool) error {
 	newUser := *user
-	DB.First(&user, user.Id)
+	DB.First(&user, "id = ?", user.Id)
 	if err := DB.Model(user).Updates(newUser).Error; err != nil {
 		return err
 	}
@@ -478,7 +463,7 @@ func (user *User) Edit(_ bool) error {
 		"remark":       newUser.Remark,
 	}
 
-	DB.First(&user, user.Id)
+	DB.First(&user, "id = ?", user.Id)
 	if err := DB.Model(user).Updates(updates).Error; err != nil {
 		return err
 	}
@@ -488,7 +473,7 @@ func (user *User) Edit(_ bool) error {
 }
 
 func (user *User) Delete() error {
-	if user.Id == 0 {
+	if common.IsEmptyID(user.Id) {
 		return errors.New("id 为空！")
 	}
 	if err := DB.Delete(user).Error; err != nil {
@@ -500,7 +485,7 @@ func (user *User) Delete() error {
 }
 
 func (user *User) HardDelete() error {
-	if user.Id == 0 {
+	if common.IsEmptyID(user.Id) {
 		return errors.New("id 为空！")
 	}
 	err := DB.Unscoped().Delete(user).Error
@@ -508,7 +493,7 @@ func (user *User) HardDelete() error {
 }
 
 func (user *User) FillUserById() error {
-	if user.Id == 0 {
+	if common.IsEmptyID(user.Id) {
 		return errors.New("id 为空！")
 	}
 	DB.Where(User{Id: user.Id}).First(user)
@@ -527,8 +512,8 @@ func IsEmailAlreadyTaken(email string) bool {
 	return DB.Unscoped().Where("email = ?", email).Find(&User{}).RowsAffected == 1
 }
 
-func IsAdmin(userId int) bool {
-	if userId == 0 {
+func IsAdmin(userId string) bool {
+	if common.IsEmptyID(userId) {
 		return false
 	}
 	var user User
@@ -587,7 +572,7 @@ func ValidateAccessToken(token string) (*User, error) {
 }
 
 // GetUserQuota gets quota from Redis first, falls back to DB if needed
-func GetUserQuota(id int, fromDB bool) (quota int, err error) {
+func GetUserQuota(id string, fromDB bool) (quota int, err error) {
 	defer func() {
 		// Update Redis cache asynchronously on successful DB read
 		if shouldUpdateRedis(fromDB, err) {
@@ -614,18 +599,18 @@ func GetUserQuota(id int, fromDB bool) (quota int, err error) {
 	return quota, nil
 }
 
-func GetUserUsedQuota(id int) (quota int, err error) {
+func GetUserUsedQuota(id string) (quota int, err error) {
 	err = DB.Model(&User{}).Where("id = ?", id).Select("used_quota").Find(&quota).Error
 	return quota, err
 }
 
-func GetUserEmail(id int) (email string, err error) {
+func GetUserEmail(id string) (email string, err error) {
 	err = DB.Model(&User{}).Where("id = ?", id).Select("email").Find(&email).Error
 	return email, err
 }
 
 // GetUserGroup gets group from Redis first, falls back to DB if needed
-func GetUserGroup(id int, fromDB bool) (group string, err error) {
+func GetUserGroup(id string, fromDB bool) (group string, err error) {
 	defer func() {
 		// Update Redis cache asynchronously on successful DB read
 		if shouldUpdateRedis(fromDB, err) {
@@ -653,7 +638,7 @@ func GetUserGroup(id int, fromDB bool) (group string, err error) {
 }
 
 // GetUserSetting gets setting from Redis first, falls back to DB if needed
-func GetUserSetting(id int, fromDB bool) (settingMap dto.UserSetting, err error) {
+func GetUserSetting(id string, fromDB bool) (settingMap dto.UserSetting, err error) {
 	var setting string
 	defer func() {
 		// Update Redis cache asynchronously on successful DB read
@@ -700,13 +685,13 @@ func GetRootUser() (user *User) {
 	return user
 }
 
-func UpdateUserLastLoginAt(id int) {
+func UpdateUserLastLoginAt(id string) {
 	if err := DB.Model(&User{}).Where("id = ?", id).Update("last_login_at", common.GetTimestamp()).Error; err != nil {
 		common.SysLog("failed to update user last_login_at: " + err.Error())
 	}
 }
 
-func UpdateUserUsedQuotaAndRequestCount(id int, quota int) {
+func UpdateUserUsedQuotaAndRequestCount(id string, quota int) {
 	if common.BatchUpdateEnabled {
 		addNewRecord(BatchUpdateTypeUsedQuota, id, quota)
 		addNewRecord(BatchUpdateTypeRequestCount, id, 1)
@@ -715,7 +700,7 @@ func UpdateUserUsedQuotaAndRequestCount(id int, quota int) {
 	updateUserUsedQuotaAndRequestCount(id, quota, 1)
 }
 
-func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {
+func updateUserUsedQuotaAndRequestCount(id string, quota int, count int) {
 	err := DB.Model(&User{}).Where("id = ?", id).Updates(
 		map[string]interface{}{
 			"used_quota":    gorm.Expr("used_quota + ?", quota),
@@ -733,7 +718,7 @@ func updateUserUsedQuotaAndRequestCount(id int, quota int, count int) {
 	//}
 }
 
-func updateUserUsedQuota(id int, quota int) {
+func updateUserUsedQuota(id string, quota int) {
 	err := DB.Model(&User{}).Where("id = ?", id).Updates(
 		map[string]interface{}{
 			"used_quota": gorm.Expr("used_quota + ?", quota),
@@ -744,7 +729,7 @@ func updateUserUsedQuota(id int, quota int) {
 	}
 }
 
-func updateUserRequestCount(id int, count int) {
+func updateUserRequestCount(id string, count int) {
 	err := DB.Model(&User{}).Where("id = ?", id).Update("request_count", gorm.Expr("request_count + ?", count)).Error
 	if err != nil {
 		common.SysLog("failed to update user request count: " + err.Error())
@@ -752,7 +737,7 @@ func updateUserRequestCount(id int, count int) {
 }
 
 // GetUsernameById gets username from Redis first, falls back to DB if needed
-func GetUsernameById(id int, fromDB bool) (username string, err error) {
+func GetUsernameById(id string, fromDB bool) (username string, err error) {
 	defer func() {
 		// Update Redis cache asynchronously on successful DB read
 		if shouldUpdateRedis(fromDB, err) {

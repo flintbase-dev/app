@@ -26,7 +26,7 @@ func GetGroups(c *gin.Context) {
 func GetUserGroups(c *gin.Context) {
 	usableGroups := make(map[string]map[string]interface{})
 	userGroup := ""
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	userGroup, _ = model.GetUserGroup(userId, false)
 	userUsableGroups := service.GetUserUsableGroups(userGroup)
 	for groupName, _ := range ratio_setting.GetGroupRatioCopy() {

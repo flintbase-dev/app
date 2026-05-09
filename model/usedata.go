@@ -9,8 +9,8 @@ import (
 
 // QuotaData is dashboard data aggregated from immutable usage logs.
 type QuotaData struct {
-	Id        int    `json:"id"`
-	UserID    int    `json:"user_id" gorm:"column:user_id"`
+	Id        string `json:"id"`
+	UserID    string `json:"user_id" gorm:"column:user_id"`
 	Username  string `json:"username" gorm:"column:username"`
 	ModelName string `json:"model_name" gorm:"column:model_name"`
 	CreatedAt int64  `json:"created_at" gorm:"column:created_at"`
@@ -59,7 +59,7 @@ func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (qu
 	return quotaData, err
 }
 
-func GetQuotaDataByUserId(userId int, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+func GetQuotaDataByUserId(userId string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
 	query, err := usageLogsQuery()
 	if err != nil {
 		return nil, err

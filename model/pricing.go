@@ -20,7 +20,7 @@ type Pricing struct {
 	Description            string                  `json:"description,omitempty"`
 	Icon                   string                  `json:"icon,omitempty"`
 	Tags                   string                  `json:"tags,omitempty"`
-	VendorID               int                     `json:"vendor_id,omitempty"`
+	VendorID               string                  `json:"vendor_id,omitempty"`
 	QuotaType              int                     `json:"quota_type"`
 	ModelPrice             float64                 `json:"model_price"`
 	CompletionPrice        float64                 `json:"completion_price"`
@@ -39,7 +39,7 @@ type Pricing struct {
 }
 
 type PricingVendor struct {
-	ID          int    `json:"id"`
+	ID          string `json:"id"`
 	Name        string `json:"name"`
 	Description string `json:"description,omitempty"`
 	Icon        string `json:"icon,omitempty"`
@@ -168,7 +168,7 @@ func updatePricing() {
 	// 预加载供应商
 	var vendors []Vendor
 	_ = DB.Find(&vendors).Error
-	vendorMap := make(map[int]*Vendor)
+	vendorMap := make(map[string]*Vendor)
 	for i := range vendors {
 		vendorMap[vendors[i].Id] = &vendors[i]
 	}

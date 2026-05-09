@@ -29,7 +29,7 @@ type FundingSource interface {
 // ---------------------------------------------------------------------------
 
 type WalletFunding struct {
-	userId    int
+	userId    string
 	requestId string
 	modelName string
 	consumed  int // 实际预扣的用户额度
@@ -39,7 +39,7 @@ func (w *WalletFunding) Source() string { return BillingSourceWallet }
 
 func walletLedgerSourceId(requestId string, phase string) string {
 	if requestId == "" {
-		return fmt.Sprintf("relay:%s:%s", phase, common.GetUUID())
+		return fmt.Sprintf("relay:%s:%s", phase, common.NewRequestID())
 	}
 	return fmt.Sprintf("%s:%s", requestId, phase)
 }
@@ -92,15 +92,15 @@ func (w *WalletFunding) Refund() error {
 
 type SubscriptionFunding struct {
 	requestId      string
-	userId         int
+	userId         string
 	modelName      string
 	amount         int64 // 预扣的订阅额度（subConsume）
-	subscriptionId int
+	subscriptionId string
 	preConsumed    int64
 	// 以下字段在 PreConsume 成功后填充，供 RelayInfo 同步使用
 	AmountTotal     int64
 	AmountUsedAfter int64
-	PlanId          int
+	PlanId          string
 	PlanTitle       string
 }
 

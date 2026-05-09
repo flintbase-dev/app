@@ -37,7 +37,7 @@ func authHelper(c *gin.Context, minRole int) {
 	useAccessToken := false
 
 	var user *model.User
-	if sessionUserID, ok := session.Get("id").(int); ok && sessionUserID != 0 {
+	if sessionUserID, ok := session.Get("id").(string); ok && !common.IsEmptyID(sessionUserID) {
 		var err error
 		user, err = model.GetUserById(sessionUserID, false)
 		if err != nil {
@@ -246,7 +246,7 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {
-			common.SysLog(fmt.Sprintf("TokenAuthReadOnly GetUserCache error for user %d: %v", token.UserId, err))
+			common.SysLog(fmt.Sprintf("TokenAuthReadOnly GetUserCache error for user %s: %v", token.UserId, err))
 			c.JSON(http.StatusInternalServerError, gin.H{
 				"success": false,
 				"message": common.TranslateMessage(c, i18n.MsgDatabaseError),
@@ -320,8 +320,8 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		token, err := model.ValidateUserToken(key)
 		if token != nil {
-			id := c.GetInt("id")
-			if id == 0 {
+			id := c.GetString("id")
+			if common.IsEmptyID(id) {
 				c.Set("id", token.UserId)
 			}
 		}
@@ -355,7 +355,7 @@ func TokenAuth() func(c *gin.Context) {
 
 		userCache, err := model.GetUserCache(token.UserId)
 		if err != nil {
-			common.SysLog(fmt.Sprintf("TokenAuth GetUserCache error for user %d: %v", token.UserId, err))
+			common.SysLog(fmt.Sprintf("TokenAuth GetUserCache error for user %s: %v", token.UserId, err))
 			abortWithOpenAiMessage(c, http.StatusInternalServerError,
 				common.TranslateMessage(c, i18n.MsgDatabaseError))
 			return

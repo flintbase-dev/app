@@ -53,7 +53,7 @@ type ResponsesUsageInfo struct {
 
 type ChannelMeta struct {
 	ChannelType          int
-	ChannelId            int
+	ChannelId            string
 	ChannelIsMultiKey    bool
 	ChannelMultiKeyIndex int
 	ChannelBaseUrl       string
@@ -77,10 +77,10 @@ type TokenCountMeta struct {
 }
 
 type RelayInfo struct {
-	TokenId           int
+	TokenId           string
 	TokenKey          string
 	TokenGroup        string
-	UserId            int
+	UserId            string
 	UsingGroup        string // 使用的分组，当auto跨分组重试时，会变动
 	UserGroup         string // 用户所在分组
 	TokenUnlimited    bool
@@ -113,13 +113,13 @@ type RelayInfo struct {
 	// "" or "wallet" => wallet; "subscription" => subscription
 	BillingSource string
 	// SubscriptionId is the user_subscriptions.id used when BillingSource == "subscription"
-	SubscriptionId int
+	SubscriptionId string
 	// SubscriptionPreConsumed is the amount pre-consumed on subscription item (quota units or 1)
 	SubscriptionPreConsumed int64
 	// SubscriptionPostDelta is the post-consume delta applied to amount_used (quota units; can be negative).
 	SubscriptionPostDelta int64
 	// SubscriptionPlanId / SubscriptionPlanTitle are used for logging/UI display.
-	SubscriptionPlanId    int
+	SubscriptionPlanId    string
 	SubscriptionPlanTitle string
 	// RequestId is used for idempotent pre-consume/refund
 	RequestId string
@@ -166,7 +166,7 @@ func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
 	apiType, _ := common.ChannelType2APIType(channelType)
 	channelMeta := &ChannelMeta{
 		ChannelType:          channelType,
-		ChannelId:            common.GetContextKeyInt(c, constant.ContextKeyChannelId),
+		ChannelId:            common.GetContextKeyString(c, constant.ContextKeyChannelId),
 		ChannelIsMultiKey:    common.GetContextKeyBool(c, constant.ContextKeyChannelIsMultiKey),
 		ChannelMultiKeyIndex: common.GetContextKeyInt(c, constant.ContextKeyChannelMultiKeyIndex),
 		ChannelBaseUrl:       common.GetContextKeyString(c, constant.ContextKeyChannelBaseUrl),
@@ -233,9 +233,9 @@ func (info *RelayInfo) ToString() string {
 	fmt.Fprintf(b, "FinalPreConsumedQuota: %d, ", info.FinalPreConsumedQuota)
 
 	// User & token info (mask secrets)
-	fmt.Fprintf(b, "User{ Id: %d, Email: %q, Group: %q, UsingGroup: %q, Quota: %d }, ",
+	fmt.Fprintf(b, "User{ Id: %s, Email: %q, Group: %q, UsingGroup: %q, Quota: %d }, ",
 		info.UserId, common.MaskEmail(info.UserEmail), info.UserGroup, info.UsingGroup, info.UserQuota)
-	fmt.Fprintf(b, "Token{ Id: %d, Unlimited: %t, Key: ***masked*** }, ", info.TokenId, info.TokenUnlimited)
+	fmt.Fprintf(b, "Token{ Id: %s, Unlimited: %t, Key: ***masked*** }, ", info.TokenId, info.TokenUnlimited)
 
 	// Time info
 	latencyMs := info.FirstResponseTime.Sub(info.StartTime).Milliseconds()
@@ -255,7 +255,7 @@ func (info *RelayInfo) ToString() string {
 	// Channel metadata (mask ApiKey)
 	if info.ChannelMeta != nil {
 		cm := info.ChannelMeta
-		fmt.Fprintf(b, "ChannelMeta{ Type: %d, Id: %d, IsMultiKey: %t, MultiKeyIndex: %d, BaseURL: %q, ApiType: %d, ApiVersion: %q, Organization: %q, CreateTime: %d, UpstreamModelName: %q, IsModelMapped: %t, SupportStreamOptions: %t, ApiKey: ***masked*** }, ",
+		fmt.Fprintf(b, "ChannelMeta{ Type: %d, Id: %s, IsMultiKey: %t, MultiKeyIndex: %d, BaseURL: %q, ApiType: %d, ApiVersion: %q, Organization: %q, CreateTime: %d, UpstreamModelName: %q, IsModelMapped: %t, SupportStreamOptions: %t, ApiKey: ***masked*** }, ",
 			cm.ChannelType, cm.ChannelId, cm.ChannelIsMultiKey, cm.ChannelMultiKeyIndex, cm.ChannelBaseUrl, cm.ApiType, cm.ApiVersion, cm.Organization, cm.ChannelCreateTime, cm.UpstreamModelName, cm.IsModelMapped, cm.SupportStreamOptions)
 	}
 
@@ -384,7 +384,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		Request: request,
 
 		RequestId:  reqId,
-		UserId:     common.GetContextKeyInt(c, constant.ContextKeyUserId),
+		UserId:     common.GetContextKeyString(c, constant.ContextKeyUserId),
 		UsingGroup: common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
 		UserGroup:  common.GetContextKeyString(c, constant.ContextKeyUserGroup),
 		UserQuota:  common.GetContextKeyInt(c, constant.ContextKeyUserQuota),
@@ -392,7 +392,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 
 		OriginModelName: common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
 
-		TokenId:        common.GetContextKeyInt(c, constant.ContextKeyTokenId),
+		TokenId:        common.GetContextKeyString(c, constant.ContextKeyTokenId),
 		TokenKey:       common.GetContextKeyString(c, constant.ContextKeyTokenKey),
 		TokenUnlimited: common.GetContextKeyBool(c, constant.ContextKeyTokenUnlimited),
 		TokenGroup:     tokenGroup,

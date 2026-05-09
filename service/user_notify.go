@@ -40,7 +40,7 @@ func NotifyUpstreamModelUpdateWatchers(subject string, content string) {
 			continue
 		}
 		if err := NotifyUser(user.Id, user.Email, userSetting, notification); err != nil {
-			common.SysLog(fmt.Sprintf("failed to notify user %d for upstream model update: %s", user.Id, err.Error()))
+			common.SysLog(fmt.Sprintf("failed to notify user %s for upstream model update: %s", user.Id, err.Error()))
 			continue
 		}
 		sentCount++
@@ -48,7 +48,7 @@ func NotifyUpstreamModelUpdateWatchers(subject string, content string) {
 	common.SysLog(fmt.Sprintf("upstream model update notifications sent: %d", sentCount))
 }
 
-func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data dto.Notify) error {
+func NotifyUser(userId string, userEmail string, userSetting dto.UserSetting, data dto.Notify) error {
 	notifyType := userSetting.NotifyType
 	if notifyType == "" {
 		notifyType = dto.NotifyTypeEmail
@@ -61,7 +61,7 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 		return err
 	}
 	if !canSend {
-		return fmt.Errorf("notification limit exceeded for user %d with type %s", userId, notifyType)
+		return fmt.Errorf("notification limit exceeded for user %s with type %s", userId, notifyType)
 	}
 
 	switch notifyType {
@@ -72,14 +72,14 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 			emailToUse = userEmail
 		}
 		if emailToUse == "" {
-			common.SysLog(fmt.Sprintf("user %d has no email, skip sending email", userId))
+			common.SysLog(fmt.Sprintf("user %s has no email, skip sending email", userId))
 			return nil
 		}
 		return sendEmailNotify(emailToUse, data)
 	case dto.NotifyTypeWebhook:
 		webhookURLStr := userSetting.WebhookUrl
 		if webhookURLStr == "" {
-			common.SysLog(fmt.Sprintf("user %d has no webhook url, skip sending webhook", userId))
+			common.SysLog(fmt.Sprintf("user %s has no webhook url, skip sending webhook", userId))
 			return nil
 		}
 
@@ -89,7 +89,7 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 	case dto.NotifyTypeBark:
 		barkURL := userSetting.BarkUrl
 		if barkURL == "" {
-			common.SysLog(fmt.Sprintf("user %d has no bark url, skip sending bark", userId))
+			common.SysLog(fmt.Sprintf("user %s has no bark url, skip sending bark", userId))
 			return nil
 		}
 		return sendBarkNotify(barkURL, data)
@@ -97,7 +97,7 @@ func NotifyUser(userId int, userEmail string, userSetting dto.UserSetting, data 
 		gotifyUrl := userSetting.GotifyUrl
 		gotifyToken := userSetting.GotifyToken
 		if gotifyUrl == "" || gotifyToken == "" {
-			common.SysLog(fmt.Sprintf("user %d has no gotify url or token, skip sending gotify", userId))
+			common.SysLog(fmt.Sprintf("user %s has no gotify url or token, skip sending gotify", userId))
 			return nil
 		}
 		return sendGotifyNotify(gotifyUrl, gotifyToken, userSetting.GotifyPriority, data)

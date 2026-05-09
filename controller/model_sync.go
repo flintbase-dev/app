@@ -234,9 +234,9 @@ func fetchJSON[T any](ctx context.Context, url string, out *upstreamEnvelope[T])
 	return lastErr
 }
 
-func ensureVendorID(vendorName string, vendorByName map[string]upstreamVendor, vendorIDCache map[string]int, createdVendors *int) int {
+func ensureVendorID(vendorName string, vendorByName map[string]upstreamVendor, vendorIDCache map[string]string, createdVendors *int) string {
 	if vendorName == "" {
-		return 0
+		return ""
 	}
 	if id, ok := vendorIDCache[vendorName]; ok {
 		return id
@@ -258,8 +258,8 @@ func ensureVendorID(vendorName string, vendorByName map[string]upstreamVendor, v
 		vendorIDCache[vendorName] = v.Id
 		return v.Id
 	}
-	vendorIDCache[vendorName] = 0
-	return 0
+	vendorIDCache[vendorName] = ""
+	return ""
 }
 
 // SyncUpstreamModels 同步上游模型与供应商：
@@ -350,7 +350,7 @@ func SyncUpstreamModels(c *gin.Context) {
 	updatedList := make([]string, 0)
 
 	// 本地缓存：vendorName -> id
-	vendorIDCache := make(map[string]int)
+	vendorIDCache := make(map[string]string)
 
 	for _, name := range missing {
 		up, ok := modelByName[name]
@@ -548,17 +548,17 @@ func SyncUpstreamPreview(c *gin.Context) {
 	}
 
 	// 本地 vendor 名称映射
-	vendorIdSet := make(map[int]struct{})
+	vendorIdSet := make(map[string]struct{})
 	for _, m := range locals {
-		if m.VendorID != 0 {
+		if !common.IsEmptyID(m.VendorID) {
 			vendorIdSet[m.VendorID] = struct{}{}
 		}
 	}
-	vendorIDs := make([]int, 0, len(vendorIdSet))
+	vendorIDs := make([]string, 0, len(vendorIdSet))
 	for id := range vendorIdSet {
 		vendorIDs = append(vendorIDs, id)
 	}
-	idToVendorName := make(map[int]string)
+	idToVendorName := make(map[string]string)
 	if len(vendorIDs) > 0 {
 		var dbVendors []model.Vendor
 		_ = model.DB.Where("id IN ?", vendorIDs).Find(&dbVendors).Error

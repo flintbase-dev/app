@@ -12,8 +12,8 @@ import (
 )
 
 type TopUp struct {
-	Id              int     `json:"id"`
-	UserId          int     `json:"user_id" gorm:"index"`
+	Id              string  `json:"id" gorm:"primaryKey;type:varchar(32)"`
+	UserId          string  `json:"user_id" gorm:"type:varchar(32);index"`
 	Amount          int64   `json:"amount"`
 	Money           float64 `json:"money"`
 	TradeNo         string  `json:"trade_no" gorm:"unique;type:varchar(255);index"`
@@ -50,7 +50,7 @@ func (topUp *TopUp) Update() error {
 	return err
 }
 
-func GetTopUpById(id int) *TopUp {
+func GetTopUpById(id string) *TopUp {
 	var topUp *TopUp
 	var err error
 	err = DB.Where("id = ?", id).First(&topUp).Error
@@ -140,7 +140,7 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 			Amount:     quota,
 			SourceType: "topup.stripe",
 			SourceId:   topUp.TradeNo,
-			RequestId:  common.GetUUID(),
+			RequestId:  common.NewRequestID(),
 			Reason:     "stripe topup completed",
 			Metadata: map[string]interface{}{
 				"trade_no":         topUp.TradeNo,
@@ -176,7 +176,7 @@ func topUpQueryCutoff() int64 {
 	return common.GetTimestamp() - topUpQueryWindowSeconds
 }
 
-func GetUserTopUps(userId int, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+func GetUserTopUps(userId string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	// Start transaction
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -246,7 +246,7 @@ func GetAllTopUps(pageInfo *common.PageInfo) (topups []*TopUp, total int64, err 
 const searchTopUpCountHardLimit = 10000
 
 // SearchUserTopUps 按订单号搜索某用户的充值记录
-func SearchUserTopUps(userId int, keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
+func SearchUserTopUps(userId string, keyword string, pageInfo *common.PageInfo) (topups []*TopUp, total int64, err error) {
 	tx := DB.Begin()
 	if tx.Error != nil {
 		return nil, 0, tx.Error
@@ -333,7 +333,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 
 	refCol := `"trade_no"`
 
-	var userId int
+	var userId string
 	var quotaToAdd int
 	var payMoney float64
 	var paymentMethod string
@@ -380,7 +380,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			Amount:     quotaToAdd,
 			SourceType: "topup.admin_complete",
 			SourceId:   topUp.TradeNo,
-			RequestId:  common.GetUUID(),
+			RequestId:  common.NewRequestID(),
 			Reason:     "admin completed pending topup",
 			Metadata: map[string]interface{}{
 				"trade_no":         topUp.TradeNo,

@@ -51,7 +51,7 @@ func SyncWorkOSUser(profile WorkOSUserProfile, affCode string) (*User, error) {
 		role = common.RoleRootUser
 	}
 	user = User{
-		Username:                   uniqueWorkOSUsername(profile.Email, profile.ID, 0),
+		Username:                   uniqueWorkOSUsername(profile.Email, profile.ID, ""),
 		WorkOSId:                   profile.ID,
 		WorkOSOrganizationId:       strings.TrimSpace(profile.OrganizationID),
 		WorkOSAuthenticationMethod: strings.TrimSpace(profile.AuthenticationMethod),
@@ -61,7 +61,7 @@ func SyncWorkOSUser(profile WorkOSUserProfile, affCode string) (*User, error) {
 		Email:                      profile.Email,
 		Group:                      "default",
 	}
-	inviterID := 0
+	inviterID := ""
 	if affCode != "" {
 		if id, err := GetUserIdByAffCode(affCode); err == nil {
 			inviterID = id
@@ -82,7 +82,7 @@ func isFirstUser() bool {
 	return count == 0
 }
 
-func uniqueWorkOSUsername(email string, workOSID string, currentUserID int) string {
+func uniqueWorkOSUsername(email string, workOSID string, currentUserID string) string {
 	base := strings.TrimSpace(email)
 	if base == "" {
 		base = strings.TrimSpace(workOSID)
@@ -96,7 +96,7 @@ func uniqueWorkOSUsername(email string, workOSID string, currentUserID int) stri
 
 	var existing User
 	query := DB.Unscoped().Where("username = ?", base)
-	if currentUserID != 0 {
+	if !common.IsEmptyID(currentUserID) {
 		query = query.Where("id <> ?", currentUserID)
 	}
 	err := query.First(&existing).Error

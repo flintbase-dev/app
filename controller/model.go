@@ -68,8 +68,8 @@ func ListModels(c *gin.Context, modelType int) {
 	userOpenAiModels := make([]dto.OpenAIModels, 0)
 
 	acceptUnsetPriceModel := false
-	userId := c.GetInt("id")
-	if userId > 0 {
+	userId := c.GetString("id")
+	if !common.IsEmptyID(userId) {
 		userSettings, _ := model.GetUserSetting(userId, false)
 		if userSettings.AcceptUnsetPriceModel {
 			acceptUnsetPriceModel = true
@@ -105,7 +105,7 @@ func ListModels(c *gin.Context, modelType int) {
 			}
 		}
 	} else {
-		userId := c.GetInt("id")
+		userId := c.GetString("id")
 		userGroup, err := model.GetUserGroup(userId, false)
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{

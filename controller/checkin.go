@@ -19,7 +19,7 @@ func GetCheckinStatus(c *gin.Context) {
 		common.ApiErrorMsg(c, "签到功能未启用")
 		return
 	}
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	// 获取月份参数，默认为当前月份
 	month := c.DefaultQuery("month", time.Now().Format("2006-01"))
 
@@ -51,7 +51,7 @@ func DoCheckin(c *gin.Context) {
 		return
 	}
 
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 
 	checkin, err := model.UserCheckin(userId)
 	if err != nil {

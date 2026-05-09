@@ -28,8 +28,8 @@ const (
 var ErrInsufficientCreditGrantBalance = errors.New("insufficient active credit grants")
 
 type CreditGrant struct {
-	Id              int64  `json:"id" gorm:"primaryKey;column:id"`
-	UserId          int    `json:"user_id" gorm:"column:user_id;index"`
+	Id              string `json:"id" gorm:"primaryKey;column:id;type:varchar(32)"`
+	UserId          string `json:"user_id" gorm:"column:user_id;type:varchar(32);index"`
 	SourceType      string `json:"source_type" gorm:"column:source_type;size:64;index"`
 	SourceId        string `json:"source_id" gorm:"column:source_id;size:128;index"`
 	Amount          int    `json:"amount" gorm:"column:amount"`
@@ -38,7 +38,7 @@ type CreditGrant struct {
 	EffectiveAt     int64  `json:"effective_at" gorm:"column:effective_at;index"`
 	ExpiresAt       int64  `json:"expires_at" gorm:"column:expires_at;index"`
 	CreatedAt       int64  `json:"created_at" gorm:"column:created_at;index"`
-	CreatedBy       int    `json:"created_by" gorm:"column:created_by;index"`
+	CreatedBy       string `json:"created_by" gorm:"column:created_by;type:varchar(32);index"`
 	RequestId       string `json:"request_id" gorm:"column:request_id;size:64;index"`
 	Metadata        string `json:"metadata" gorm:"column:metadata"`
 }
@@ -48,20 +48,20 @@ func (CreditGrant) TableName() string {
 }
 
 type CreditLedgerEntry struct {
-	Id           int64  `json:"id" gorm:"primaryKey;column:id"`
-	UserId       int    `json:"user_id" gorm:"column:user_id;index"`
-	GrantId      *int64 `json:"grant_id" gorm:"column:grant_id;index"`
-	EntryType    string `json:"entry_type" gorm:"column:entry_type;size:32;index"`
-	AmountDelta  int    `json:"amount_delta" gorm:"column:amount_delta"`
-	BalanceAfter int    `json:"balance_after" gorm:"column:balance_after"`
-	RequestId    string `json:"request_id" gorm:"column:request_id;size:64;index"`
-	SourceType   string `json:"source_type" gorm:"column:source_type;size:64;index"`
-	SourceId     string `json:"source_id" gorm:"column:source_id;size:128;index"`
-	ActorUserId  int    `json:"actor_user_id" gorm:"column:actor_user_id;index"`
-	Reason       string `json:"reason" gorm:"column:reason"`
-	CreatedAt    int64  `json:"created_at" gorm:"column:created_at;index"`
-	ReversalOfId *int64 `json:"reversal_of_id" gorm:"column:reversal_of_id;index"`
-	Metadata     string `json:"metadata" gorm:"column:metadata"`
+	Id           string  `json:"id" gorm:"primaryKey;column:id;type:varchar(32)"`
+	UserId       string  `json:"user_id" gorm:"column:user_id;type:varchar(32);index"`
+	GrantId      *string `json:"grant_id" gorm:"column:grant_id;type:varchar(32);index"`
+	EntryType    string  `json:"entry_type" gorm:"column:entry_type;size:32;index"`
+	AmountDelta  int     `json:"amount_delta" gorm:"column:amount_delta"`
+	BalanceAfter int     `json:"balance_after" gorm:"column:balance_after"`
+	RequestId    string  `json:"request_id" gorm:"column:request_id;size:64;index"`
+	SourceType   string  `json:"source_type" gorm:"column:source_type;size:64;index"`
+	SourceId     string  `json:"source_id" gorm:"column:source_id;size:128;index"`
+	ActorUserId  string  `json:"actor_user_id" gorm:"column:actor_user_id;type:varchar(32);index"`
+	Reason       string  `json:"reason" gorm:"column:reason"`
+	CreatedAt    int64   `json:"created_at" gorm:"column:created_at;index"`
+	ReversalOfId *string `json:"reversal_of_id" gorm:"column:reversal_of_id;type:varchar(32);index"`
+	Metadata     string  `json:"metadata" gorm:"column:metadata"`
 }
 
 func (CreditLedgerEntry) TableName() string {
@@ -69,11 +69,11 @@ func (CreditLedgerEntry) TableName() string {
 }
 
 type CreditGrantParams struct {
-	UserId      int
+	UserId      string
 	Amount      int
 	SourceType  string
 	SourceId    string
-	ActorUserId int
+	ActorUserId string
 	RequestId   string
 	Reason      string
 	ExpiresAt   int64
@@ -81,12 +81,12 @@ type CreditGrantParams struct {
 }
 
 type CreditConsumeParams struct {
-	UserId      int
+	UserId      string
 	Amount      int
 	EntryType   string
 	SourceType  string
 	SourceId    string
-	ActorUserId int
+	ActorUserId string
 	RequestId   string
 	Reason      string
 	Metadata    map[string]interface{}
@@ -100,19 +100,19 @@ func normalizeLedgerLabel(value string, fallback string) string {
 	return value
 }
 
-func newLedgerSourceId(prefix string, userId int) string {
-	return fmt.Sprintf("%s:%d:%s", prefix, userId, common.GetUUID())
+func newLedgerSourceId(prefix string, userId string) string {
+	return fmt.Sprintf("%s:%s:%s", prefix, userId, common.NewGeneralID())
 }
 
 func ledgerMetadataString(metadata map[string]interface{}) string {
 	return jsonObjectString(metadata)
 }
 
-func lockUserQuotaTx(tx *gorm.DB, userId int) (*User, error) {
+func lockUserQuotaTx(tx *gorm.DB, userId string) (*User, error) {
 	if tx == nil {
 		return nil, errors.New("database transaction is nil")
 	}
-	if userId <= 0 {
+	if common.IsEmptyID(userId) {
 		return nil, errors.New("user id is required")
 	}
 	user := &User{}
@@ -122,11 +122,11 @@ func lockUserQuotaTx(tx *gorm.DB, userId int) (*User, error) {
 	return user, nil
 }
 
-func updateUserQuotaProjectionTx(tx *gorm.DB, userId int, delta int) error {
+func updateUserQuotaProjectionTx(tx *gorm.DB, userId string, delta int) error {
 	return tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", delta)).Error
 }
 
-func updateUserQuotaCacheAfterCommit(userId int, balance int) {
+func updateUserQuotaCacheAfterCommit(userId string, balance int) {
 	if !common.RedisEnabled {
 		return
 	}
@@ -174,7 +174,7 @@ func grantUserCreditsWithEntryTypeTx(tx *gorm.DB, params CreditGrantParams, entr
 	now := common.GetTimestamp()
 	params.SourceType = normalizeLedgerLabel(params.SourceType, entryType)
 	params.SourceId = normalizeLedgerLabel(params.SourceId, newLedgerSourceId(params.SourceType, params.UserId))
-	params.RequestId = normalizeLedgerLabel(params.RequestId, common.GetUUID())
+	params.RequestId = normalizeLedgerLabel(params.RequestId, common.NewRequestID())
 	params.Reason = normalizeLedgerLabel(params.Reason, params.SourceType)
 
 	user, err := lockUserQuotaTx(tx, params.UserId)
@@ -262,7 +262,7 @@ func ConsumeUserCreditsTx(tx *gorm.DB, params CreditConsumeParams) (int, error) 
 	entryType := normalizeLedgerLabel(params.EntryType, CreditLedgerEntryTypeConsume)
 	params.SourceType = normalizeLedgerLabel(params.SourceType, entryType)
 	params.SourceId = normalizeLedgerLabel(params.SourceId, newLedgerSourceId(params.SourceType, params.UserId))
-	params.RequestId = normalizeLedgerLabel(params.RequestId, common.GetUUID())
+	params.RequestId = normalizeLedgerLabel(params.RequestId, common.NewRequestID())
 	params.Reason = normalizeLedgerLabel(params.Reason, params.SourceType)
 
 	var existing struct {
@@ -368,7 +368,7 @@ func AdjustUserCredits(params CreditConsumeParams, delta int) error {
 	return ConsumeUserCredits(params)
 }
 
-func SetUserCreditBalance(userId int, targetBalance int, actorUserId int, reason string, metadata map[string]interface{}) error {
+func SetUserCreditBalance(userId string, targetBalance int, actorUserId string, reason string, metadata map[string]interface{}) error {
 	var balanceAfter int
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		user, err := lockUserQuotaTx(tx, userId)
@@ -387,7 +387,7 @@ func SetUserCreditBalance(userId int, targetBalance int, actorUserId int, reason
 				SourceType:  "admin.override",
 				SourceId:    newLedgerSourceId("admin.override", userId),
 				ActorUserId: actorUserId,
-				RequestId:   common.GetUUID(),
+				RequestId:   common.NewRequestID(),
 				Reason:      reason,
 				Metadata:    metadata,
 			})
@@ -400,7 +400,7 @@ func SetUserCreditBalance(userId int, targetBalance int, actorUserId int, reason
 			SourceType:  "admin.override",
 			SourceId:    newLedgerSourceId("admin.override", userId),
 			ActorUserId: actorUserId,
-			RequestId:   common.GetUUID(),
+			RequestId:   common.NewRequestID(),
 			Reason:      reason,
 			Metadata:    metadata,
 		})
@@ -412,7 +412,7 @@ func SetUserCreditBalance(userId int, targetBalance int, actorUserId int, reason
 	return err
 }
 
-func ConsumeUserCreditsForRequest(userId int, amount int, sourceType string, sourceId string, requestId string, metadata map[string]interface{}) error {
+func ConsumeUserCreditsForRequest(userId string, amount int, sourceType string, sourceId string, requestId string, metadata map[string]interface{}) error {
 	return ConsumeUserCredits(CreditConsumeParams{
 		UserId:     userId,
 		Amount:     amount,
@@ -424,7 +424,7 @@ func ConsumeUserCreditsForRequest(userId int, amount int, sourceType string, sou
 	})
 }
 
-func RefundUserCreditsForRequest(userId int, amount int, sourceType string, sourceId string, requestId string, metadata map[string]interface{}) error {
+func RefundUserCreditsForRequest(userId string, amount int, sourceType string, sourceId string, requestId string, metadata map[string]interface{}) error {
 	return RefundUserCredits(CreditGrantParams{
 		UserId:     userId,
 		Amount:     amount,

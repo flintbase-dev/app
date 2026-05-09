@@ -127,7 +127,7 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 		other["billing_preference"] = relayInfo.UserSetting.BillingPreference
 	}
 	if relayInfo.BillingSource == "subscription" {
-		if relayInfo.SubscriptionId != 0 {
+		if !common.IsEmptyID(relayInfo.SubscriptionId) {
 			other["subscription_id"] = relayInfo.SubscriptionId
 		}
 		if relayInfo.SubscriptionPreConsumed > 0 {
@@ -137,7 +137,7 @@ func appendBillingInfo(relayInfo *relaycommon.RelayInfo, other map[string]interf
 		if relayInfo.SubscriptionPostDelta != 0 {
 			other["subscription_post_delta"] = relayInfo.SubscriptionPostDelta
 		}
-		if relayInfo.SubscriptionPlanId != 0 {
+		if !common.IsEmptyID(relayInfo.SubscriptionPlanId) {
 			other["subscription_plan_id"] = relayInfo.SubscriptionPlanId
 		}
 		if relayInfo.SubscriptionPlanTitle != "" {

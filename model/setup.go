@@ -1,7 +1,7 @@
 package model
 
 type Setup struct {
-	ID            uint   `json:"id" gorm:"primaryKey"`
+	ID            string `json:"id" gorm:"primaryKey;type:varchar(32)"`
 	Version       string `json:"version" gorm:"type:varchar(50);not null"`
 	InitializedAt int64  `json:"initialized_at" gorm:"type:bigint;not null"`
 }

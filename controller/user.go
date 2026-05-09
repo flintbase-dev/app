@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
-	"strconv"
 	"strings"
 	"sync"
 
@@ -51,11 +50,7 @@ func SearchUsers(c *gin.Context) {
 }
 
 func GetUser(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	id := c.Param("id")
 	user, err := model.GetUserById(id, false)
 	if err != nil {
 		common.ApiError(c, err)
@@ -75,7 +70,7 @@ func GetUser(c *gin.Context) {
 }
 
 func GenerateAccessToken(c *gin.Context) {
-	id := c.GetInt("id")
+	id := c.GetString("id")
 	user, err := model.GetUserById(id, true)
 	if err != nil {
 		common.ApiError(c, err)
@@ -92,7 +87,7 @@ func GenerateAccessToken(c *gin.Context) {
 	user.SetAccessToken(key)
 
 	if model.DB.Where("access_token = ?", user.AccessToken).First(user).RowsAffected != 0 {
-		common.ApiErrorI18n(c, i18n.MsgUuidDuplicate)
+		common.ApiErrorI18n(c, i18n.MsgIdDuplicate)
 		return
 	}
 
@@ -114,7 +109,7 @@ type TransferAffQuotaRequest struct {
 }
 
 func TransferAffQuota(c *gin.Context) {
-	id := c.GetInt("id")
+	id := c.GetString("id")
 	user, err := model.GetUserById(id, true)
 	if err != nil {
 		common.ApiError(c, err)
@@ -134,7 +129,7 @@ func TransferAffQuota(c *gin.Context) {
 }
 
 func GetAffCode(c *gin.Context) {
-	id := c.GetInt("id")
+	id := c.GetString("id")
 	user, err := model.GetUserById(id, true)
 	if err != nil {
 		common.ApiError(c, err)
@@ -159,7 +154,7 @@ func GetAffCode(c *gin.Context) {
 }
 
 func GetSelf(c *gin.Context) {
-	id := c.GetInt("id")
+	id := c.GetString("id")
 	userRole := c.GetInt("role")
 	user, err := model.GetUserById(id, false)
 	if err != nil {
@@ -238,9 +233,9 @@ func calculateUserPermissions(userRole int) map[string]interface{} {
 }
 
 func GetUserModels(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		id = c.GetInt("id")
+	id := c.Param("id")
+	if common.IsEmptyID(id) {
+		id = c.GetString("id")
 	}
 	user, err := model.GetUserCache(id)
 	if err != nil {
@@ -267,7 +262,7 @@ func GetUserModels(c *gin.Context) {
 func UpdateUser(c *gin.Context) {
 	var updatedUser model.User
 	err := json.NewDecoder(c.Request.Body).Decode(&updatedUser)
-	if err != nil || updatedUser.Id == 0 {
+	if err != nil || common.IsEmptyID(updatedUser.Id) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
@@ -310,7 +305,7 @@ func UpdateSelf(c *gin.Context) {
 
 	// 检查是否是用户设置更新请求 (sidebar_modules 或 language)
 	if sidebarModules, sidebarExists := requestData["sidebar_modules"]; sidebarExists {
-		userId := c.GetInt("id")
+		userId := c.GetString("id")
 		user, err := model.GetUserById(userId, false)
 		if err != nil {
 			common.ApiError(c, err)
@@ -338,7 +333,7 @@ func UpdateSelf(c *gin.Context) {
 
 	// 检查是否是语言偏好更新请求
 	if language, langExists := requestData["language"]; langExists {
-		userId := c.GetInt("id")
+		userId := c.GetString("id")
 		user, err := model.GetUserById(userId, false)
 		if err != nil {
 			common.ApiError(c, err)
@@ -365,7 +360,7 @@ func UpdateSelf(c *gin.Context) {
 	}
 
 	displayName, _ := requestData["display_name"].(string)
-	cleanUser := model.User{Id: c.GetInt("id"), DisplayName: displayName}
+	cleanUser := model.User{Id: c.GetString("id"), DisplayName: displayName}
 	if err := cleanUser.Update(false); err != nil {
 		common.ApiError(c, err)
 		return
@@ -379,11 +374,7 @@ func UpdateSelf(c *gin.Context) {
 }
 
 func DeleteUser(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	id := c.Param("id")
 	originUser, err := model.GetUserById(id, false)
 	if err != nil {
 		common.ApiError(c, err)
@@ -405,7 +396,7 @@ func DeleteUser(c *gin.Context) {
 }
 
 func DeleteSelf(c *gin.Context) {
-	id := c.GetInt("id")
+	id := c.GetString("id")
 	user, _ := model.GetUserById(id, false)
 
 	if user.Role == common.RoleRootUser {
@@ -426,7 +417,7 @@ func DeleteSelf(c *gin.Context) {
 }
 
 type ManageRequest struct {
-	Id     int    `json:"id"`
+	Id     string `json:"id"`
 	Action string `json:"action"`
 	Value  int    `json:"value"`
 	Mode   string `json:"mode"`
@@ -446,7 +437,7 @@ func ManageUser(c *gin.Context) {
 	}
 	// Fill attributes
 	model.DB.Unscoped().Where(&user).First(&user)
-	if user.Id == 0 {
+	if common.IsEmptyID(user.Id) {
 		common.ApiErrorI18n(c, i18n.MsgUserNotExists)
 		return
 	}
@@ -479,7 +470,7 @@ func ManageUser(c *gin.Context) {
 		// 删除用户后，强制清理 Redis 中所有该用户令牌的缓存，
 		// 避免已缓存的令牌在 TTL 过期前仍能通过 TokenAuth 校验。
 		if err := model.InvalidateUserTokensCache(user.Id); err != nil {
-			common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %d: %s", user.Id, err.Error()))
+			common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %s: %s", user.Id, err.Error()))
 		}
 	case "promote":
 		if myRole != common.RoleRootUser {
@@ -503,7 +494,7 @@ func ManageUser(c *gin.Context) {
 		user.Role = common.RoleCommonUser
 	case "add_quota":
 		adminName := c.GetString("username")
-		adminId := c.GetInt("id")
+		adminId := c.GetString("id")
 		adminInfo := map[string]interface{}{
 			"admin_id":       adminId,
 			"admin_username": adminName,
@@ -518,7 +509,7 @@ func ManageUser(c *gin.Context) {
 				UserId:      user.Id,
 				ActorUserId: adminId,
 				SourceType:  "admin.quota_adjustment",
-				SourceId:    fmt.Sprintf("admin:%d:%s", adminId, common.GetUUID()),
+				SourceId:    fmt.Sprintf("admin:%s:%s", adminId, common.NewGeneralID()),
 				RequestId:   c.GetString(common.RequestIdKey),
 				Reason:      "admin quota increase",
 				Metadata:    adminInfo,
@@ -532,7 +523,7 @@ func ManageUser(c *gin.Context) {
 				Event:        "admin.quota.increase",
 				Content:      fmt.Sprintf("管理员增加用户额度 %s", logger.LogQuota(req.Value)),
 				ResourceType: "user",
-				ResourceId:   fmt.Sprintf("%d", user.Id),
+				ResourceId:   user.Id,
 				Quota:        req.Value,
 				Other:        adminInfo,
 			})
@@ -545,7 +536,7 @@ func ManageUser(c *gin.Context) {
 				UserId:      user.Id,
 				ActorUserId: adminId,
 				SourceType:  "admin.quota_adjustment",
-				SourceId:    fmt.Sprintf("admin:%d:%s", adminId, common.GetUUID()),
+				SourceId:    fmt.Sprintf("admin:%s:%s", adminId, common.NewGeneralID()),
 				RequestId:   c.GetString(common.RequestIdKey),
 				Reason:      "admin quota decrease",
 				Metadata:    adminInfo,
@@ -559,7 +550,7 @@ func ManageUser(c *gin.Context) {
 				Event:        "admin.quota.decrease",
 				Content:      fmt.Sprintf("管理员减少用户额度 %s", logger.LogQuota(req.Value)),
 				ResourceType: "user",
-				ResourceId:   fmt.Sprintf("%d", user.Id),
+				ResourceId:   user.Id,
 				Quota:        -req.Value,
 				Other:        adminInfo,
 			})
@@ -580,7 +571,7 @@ func ManageUser(c *gin.Context) {
 				Event:        "admin.quota.override",
 				Content:      fmt.Sprintf("管理员覆盖用户额度从 %s 为 %s", logger.LogQuota(oldQuota), logger.LogQuota(req.Value)),
 				ResourceType: "user",
-				ResourceId:   fmt.Sprintf("%d", user.Id),
+				ResourceId:   user.Id,
 				Quota:        req.Value - oldQuota,
 				Other:        adminInfo,
 			})
@@ -605,10 +596,10 @@ func ManageUser(c *gin.Context) {
 	// InvalidateUserTokensCache 则确保令牌侧的缓存也同步刷新。
 	if req.Action == "disable" || req.Action == "promote" || req.Action == "demote" {
 		if err := model.InvalidateUserCache(user.Id); err != nil {
-			common.SysLog(fmt.Sprintf("failed to invalidate user cache for user %d: %s", user.Id, err.Error()))
+			common.SysLog(fmt.Sprintf("failed to invalidate user cache for user %s: %s", user.Id, err.Error()))
 		}
 		if err := model.InvalidateUserTokensCache(user.Id); err != nil {
-			common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %d: %s", user.Id, err.Error()))
+			common.SysLog(fmt.Sprintf("failed to invalidate tokens cache for user %s: %s", user.Id, err.Error()))
 		}
 	}
 	clearUser := model.User{
@@ -654,7 +645,7 @@ func (l *topUpTryLock) Unlock() {
 	}
 }
 
-func getTopUpLock(userID int) *topUpTryLock {
+func getTopUpLock(userID string) *topUpTryLock {
 	if v, ok := topUpLocks.Load(userID); ok {
 		return v.(*topUpTryLock)
 	}
@@ -669,7 +660,7 @@ func getTopUpLock(userID int) *topUpTryLock {
 }
 
 func TopUp(c *gin.Context) {
-	id := c.GetInt("id")
+	id := c.GetString("id")
 	lock := getTopUpLock(id)
 	if !lock.TryLock() {
 		common.ApiErrorI18n(c, i18n.MsgUserTopUpProcessing)
@@ -794,7 +785,7 @@ func UpdateUserSetting(c *gin.Context) {
 		}
 	}
 
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	user, err := model.GetUserById(userId, true)
 	if err != nil {
 		common.ApiError(c, err)

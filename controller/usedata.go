@@ -43,7 +43,7 @@ func GetQuotaDatesByUser(c *gin.Context) {
 }
 
 func GetUserQuotaDates(c *gin.Context) {
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	// 判断时间跨度是否超过 1 个月

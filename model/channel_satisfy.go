@@ -5,8 +5,8 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
-func IsChannelEnabledForGroupModel(group string, modelName string, channelID int) bool {
-	if group == "" || modelName == "" || channelID <= 0 {
+func IsChannelEnabledForGroupModel(group string, modelName string, channelID string) bool {
+	if group == "" || modelName == "" || common.IsEmptyID(channelID) {
 		return false
 	}
 	if !common.MemoryCacheEnabled {
@@ -30,7 +30,7 @@ func IsChannelEnabledForGroupModel(group string, modelName string, channelID int
 	return false
 }
 
-func IsChannelEnabledForAnyGroupModel(groups []string, modelName string, channelID int) bool {
+func IsChannelEnabledForAnyGroupModel(groups []string, modelName string, channelID string) bool {
 	if len(groups) == 0 {
 		return false
 	}
@@ -42,7 +42,7 @@ func IsChannelEnabledForAnyGroupModel(groups []string, modelName string, channel
 	return false
 }
 
-func isChannelEnabledForGroupModelDB(group string, modelName string, channelID int) bool {
+func isChannelEnabledForGroupModelDB(group string, modelName string, channelID string) bool {
 	var count int64
 	err := DB.Model(&Ability{}).
 		Where(commonGroupCol+" = ? and model = ? and channel_id = ? and enabled = ?", group, modelName, channelID, true).
@@ -61,7 +61,7 @@ func isChannelEnabledForGroupModelDB(group string, modelName string, channelID i
 	return err == nil && count > 0
 }
 
-func isChannelIDInList(list []int, channelID int) bool {
+func isChannelIDInList(list []string, channelID string) bool {
 	for _, id := range list {
 		if id == channelID {
 			return true

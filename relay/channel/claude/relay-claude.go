@@ -517,7 +517,7 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextResponse {
 	choices := make([]dto.OpenAITextResponseChoice, 0)
 	fullTextResponse := dto.OpenAITextResponse{
-		Id:      fmt.Sprintf("chatcmpl-%s", common.GetUUID()),
+		Id:      fmt.Sprintf("chatcmpl-%s", common.MustNewNanoIDKey(16)),
 		Object:  "chat.completion",
 		Created: common.GetTimestamp(),
 	}

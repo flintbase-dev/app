@@ -98,24 +98,26 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	})
 
 	db := setupModelListControllerTestDB(t)
+	userID := "usr_ModelList01"
+	channelID := "chn_ModelList01"
 	require.NoError(t, db.Create(&model.User{
-		Id:       1001,
+		Id:       userID,
 		Username: "model-list-user",
 		WorkOSId: "user_model_list_test",
 		Group:    "default",
 		Status:   common.UserStatusEnabled,
 	}).Error)
 	require.NoError(t, db.Create(&[]model.Ability{
-		{Group: "default", Model: "zz-tiered-visible-model", ChannelId: 1, Enabled: true},
-		{Group: "default", Model: "zz-tiered-empty-expr-model", ChannelId: 1, Enabled: true},
-		{Group: "default", Model: "zz-tiered-missing-expr-model", ChannelId: 1, Enabled: true},
-		{Group: "default", Model: "zz-unpriced-model", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "zz-tiered-visible-model", ChannelId: channelID, Enabled: true},
+		{Group: "default", Model: "zz-tiered-empty-expr-model", ChannelId: channelID, Enabled: true},
+		{Group: "default", Model: "zz-tiered-missing-expr-model", ChannelId: channelID, Enabled: true},
+		{Group: "default", Model: "zz-unpriced-model", ChannelId: channelID, Enabled: true},
 	}).Error)
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
-	ctx.Set("id", 1001)
+	ctx.Set("id", userID)
 
 	ListModels(ctx, constant.ChannelTypeOpenAI)
 

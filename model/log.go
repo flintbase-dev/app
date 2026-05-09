@@ -5,7 +5,6 @@ import (
 	"errors"
 	"fmt"
 	"strings"
-	"sync/atomic"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -45,18 +44,16 @@ const (
 	tableActivityLogs = "activity_logs"
 )
 
-var logIDCounter uint64
-
 type Log struct {
-	Id               int64  `json:"id" gorm:"primaryKey;column:id"`
+	Id               string `json:"id" gorm:"primaryKey;column:id;type:varchar(32)"`
 	CreatedAt        int64  `json:"created_at" gorm:"column:created_at;index"`
 	Type             int    `json:"type" gorm:"column:type;index"`
 	Category         string `json:"category" gorm:"column:category;index"`
 	Event            string `json:"event" gorm:"column:event;index"`
 	Severity         string `json:"severity" gorm:"column:severity;default:''"`
 	Result           string `json:"result" gorm:"column:result;default:''"`
-	UserId           int    `json:"user_id" gorm:"column:user_id;index"`
-	ActorUserId      int    `json:"actor_user_id" gorm:"column:actor_user_id;index;default:0"`
+	UserId           string `json:"user_id" gorm:"column:user_id;type:varchar(32);index"`
+	ActorUserId      string `json:"actor_user_id" gorm:"column:actor_user_id;type:varchar(32);index;default:''"`
 	Content          string `json:"content" gorm:"column:content"`
 	Username         string `json:"username" gorm:"column:username;index;default:''"`
 	TokenName        string `json:"token_name" gorm:"column:token_name;index;default:''"`
@@ -66,9 +63,9 @@ type Log struct {
 	CompletionTokens int    `json:"completion_tokens" gorm:"column:completion_tokens;default:0"`
 	UseTime          int    `json:"use_time" gorm:"column:use_time;default:0"`
 	IsStream         bool   `json:"is_stream" gorm:"column:is_stream;default:false"`
-	ChannelId        int    `json:"channel" gorm:"column:channel_id;index"`
+	ChannelId        string `json:"channel" gorm:"column:channel_id;type:varchar(32);index"`
 	ChannelName      string `json:"channel_name" gorm:"-"`
-	TokenId          int    `json:"token_id" gorm:"column:token_id;default:0;index"`
+	TokenId          string `json:"token_id" gorm:"column:token_id;type:varchar(32);default:'';index"`
 	Group            string `json:"group" gorm:"column:group_name;index;default:''"`
 	Ip               string `json:"ip" gorm:"column:ip;index;default:''"`
 	RequestId        string `json:"request_id,omitempty" gorm:"column:request_id;type:varchar(64);index;default:''"`
@@ -79,8 +76,8 @@ type Log struct {
 }
 
 type LogEventParams struct {
-	UserId           int
-	ActorUserId      int
+	UserId           string
+	ActorUserId      string
 	Event            string
 	Severity         string
 	Result           string
@@ -93,8 +90,8 @@ type LogEventParams struct {
 	CompletionTokens int
 	UseTimeSeconds   int
 	IsStream         bool
-	ChannelId        int
-	TokenId          int
+	ChannelId        string
+	TokenId          string
 	Group            string
 	Ip               string
 	RequestId        string
@@ -104,14 +101,14 @@ type LogEventParams struct {
 }
 
 type RecordConsumeLogParams struct {
-	ChannelId        int                    `json:"channel_id"`
+	ChannelId        string                 `json:"channel_id"`
 	PromptTokens     int                    `json:"prompt_tokens"`
 	CompletionTokens int                    `json:"completion_tokens"`
 	ModelName        string                 `json:"model_name"`
 	TokenName        string                 `json:"token_name"`
 	Quota            int                    `json:"quota"`
 	Content          string                 `json:"content"`
-	TokenId          int                    `json:"token_id"`
+	TokenId          string                 `json:"token_id"`
 	UseTimeSeconds   int                    `json:"use_time_seconds"`
 	IsStream         bool                   `json:"is_stream"`
 	Group            string                 `json:"group"`
@@ -120,7 +117,7 @@ type RecordConsumeLogParams struct {
 
 type LogFilter struct {
 	Category       LogCategory
-	UserId         int
+	UserId         string
 	StartTimestamp int64
 	EndTimestamp   int64
 	ModelName      string
@@ -128,16 +125,15 @@ type LogFilter struct {
 	TokenName      string
 	StartIdx       int
 	Num            int
-	Channel        int
-	TokenId        int
+	Channel        string
+	TokenId        string
 	Group          string
 	RequestId      string
 	Event          string
 }
 
-func nextLogID() int64 {
-	counter := atomic.AddUint64(&logIDCounter, 1) % 1000
-	return time.Now().UnixNano() + int64(counter)
+func nextLogID() string {
+	return common.MustNewTypedID("log", 16)
 }
 
 func jsonObjectString(m map[string]interface{}) string {
@@ -224,15 +220,15 @@ func dbForLogCategory(category LogCategory) (*gorm.DB, string, error) {
 func clickHouseLogTableSQL(table string, ttl string) string {
 	return fmt.Sprintf(`
 CREATE TABLE IF NOT EXISTS %s (
-	id Int64,
+	id String,
 	created_at Int64,
 	type Int32,
 	category LowCardinality(String),
 	event LowCardinality(String),
 	severity LowCardinality(String),
 	result LowCardinality(String),
-	user_id Int64,
-	actor_user_id Int64,
+	user_id String,
+	actor_user_id String,
 	content String,
 	username String,
 	token_name String,
@@ -242,8 +238,8 @@ CREATE TABLE IF NOT EXISTS %s (
 	completion_tokens Int64,
 	use_time Int64,
 	is_stream UInt8,
-	channel_id Int64,
-	token_id Int64,
+	channel_id String,
+	token_id String,
 	group_name LowCardinality(String),
 	ip String,
 	request_id String,
@@ -277,7 +273,7 @@ func ensureClickHouseLogSchema() error {
 }
 
 func enrichLogFromUser(log *Log) {
-	if log.Username != "" || log.UserId <= 0 {
+	if log.Username != "" || common.IsEmptyID(log.UserId) {
 		return
 	}
 	username, err := GetUsernameById(log.UserId, false)
@@ -339,9 +335,6 @@ func recordCategorizedLog(category LogCategory, params LogEventParams) error {
 	if err != nil {
 		return err
 	}
-	if category == LogCategoryAudit {
-		return tx.Omit("id").Create(entry).Error
-	}
 	return tx.Create(entry).Error
 }
 
@@ -382,11 +375,11 @@ func augmentLogParamsFromGin(c *gin.Context, params *LogEventParams) {
 	if c == nil || params == nil {
 		return
 	}
-	if params.UserId == 0 {
-		params.UserId = c.GetInt("id")
+	if common.IsEmptyID(params.UserId) {
+		params.UserId = c.GetString("id")
 	}
-	if params.ActorUserId == 0 {
-		params.ActorUserId = c.GetInt("id")
+	if common.IsEmptyID(params.ActorUserId) {
+		params.ActorUserId = c.GetString("id")
 	}
 	if params.Username == "" {
 		params.Username = c.GetString("username")
@@ -399,14 +392,14 @@ func augmentLogParamsFromGin(c *gin.Context, params *LogEventParams) {
 	}
 }
 
-func shouldRecordUsageIP(userId int) bool {
+func shouldRecordUsageIP(userId string) bool {
 	if settingMap, err := GetUserSetting(userId, false); err == nil {
 		return settingMap.RecordIpLog
 	}
 	return false
 }
 
-func RecordTopupLog(userId int, tradeNo string, content string, callerIp string, paymentMethod string, callbackPaymentMethod string) {
+func RecordTopupLog(userId string, tradeNo string, content string, callerIp string, paymentMethod string, callbackPaymentMethod string) {
 	RecordAuditEvent(LogEventParams{
 		UserId:       userId,
 		Event:        "billing.topup.completed",
@@ -425,7 +418,7 @@ func RecordTopupLog(userId int, tradeNo string, content string, callerIp string,
 	})
 }
 
-func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string, tokenName string, content string, tokenId int, useTimeSeconds int,
+func RecordErrorLog(c *gin.Context, userId string, channelId string, modelName string, tokenName string, content string, tokenId string, useTimeSeconds int,
 	isStream bool, group string, other map[string]interface{}) {
 	params := LogEventParams{
 		UserId:           userId,
@@ -454,7 +447,7 @@ func RecordErrorLog(c *gin.Context, userId int, channelId int, modelName string,
 	}
 }
 
-func RecordConsumeLog(c *gin.Context, userId int, params RecordConsumeLogParams) {
+func RecordConsumeLog(c *gin.Context, userId string, params RecordConsumeLogParams) {
 	event := "usage.consume"
 	if params.Other != nil {
 		if violation, ok := params.Other["violation_fee"].(bool); ok && violation {
@@ -496,12 +489,11 @@ func formatUserLogs(logs []*Log, startIdx int) {
 			delete(otherMap, "stream_status")
 		}
 		logs[i].Other = jsonObjectString(otherMap)
-		logs[i].Id = int64(startIdx + i + 1)
 	}
 }
 
 func applyLogFilters(tx *gorm.DB, filter LogFilter) (*gorm.DB, error) {
-	if filter.UserId > 0 {
+	if !common.IsEmptyID(filter.UserId) {
 		tx = tx.Where("user_id = ?", filter.UserId)
 	}
 	if filter.Username != "" {
@@ -526,10 +518,10 @@ func applyLogFilters(tx *gorm.DB, filter LogFilter) (*gorm.DB, error) {
 	if filter.EndTimestamp != 0 {
 		tx = tx.Where("created_at <= ?", filter.EndTimestamp)
 	}
-	if filter.Channel != 0 {
+	if !common.IsEmptyID(filter.Channel) {
 		tx = tx.Where("channel_id = ?", filter.Channel)
 	}
-	if filter.TokenId != 0 {
+	if !common.IsEmptyID(filter.TokenId) {
 		tx = tx.Where("token_id = ?", filter.TokenId)
 	}
 	if filter.Group != "" {
@@ -542,9 +534,9 @@ func applyLogFilters(tx *gorm.DB, filter LogFilter) (*gorm.DB, error) {
 }
 
 func hydrateChannelNames(logs []*Log) error {
-	channelIds := types.NewSet[int]()
+	channelIds := types.NewSet[string]()
 	for _, log := range logs {
-		if log.ChannelId != 0 {
+		if !common.IsEmptyID(log.ChannelId) {
 			channelIds.Add(log.ChannelId)
 		}
 	}
@@ -553,14 +545,14 @@ func hydrateChannelNames(logs []*Log) error {
 	}
 
 	var channels []struct {
-		Id   int    `gorm:"column:id"`
+		Id   string `gorm:"column:id"`
 		Name string `gorm:"column:name"`
 	}
 	if common.MemoryCacheEnabled {
 		for _, channelId := range channelIds.Items() {
 			if cacheChannel, err := CacheGetChannel(channelId); err == nil {
 				channels = append(channels, struct {
-					Id   int    `gorm:"column:id"`
+					Id   string `gorm:"column:id"`
 					Name string `gorm:"column:name"`
 				}{
 					Id:   channelId,
@@ -573,7 +565,7 @@ func hydrateChannelNames(logs []*Log) error {
 			return err
 		}
 	}
-	channelMap := make(map[int]string, len(channels))
+	channelMap := make(map[string]string, len(channels))
 	for _, channel := range channels {
 		channelMap[channel.Id] = channel.Name
 	}
@@ -611,7 +603,7 @@ func queryLogs(filter LogFilter) (logs []*Log, total int64, err error) {
 	return logs, total, nil
 }
 
-func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
+func GetLogByTokenId(tokenId string) (logs []*Log, err error) {
 	filter := LogFilter{
 		Category: LogCategoryUsage,
 		TokenId:  tokenId,
@@ -629,7 +621,7 @@ func GetLogByTokenId(tokenId int) (logs []*Log, err error) {
 	return logs, nil
 }
 
-func GetAllLogs(category string, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel int, group string, requestId string) (logs []*Log, total int64, err error) {
+func GetAllLogs(category string, startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, startIdx int, num int, channel string, group string, requestId string) (logs []*Log, total int64, err error) {
 	normalized, err := normalizeLogCategory(category)
 	if err != nil {
 		return nil, 0, err
@@ -654,7 +646,7 @@ func GetAllLogs(category string, startTimestamp int64, endTimestamp int64, model
 
 const logSearchCountLimit = 10000
 
-func GetUserLogs(userId int, category string, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string) (logs []*Log, total int64, err error) {
+func GetUserLogs(userId string, category string, startTimestamp int64, endTimestamp int64, modelName string, tokenName string, startIdx int, num int, group string, requestId string) (logs []*Log, total int64, err error) {
 	normalized, err := normalizeLogCategory(category)
 	if err != nil {
 		return nil, 0, err
@@ -690,7 +682,7 @@ type Stat struct {
 	Tpm   int `json:"tpm"`
 }
 
-func SumUsedQuota(startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel int, group string) (stat Stat, err error) {
+func SumUsedQuota(startTimestamp int64, endTimestamp int64, modelName string, username string, tokenName string, channel string, group string) (stat Stat, err error) {
 	if LOG_DB == nil {
 		return stat, errors.New("clickhouse log database is not initialized")
 	}
@@ -719,7 +711,7 @@ func SumUsedQuota(startTimestamp int64, endTimestamp int64, modelName string, us
 		tx = tx.Where("model_name LIKE ?", modelNamePattern)
 		rpmTpmQuery = rpmTpmQuery.Where("model_name LIKE ?", modelNamePattern)
 	}
-	if channel != 0 {
+	if !common.IsEmptyID(channel) {
 		tx = tx.Where("channel_id = ?", channel)
 		rpmTpmQuery = rpmTpmQuery.Where("channel_id = ?", channel)
 	}

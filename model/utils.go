@@ -19,12 +19,12 @@ const (
 	BatchUpdateTypeCount // if you add a new type, you need to add a new map and a new lock
 )
 
-var batchUpdateStores []map[int]int
+var batchUpdateStores []map[string]int
 var batchUpdateLocks []sync.Mutex
 
 func init() {
 	for i := 0; i < BatchUpdateTypeCount; i++ {
-		batchUpdateStores = append(batchUpdateStores, make(map[int]int))
+		batchUpdateStores = append(batchUpdateStores, make(map[string]int))
 		batchUpdateLocks = append(batchUpdateLocks, sync.Mutex{})
 	}
 }
@@ -38,7 +38,7 @@ func InitBatchUpdater() {
 	})
 }
 
-func addNewRecord(type_ int, id int, value int) {
+func addNewRecord(type_ int, id string, value int) {
 	batchUpdateLocks[type_].Lock()
 	defer batchUpdateLocks[type_].Unlock()
 	if _, ok := batchUpdateStores[type_][id]; !ok {
@@ -69,7 +69,7 @@ func batchUpdate() {
 	for i := 0; i < BatchUpdateTypeCount; i++ {
 		batchUpdateLocks[i].Lock()
 		store := batchUpdateStores[i]
-		batchUpdateStores[i] = make(map[int]int)
+		batchUpdateStores[i] = make(map[string]int)
 		batchUpdateLocks[i].Unlock()
 		// TODO: maybe we can combine updates with same key?
 		for key, value := range store {

@@ -43,14 +43,14 @@ var allowedDefaultVendors = lo.SliceToMap(lo.Values(channelVendorNames), func(ve
 })
 
 // initDefaultVendorMapping 简化的默认供应商映射
-func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[int]*Vendor, enableAbilities []AbilityWithChannel) {
+func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[string]*Vendor, enableAbilities []AbilityWithChannel) {
 	for _, ability := range enableAbilities {
 		modelName := ability.Model
 		if _, exists := metaMap[modelName]; exists {
 			continue
 		}
 
-		vendorID := 0
+		vendorID := ""
 		if vendorName := channelVendorNames[ability.ChannelType]; vendorName != "" {
 			vendorID = getOrCreateVendor(vendorName, vendorMap)
 		} else {
@@ -74,9 +74,9 @@ func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[int]*Vend
 }
 
 // 查找或创建供应商
-func getOrCreateVendor(vendorName string, vendorMap map[int]*Vendor) int {
+func getOrCreateVendor(vendorName string, vendorMap map[string]*Vendor) string {
 	if _, ok := allowedDefaultVendors[vendorName]; !ok {
-		return 0
+		return ""
 	}
 
 	// 查找现有供应商
@@ -94,7 +94,7 @@ func getOrCreateVendor(vendorName string, vendorMap map[int]*Vendor) int {
 	}
 
 	if err := newVendor.Insert(); err != nil {
-		return 0
+		return ""
 	}
 
 	vendorMap[newVendor.Id] = newVendor

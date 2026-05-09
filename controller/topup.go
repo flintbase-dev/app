@@ -78,7 +78,7 @@ func UnlockOrder(tradeNo string) {
 }
 
 func GetUserTopUps(c *gin.Context) {
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	pageInfo := common.GetPageQuery(c)
 	keyword := c.Query("keyword")
 

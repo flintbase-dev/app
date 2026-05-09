@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -112,11 +111,7 @@ func updateChannelBalance(channel *model.Channel) (float64, error) {
 }
 
 func UpdateChannelBalance(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	id := c.Param("id")
 	channel, err := model.CacheGetChannel(id)
 	if err != nil {
 		common.ApiError(c, err)

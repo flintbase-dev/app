@@ -35,7 +35,7 @@ func Playground(c *gin.Context) {
 		return
 	}
 
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 
 	// Write user context to ensure acceptUnsetPrice is available
 	userCache, err := model.GetUserCache(userId)

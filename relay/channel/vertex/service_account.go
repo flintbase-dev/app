@@ -40,9 +40,9 @@ var Cache = asynccache.NewAsyncCache(asynccache.Options{
 func getAccessToken(a *Adaptor, info *relaycommon.RelayInfo) (string, error) {
 	var cacheKey string
 	if info.ChannelIsMultiKey {
-		cacheKey = fmt.Sprintf("access-token-%d-%d", info.ChannelId, info.ChannelMultiKeyIndex)
+		cacheKey = fmt.Sprintf("access-token-%s-%d", info.ChannelId, info.ChannelMultiKeyIndex)
 	} else {
-		cacheKey = fmt.Sprintf("access-token-%d", info.ChannelId)
+		cacheKey = fmt.Sprintf("access-token-%s", info.ChannelId)
 	}
 	val, err := Cache.Get(cacheKey)
 	if err == nil {

@@ -91,7 +91,7 @@ func TestSetupWorkOSLoginSessionStoresSessionIDButNotAccessToken(t *testing.T) {
 	router.GET("/setup", func(c *gin.Context) {
 		session := sessions.Default(c)
 		setupWorkOSLoginSession(c, session, &model.User{
-			Id:       42,
+			Id:       "usr_WorkOSTest01",
 			Username: "workos-user@example.com",
 			Role:     10,
 			Status:   1,
@@ -127,7 +127,7 @@ func TestSetupWorkOSLoginSessionStoresSessionIDButNotAccessToken(t *testing.T) {
 	require.Equal(t, http.StatusOK, sessionRecorder.Code)
 	var sessionPayload map[string]any
 	require.NoError(t, json.Unmarshal(sessionRecorder.Body.Bytes(), &sessionPayload))
-	require.Equal(t, float64(42), sessionPayload["id"])
+	require.Equal(t, "usr_WorkOSTest01", sessionPayload["id"])
 	require.Equal(t, "workos-user@example.com", sessionPayload["username"])
 	require.Equal(t, "user_123", sessionPayload["workos_id"])
 	require.Equal(t, "sess_123", sessionPayload["workos_session_id"])

@@ -18,12 +18,12 @@ import (
 )
 
 type SubscriptionStripePayRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId string `json:"plan_id"`
 }
 
 func SubscriptionRequestStripePay(c *gin.Context) {
 	var req SubscriptionStripePayRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
+	if err := c.ShouldBindJSON(&req); err != nil || common.IsEmptyID(req.PlanId) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
@@ -50,7 +50,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		return
 	}
 
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	user, err := model.GetUserById(userId, false)
 	if err != nil {
 		common.ApiError(c, err)
@@ -73,12 +73,12 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		}
 	}
 
-	reference := fmt.Sprintf("sub-stripe-ref-%d-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
+	reference := fmt.Sprintf("sub-stripe-ref-%s-%d-%s", user.Id, time.Now().UnixMilli(), randstr.String(4))
 	referenceId := "sub_ref_" + common.Sha1([]byte(reference))
 
 	payLink, err := genStripeSubscriptionLink(referenceId, user.StripeCustomer, user.Email, plan.StripePriceId)
 	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅支付链接创建失败 trade_no=%s plan_id=%d error=%q", referenceId, plan.Id, err.Error()))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅支付链接创建失败 trade_no=%s plan_id=%s error=%q", referenceId, plan.Id, err.Error()))
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}

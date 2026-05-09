@@ -17,7 +17,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func modelPriceNotConfiguredError(modelName string, userId int) error {
+func modelPriceNotConfiguredError(modelName string, userId string) error {
 	if model.IsAdmin(userId) {
 		return fmt.Errorf(
 			"模型 %s 的价格未配置。请前往「系统设置 → 分组与模型定价设置」中为该模型配置价格；"+

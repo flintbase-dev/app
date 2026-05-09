@@ -3,7 +3,6 @@ package model
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -124,15 +123,15 @@ func getSubscriptionPlanInfoCache() *cachex.HybridCache[SubscriptionPlanInfo] {
 	return subscriptionPlanInfoCache
 }
 
-func subscriptionPlanCacheKey(id int) string {
-	if id <= 0 {
+func subscriptionPlanCacheKey(id string) string {
+	if common.IsEmptyID(id) {
 		return ""
 	}
-	return strconv.Itoa(id)
+	return id
 }
 
-func InvalidateSubscriptionPlanCache(planId int) {
-	if planId <= 0 {
+func InvalidateSubscriptionPlanCache(planId string) {
+	if common.IsEmptyID(planId) {
 		return
 	}
 	cache := getSubscriptionPlanCache()
@@ -143,7 +142,7 @@ func InvalidateSubscriptionPlanCache(planId int) {
 
 // Subscription plan
 type SubscriptionPlan struct {
-	Id int `json:"id"`
+	Id string `json:"id" gorm:"primaryKey;type:varchar(32)"`
 
 	Title    string `json:"title" gorm:"type:varchar(128);not null"`
 	Subtitle string `json:"subtitle" gorm:"type:varchar(255);default:''"`
@@ -178,6 +177,9 @@ type SubscriptionPlan struct {
 }
 
 func (p *SubscriptionPlan) BeforeCreate(tx *gorm.DB) error {
+	if common.IsEmptyID(p.Id) {
+		p.Id = common.MustNewTypedID("spl", 12)
+	}
 	now := common.GetTimestamp()
 	p.CreatedAt = now
 	p.UpdatedAt = now
@@ -191,9 +193,9 @@ func (p *SubscriptionPlan) BeforeUpdate(tx *gorm.DB) error {
 
 // Subscription order (payment -> webhook -> create UserSubscription)
 type SubscriptionOrder struct {
-	Id     int     `json:"id"`
-	UserId int     `json:"user_id" gorm:"index"`
-	PlanId int     `json:"plan_id" gorm:"index"`
+	Id     string  `json:"id" gorm:"primaryKey;type:varchar(32)"`
+	UserId string  `json:"user_id" gorm:"type:varchar(32);index"`
+	PlanId string  `json:"plan_id" gorm:"type:varchar(32);index"`
 	Money  float64 `json:"money"`
 
 	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
@@ -230,9 +232,9 @@ func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
 
 // User subscription instance
 type UserSubscription struct {
-	Id     int `json:"id"`
-	UserId int `json:"user_id" gorm:"index;index:idx_user_sub_active,priority:1"`
-	PlanId int `json:"plan_id" gorm:"index"`
+	Id     string `json:"id" gorm:"primaryKey;type:varchar(32)"`
+	UserId string `json:"user_id" gorm:"type:varchar(32);index;index:idx_user_sub_active,priority:1"`
+	PlanId string `json:"plan_id" gorm:"type:varchar(32);index"`
 
 	AmountTotal int64 `json:"amount_total" gorm:"type:bigint;not null;default:0"`
 	AmountUsed  int64 `json:"amount_used" gorm:"type:bigint;not null;default:0"`
@@ -254,6 +256,9 @@ type UserSubscription struct {
 }
 
 func (s *UserSubscription) BeforeCreate(tx *gorm.DB) error {
+	if common.IsEmptyID(s.Id) {
+		s.Id = common.MustNewTypedID("sus", 12)
+	}
 	now := common.GetTimestamp()
 	s.CreatedAt = now
 	s.UpdatedAt = now
@@ -345,12 +350,12 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 	return next.Unix()
 }
 
-func GetSubscriptionPlanById(id int) (*SubscriptionPlan, error) {
+func GetSubscriptionPlanById(id string) (*SubscriptionPlan, error) {
 	return getSubscriptionPlanByIdTx(nil, id)
 }
 
-func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
-	if id <= 0 {
+func getSubscriptionPlanByIdTx(tx *gorm.DB, id string) (*SubscriptionPlan, error) {
+	if common.IsEmptyID(id) {
 		return nil, errors.New("invalid plan id")
 	}
 	key := subscriptionPlanCacheKey(id)
@@ -371,8 +376,8 @@ func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 	return &plan, nil
 }
 
-func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
-	if userId <= 0 || planId <= 0 {
+func CountUserSubscriptionsByPlan(userId string, planId string) (int64, error) {
+	if common.IsEmptyID(userId) || common.IsEmptyID(planId) {
 		return 0, errors.New("invalid userId or planId")
 	}
 	var count int64
@@ -384,8 +389,8 @@ func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
 	return count, nil
 }
 
-func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
-	if userId <= 0 {
+func getUserGroupByIdTx(tx *gorm.DB, userId string) (string, error) {
+	if common.IsEmptyID(userId) {
 		return "", errors.New("invalid userId")
 	}
 	if tx == nil {
@@ -433,14 +438,14 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 	return prevGroup, nil
 }
 
-func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
+func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId string, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
-	if plan == nil || plan.Id == 0 {
+	if plan == nil || common.IsEmptyID(plan.Id) {
 		return nil, errors.New("invalid plan")
 	}
-	if userId <= 0 {
+	if common.IsEmptyID(userId) {
 		return nil, errors.New("invalid user id")
 	}
 	if plan.MaxPurchasePerUser > 0 {
@@ -511,7 +516,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		return errors.New("tradeNo is empty")
 	}
 	refCol := `"trade_no"`
-	var logUserId int
+	var logUserId string
 	var logPlanTitle string
 	var logMoney float64
 	var logPaymentMethod string
@@ -565,10 +570,10 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	if err != nil {
 		return err
 	}
-	if upgradeGroup != "" && logUserId > 0 {
+	if upgradeGroup != "" && !common.IsEmptyID(logUserId) {
 		_ = UpdateUserGroupCache(logUserId, upgradeGroup)
 	}
-	if logUserId > 0 {
+	if !common.IsEmptyID(logUserId) {
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
 		RecordAuditEvent(LogEventParams{
 			UserId:       logUserId,
@@ -645,8 +650,8 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 }
 
 // Admin bind (no payment). Creates a UserSubscription from a plan.
-func AdminBindSubscription(userId int, planId int, sourceNote string) (string, error) {
-	if userId <= 0 || planId <= 0 {
+func AdminBindSubscription(userId string, planId string, sourceNote string) (string, error) {
+	if common.IsEmptyID(userId) || common.IsEmptyID(planId) {
 		return "", errors.New("invalid userId or planId")
 	}
 	plan, err := GetSubscriptionPlanById(planId)
@@ -668,8 +673,8 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 }
 
 // GetAllActiveUserSubscriptions returns all active subscriptions for a user.
-func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
-	if userId <= 0 {
+func GetAllActiveUserSubscriptions(userId string) ([]SubscriptionSummary, error) {
+	if common.IsEmptyID(userId) {
 		return nil, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
@@ -685,8 +690,8 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 
 // HasActiveUserSubscription returns whether the user has any active subscription.
 // This is a lightweight existence check to avoid heavy pre-consume transactions.
-func HasActiveUserSubscription(userId int) (bool, error) {
-	if userId <= 0 {
+func HasActiveUserSubscription(userId string) (bool, error) {
+	if common.IsEmptyID(userId) {
 		return false, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
@@ -700,8 +705,8 @@ func HasActiveUserSubscription(userId int) (bool, error) {
 }
 
 // GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.
-func GetAllUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
-	if userId <= 0 {
+func GetAllUserSubscriptions(userId string) ([]SubscriptionSummary, error) {
+	if common.IsEmptyID(userId) {
 		return nil, errors.New("invalid userId")
 	}
 	var subs []UserSubscription
@@ -729,14 +734,14 @@ func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
 }
 
 // AdminInvalidateUserSubscription marks a user subscription as cancelled and ends it immediately.
-func AdminInvalidateUserSubscription(userSubscriptionId int) (string, error) {
-	if userSubscriptionId <= 0 {
+func AdminInvalidateUserSubscription(userSubscriptionId string) (string, error) {
+	if common.IsEmptyID(userSubscriptionId) {
 		return "", errors.New("invalid userSubscriptionId")
 	}
 	now := common.GetTimestamp()
 	cacheGroup := ""
 	downgradeGroup := ""
-	var userId int
+	var userId string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var sub UserSubscription
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").
@@ -764,7 +769,7 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if cacheGroup != "" && userId > 0 {
+	if cacheGroup != "" && !common.IsEmptyID(userId) {
 		_ = UpdateUserGroupCache(userId, cacheGroup)
 	}
 	if downgradeGroup != "" {
@@ -774,14 +779,14 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (string, error) {
 }
 
 // AdminDeleteUserSubscription hard-deletes a user subscription.
-func AdminDeleteUserSubscription(userSubscriptionId int) (string, error) {
-	if userSubscriptionId <= 0 {
+func AdminDeleteUserSubscription(userSubscriptionId string) (string, error) {
+	if common.IsEmptyID(userSubscriptionId) {
 		return "", errors.New("invalid userSubscriptionId")
 	}
 	now := common.GetTimestamp()
 	cacheGroup := ""
 	downgradeGroup := ""
-	var userId int
+	var userId string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var sub UserSubscription
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").
@@ -805,7 +810,7 @@ func AdminDeleteUserSubscription(userSubscriptionId int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if cacheGroup != "" && userId > 0 {
+	if cacheGroup != "" && !common.IsEmptyID(userId) {
 		_ = UpdateUserGroupCache(userId, cacheGroup)
 	}
 	if downgradeGroup != "" {
@@ -815,7 +820,7 @@ func AdminDeleteUserSubscription(userSubscriptionId int) (string, error) {
 }
 
 type SubscriptionPreConsumeResult struct {
-	UserSubscriptionId int
+	UserSubscriptionId string
 	PreConsumed        int64
 	AmountTotal        int64
 	AmountUsedBefore   int64
@@ -839,9 +844,9 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 		return 0, nil
 	}
 	expiredCount := 0
-	userIds := make(map[int]struct{}, len(subs))
+	userIds := make(map[string]struct{}, len(subs))
 	for _, sub := range subs {
-		if sub.UserId > 0 {
+		if !common.IsEmptyID(sub.UserId) {
 			userIds[sub.UserId] = struct{}{}
 		}
 	}
@@ -911,10 +916,10 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 
 // SubscriptionPreConsumeRecord stores idempotent pre-consume operations per request.
 type SubscriptionPreConsumeRecord struct {
-	Id                 int    `json:"id"`
+	Id                 string `json:"id" gorm:"primaryKey;type:varchar(32)"`
 	RequestId          string `json:"request_id" gorm:"type:varchar(64);uniqueIndex"`
-	UserId             int    `json:"user_id" gorm:"index"`
-	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index"`
+	UserId             string `json:"user_id" gorm:"type:varchar(32);index"`
+	UserSubscriptionId string `json:"user_subscription_id" gorm:"type:varchar(32);index"`
 	PreConsumed        int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
 	Status             string `json:"status" gorm:"type:varchar(32);index"` // consumed/refunded
 	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
@@ -922,6 +927,9 @@ type SubscriptionPreConsumeRecord struct {
 }
 
 func (r *SubscriptionPreConsumeRecord) BeforeCreate(tx *gorm.DB) error {
+	if common.IsEmptyID(r.Id) {
+		r.Id = common.MustNewTypedID("spr", 12)
+	}
 	now := common.GetTimestamp()
 	r.CreatedAt = now
 	r.UpdatedAt = now
@@ -970,8 +978,8 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 }
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
-func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
-	if userId <= 0 {
+func PreConsumeUserSubscription(requestId string, userId string, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+	if common.IsEmptyID(userId) {
 		return nil, errors.New("invalid userId")
 	}
 	if strings.TrimSpace(requestId) == "" {
@@ -1153,15 +1161,15 @@ func CleanupSubscriptionPreConsumeRecords(olderThanSeconds int64) (int64, error)
 }
 
 type SubscriptionPlanInfo struct {
-	PlanId    int
+	PlanId    string
 	PlanTitle string
 }
 
-func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*SubscriptionPlanInfo, error) {
-	if userSubscriptionId <= 0 {
+func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId string) (*SubscriptionPlanInfo, error) {
+	if common.IsEmptyID(userSubscriptionId) {
 		return nil, errors.New("invalid userSubscriptionId")
 	}
-	cacheKey := fmt.Sprintf("sub:%d", userSubscriptionId)
+	cacheKey := fmt.Sprintf("sub:%s", userSubscriptionId)
 	if cached, found, err := getSubscriptionPlanInfoCache().Get(cacheKey); err == nil && found {
 		return &cached, nil
 	}
@@ -1182,8 +1190,8 @@ func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*Subsc
 }
 
 // Update subscription used amount by delta (positive consume more, negative refund).
-func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error {
-	if userSubscriptionId <= 0 {
+func PostConsumeUserSubscriptionDelta(userSubscriptionId string, delta int64) error {
+	if common.IsEmptyID(userSubscriptionId) {
 		return errors.New("invalid userSubscriptionId")
 	}
 	if delta == 0 {

@@ -216,11 +216,7 @@ func buildFetchModelsHeaders(channel *model.Channel, key string) (http.Header, e
 }
 
 func FetchUpstreamModels(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	id := c.Param("id")
 
 	channel, err := model.GetChannelById(id, true)
 	if err != nil {
@@ -377,11 +373,7 @@ func SearchChannels(c *gin.Context) {
 }
 
 func GetChannel(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	id := c.Param("id")
 	channel, err := model.GetChannelById(id, false)
 	if err != nil {
 		common.ApiError(c, err)
@@ -400,12 +392,8 @@ func GetChannel(c *gin.Context) {
 
 // GetChannelKey 获取渠道密钥。身份和 MFA 由 WorkOS Hosted UI 负责，应用侧只做 Root 授权。
 func GetChannelKey(c *gin.Context) {
-	userId := c.GetInt("id")
-	channelId, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiError(c, fmt.Errorf("渠道ID格式错误: %v", err))
-		return
-	}
+	userId := c.GetString("id")
+	channelId := c.Param("id")
 
 	// 获取渠道信息（包含密钥）
 	channel, err := model.GetChannelById(channelId, true)
@@ -424,9 +412,9 @@ func GetChannelKey(c *gin.Context) {
 		ActorUserId:  userId,
 		Event:        "security.channel_secret_viewed",
 		Severity:     "warning",
-		Content:      fmt.Sprintf("查看渠道密钥信息 (渠道ID: %d)", channelId),
+		Content:      fmt.Sprintf("查看渠道密钥信息 (渠道ID: %s)", channelId),
 		ResourceType: "channel",
-		ResourceId:   fmt.Sprintf("%d", channelId),
+		ResourceId:   channelId,
 		Other: map[string]interface{}{
 			"channel_id": channelId,
 		},
@@ -625,7 +613,7 @@ func AddChannel(c *gin.Context) {
 }
 
 func DeleteChannel(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
+	id := c.Param("id")
 	channel := model.Channel{Id: id}
 	err := channel.Delete()
 	if err != nil {
@@ -766,8 +754,8 @@ func EditTagChannels(c *gin.Context) {
 }
 
 type ChannelBatch struct {
-	Ids []int   `json:"ids"`
-	Tag *string `json:"tag"`
+	Ids []string `json:"ids"`
+	Tag *string  `json:"tag"`
 }
 
 func DeleteChannelBatch(c *gin.Context) {
@@ -1101,8 +1089,8 @@ func GetTagModels(c *gin.Context) {
 //	suffix         - string appended to the original name (default "_复制")
 //	reset_balance  - bool, when true will reset balance & used_quota to 0 (default true)
 func CopyChannel(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
+	id := c.Param("id")
+	if common.IsEmptyID(id) {
 		c.JSON(http.StatusOK, gin.H{"success": false, "message": "invalid id"})
 		return
 	}
@@ -1125,7 +1113,7 @@ func CopyChannel(c *gin.Context) {
 
 	// clone channel
 	clone := *origin // shallow copy is sufficient as we will overwrite primitives
-	clone.Id = 0     // let DB auto-generate
+	clone.Id = ""    // let DB hook generate a fresh typed ID
 	clone.CreatedTime = common.GetTimestamp()
 	clone.Name = origin.Name + suffix
 	clone.TestTime = 0
@@ -1148,7 +1136,7 @@ func CopyChannel(c *gin.Context) {
 
 // MultiKeyManageRequest represents the request for multi-key management operations
 type MultiKeyManageRequest struct {
-	ChannelId int    `json:"channel_id"`
+	ChannelId string `json:"channel_id"`
 	Action    string `json:"action"`              // "disable_key", "enable_key", "delete_key", "delete_disabled_keys", "get_key_status"
 	KeyIndex  *int   `json:"key_index,omitempty"` // for disable_key, enable_key, and delete_key actions
 	Page      int    `json:"page,omitempty"`      // for get_key_status pagination

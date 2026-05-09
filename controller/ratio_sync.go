@@ -33,10 +33,10 @@ const (
 	maxConcurrentFetches         = 8
 	maxPricingConfigBytes        = 10 << 20 // 10MB
 	floatEpsilon                 = 1e-9
-	officialPricingPresetID      = -100
+	officialPricingPresetID      = "prc_official"
 	officialPricingPresetName    = "官方价格预设"
 	officialPricingPresetBaseURL = "https://basellm.github.io"
-	modelsDevPresetID            = -101
+	modelsDevPresetID            = "prc_modelsdev"
 	modelsDevPresetName          = "models.dev 价格预设"
 	modelsDevPresetBaseURL       = "https://models.dev"
 	modelsDevHost                = "models.dev"
@@ -162,11 +162,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			}
 		}
 	} else if len(req.ChannelIDs) > 0 {
-		intIds := make([]int, 0, len(req.ChannelIDs))
-		for _, id64 := range req.ChannelIDs {
-			intIds = append(intIds, int(id64))
-		}
-		dbChannels, err := model.GetChannelsByIds(intIds)
+		dbChannels, err := model.GetChannelsByIds(req.ChannelIDs)
 		if err != nil {
 			logger.LogError(c.Request.Context(), "failed to query channels: "+err.Error())
 			c.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": "查询渠道失败"})
@@ -241,8 +237,8 @@ func FetchUpstreamRatios(c *gin.Context) {
 			isModelsDev := graphQLOperation == "" && isModelsDevAPIEndpoint(fullURL)
 
 			uniqueName := chItem.Name
-			if chItem.ID != 0 {
-				uniqueName = fmt.Sprintf("%s(%d)", chItem.Name, chItem.ID)
+			if !common.IsEmptyID(chItem.ID) {
+				uniqueName = fmt.Sprintf("%s(%s)", chItem.Name, chItem.ID)
 			}
 
 			ctx, cancel := context.WithTimeout(c.Request.Context(), time.Duration(req.Timeout)*time.Second)

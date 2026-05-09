@@ -18,7 +18,7 @@ func GetAllLogs(c *gin.Context) {
 	username := c.Query("username")
 	tokenName := c.Query("token_name")
 	modelName := c.Query("model_name")
-	channel, _ := strconv.Atoi(c.Query("channel"))
+	channel := c.Query("channel")
 	group := c.Query("group")
 	requestId := c.Query("request_id")
 	logs, total, err := model.GetAllLogs(category, startTimestamp, endTimestamp, modelName, username, tokenName, pageInfo.GetStartIdx(), pageInfo.GetPageSize(), channel, group, requestId)
@@ -34,7 +34,7 @@ func GetAllLogs(c *gin.Context) {
 
 func GetUserLogs(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	category := c.DefaultQuery("category", string(model.LogCategoryUsage))
 	startTimestamp, _ := strconv.ParseInt(c.Query("start_timestamp"), 10, 64)
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
@@ -54,8 +54,8 @@ func GetUserLogs(c *gin.Context) {
 }
 
 func GetLogByKey(c *gin.Context) {
-	tokenId := c.GetInt("token_id")
-	if tokenId == 0 {
+	tokenId := c.GetString("token_id")
+	if common.IsEmptyID(tokenId) {
 		c.JSON(200, gin.H{
 			"success": false,
 			"message": "无效的令牌",
@@ -83,7 +83,7 @@ func GetLogsStat(c *gin.Context) {
 	tokenName := c.Query("token_name")
 	username := c.Query("username")
 	modelName := c.Query("model_name")
-	channel, _ := strconv.Atoi(c.Query("channel"))
+	channel := c.Query("channel")
 	group := c.Query("group")
 	stat, err := model.SumUsedQuota(startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
 	if err != nil {
@@ -108,7 +108,7 @@ func GetLogsSelfStat(c *gin.Context) {
 	endTimestamp, _ := strconv.ParseInt(c.Query("end_timestamp"), 10, 64)
 	tokenName := c.Query("token_name")
 	modelName := c.Query("model_name")
-	channel, _ := strconv.Atoi(c.Query("channel"))
+	channel := c.Query("channel")
 	group := c.Query("group")
 	quotaNum, err := model.SumUsedQuota(startTimestamp, endTimestamp, modelName, username, tokenName, channel, group)
 	if err != nil {

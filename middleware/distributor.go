@@ -4,7 +4,6 @@ import (
 	"errors"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -35,11 +34,7 @@ func Distribute() func(c *gin.Context) {
 			return
 		}
 		if ok {
-			id, err := strconv.Atoi(channelId.(string))
-			if err != nil {
-				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidChannelId))
-				return
-			}
+			id, _ := channelId.(string)
 			channel, err = model.GetChannelById(id, true)
 			if err != nil {
 				abortWithOpenAiMessage(c, http.StatusBadRequest, i18n.T(c, i18n.MsgDistributorInvalidChannelId))

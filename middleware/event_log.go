@@ -35,8 +35,8 @@ func mutationEventLog(category model.LogCategory, event string, resourceType str
 		}
 
 		params := model.LogEventParams{
-			UserId:       c.GetInt("id"),
-			ActorUserId:  c.GetInt("id"),
+			UserId:       c.GetString("id"),
+			ActorUserId:  c.GetString("id"),
 			Event:        event,
 			Content:      fmt.Sprintf("%s %s", c.Request.Method, fullPath),
 			ResourceType: resourceType,

@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
-	"strconv"
 	"strings"
 	"testing"
 
@@ -27,7 +26,7 @@ type tokenPageResponse struct {
 }
 
 type tokenResponseItem struct {
-	ID     int    `json:"id"`
+	ID     string `json:"id"`
 	Name   string `json:"name"`
 	Key    string `json:"key"`
 	Status int    `json:"status"`
@@ -62,7 +61,7 @@ func setupTokenControllerTestDB(t *testing.T) *gorm.DB {
 	return db
 }
 
-func seedToken(t *testing.T, db *gorm.DB, userID int, name string, rawKey string) *model.Token {
+func seedToken(t *testing.T, db *gorm.DB, userID string, name string, rawKey string) *model.Token {
 	t.Helper()
 
 	token := &model.Token{
@@ -83,7 +82,7 @@ func seedToken(t *testing.T, db *gorm.DB, userID int, name string, rawKey string
 	return token
 }
 
-func newAuthenticatedContext(t *testing.T, method string, target string, body any, userID int) (*gin.Context, *httptest.ResponseRecorder) {
+func newAuthenticatedContext(t *testing.T, method string, target string, body any, userID string) (*gin.Context, *httptest.ResponseRecorder) {
 	t.Helper()
 
 	var requestBody *bytes.Reader
@@ -119,10 +118,10 @@ func decodeAPIResponse(t *testing.T, recorder *httptest.ResponseRecorder) tokenA
 
 func TestGetAllTokensMasksKeyInResponse(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
-	token := seedToken(t, db, 1, "list-token", "abcd1234efgh5678")
-	seedToken(t, db, 2, "other-user-token", "zzzz1234yyyy5678")
+	token := seedToken(t, db, "usr_TokenTest01", "list-token", "abcd1234efgh5678")
+	seedToken(t, db, "usr_TokenTest02", "other-user-token", "zzzz1234yyyy5678")
 
-	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/?p=1&size=10", nil, 1)
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/?p=1&size=10", nil, "usr_TokenTest01")
 	GetAllTokens(ctx)
 
 	response := decodeAPIResponse(t, recorder)
@@ -147,9 +146,9 @@ func TestGetAllTokensMasksKeyInResponse(t *testing.T) {
 
 func TestSearchTokensMasksKeyInResponse(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
-	token := seedToken(t, db, 1, "searchable-token", "ijkl1234mnop5678")
+	token := seedToken(t, db, "usr_TokenTest01", "searchable-token", "ijkl1234mnop5678")
 
-	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/search?keyword=searchable-token&p=1&size=10", nil, 1)
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/search?keyword=searchable-token&p=1&size=10", nil, "usr_TokenTest01")
 	SearchTokens(ctx)
 
 	response := decodeAPIResponse(t, recorder)
@@ -174,10 +173,10 @@ func TestSearchTokensMasksKeyInResponse(t *testing.T) {
 
 func TestGetTokenMasksKeyInResponse(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
-	token := seedToken(t, db, 1, "detail-token", "qrst1234uvwx5678")
+	token := seedToken(t, db, "usr_TokenTest01", "detail-token", "qrst1234uvwx5678")
 
-	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/"+strconv.Itoa(token.Id), nil, 1)
-	ctx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	ctx, recorder := newAuthenticatedContext(t, http.MethodGet, "/api/token/"+token.Id, nil, "usr_TokenTest01")
+	ctx.Params = gin.Params{{Key: "id", Value: token.Id}}
 	GetToken(ctx)
 
 	response := decodeAPIResponse(t, recorder)
@@ -199,7 +198,7 @@ func TestGetTokenMasksKeyInResponse(t *testing.T) {
 
 func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
-	token := seedToken(t, db, 1, "editable-token", "yzab1234cdef5678")
+	token := seedToken(t, db, "usr_TokenTest01", "editable-token", "yzab1234cdef5678")
 
 	body := map[string]any{
 		"id":                   token.Id,
@@ -213,7 +212,7 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 		"cross_group_retry":    false,
 	}
 
-	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", body, 1)
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", body, "usr_TokenTest01")
 	UpdateToken(ctx)
 
 	response := decodeAPIResponse(t, recorder)
@@ -235,10 +234,10 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 
 func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
-	token := seedToken(t, db, 1, "owned-token", "owner1234token5678")
+	token := seedToken(t, db, "usr_TokenTest01", "owned-token", "owner1234token5678")
 
-	authorizedCtx, authorizedRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+strconv.Itoa(token.Id)+"/key", nil, 1)
-	authorizedCtx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	authorizedCtx, authorizedRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+token.Id+"/key", nil, "usr_TokenTest01")
+	authorizedCtx.Params = gin.Params{{Key: "id", Value: token.Id}}
 	GetTokenKey(authorizedCtx)
 
 	authorizedResponse := decodeAPIResponse(t, authorizedRecorder)
@@ -254,8 +253,8 @@ func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
 		t.Fatalf("expected full key %q, got %q", token.GetFullKey(), keyData.Key)
 	}
 
-	unauthorizedCtx, unauthorizedRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+strconv.Itoa(token.Id)+"/key", nil, 2)
-	unauthorizedCtx.Params = gin.Params{{Key: "id", Value: strconv.Itoa(token.Id)}}
+	unauthorizedCtx, unauthorizedRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+token.Id+"/key", nil, "usr_TokenTest02")
+	unauthorizedCtx.Params = gin.Params{{Key: "id", Value: token.Id}}
 	GetTokenKey(unauthorizedCtx)
 
 	unauthorizedResponse := decodeAPIResponse(t, unauthorizedRecorder)

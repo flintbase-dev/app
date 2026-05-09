@@ -66,7 +66,7 @@ func (s *BillingSession) Settle(actualQuota int) error {
 		}
 		if tokenErr != nil {
 			// 资金来源已提交，令牌调整失败只能记录日志；标记 settled 防止 Refund 误退资金
-			common.SysLog(fmt.Sprintf("error adjusting token quota after funding settled (userId=%d, tokenId=%d, delta=%d): %s",
+			common.SysLog(fmt.Sprintf("error adjusting token quota after funding settled (userId=%s, tokenId=%s, delta=%d): %s",
 				s.relayInfo.UserId, s.relayInfo.TokenId, delta, tokenErr.Error()))
 		}
 	}
@@ -88,7 +88,7 @@ func (s *BillingSession) Refund(c *gin.Context) {
 	s.refunded = true
 	s.mu.Unlock()
 
-	logger.LogInfo(c, fmt.Sprintf("用户 %d 请求失败, 返还预扣费（token_quota=%s, funding=%s）",
+	logger.LogInfo(c, fmt.Sprintf("用户 %s 请求失败, 返还预扣费（token_quota=%s, funding=%s）",
 		s.relayInfo.UserId,
 		logger.FormatQuota(s.tokenConsumed),
 		s.funding.Source(),
@@ -108,7 +108,7 @@ func (s *BillingSession) Refund(c *gin.Context) {
 		if err := funding.Refund(); err != nil {
 			common.SysLog("error refunding billing source: " + err.Error())
 		}
-		if extraReserved > 0 && funding.Source() == BillingSourceSubscription && subscriptionId > 0 {
+		if extraReserved > 0 && funding.Source() == BillingSourceSubscription && !common.IsEmptyID(subscriptionId) {
 			if err := model.PostConsumeUserSubscriptionDelta(subscriptionId, -int64(extraReserved)); err != nil {
 				common.SysLog("error refunding subscription extra reserved quota: " + err.Error())
 			}
@@ -190,9 +190,9 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 	if s.shouldTrust(c) {
 		s.trusted = true
 		effectiveQuota = 0
-		logger.LogInfo(c, fmt.Sprintf("用户 %d 额度充足, 信任且不需要预扣费 (funding=%s)", s.relayInfo.UserId, s.funding.Source()))
+		logger.LogInfo(c, fmt.Sprintf("用户 %s 额度充足, 信任且不需要预扣费 (funding=%s)", s.relayInfo.UserId, s.funding.Source()))
 	} else if effectiveQuota > 0 {
-		logger.LogInfo(c, fmt.Sprintf("用户 %d 需要预扣费 %s (funding=%s)", s.relayInfo.UserId, logger.FormatQuota(effectiveQuota), s.funding.Source()))
+		logger.LogInfo(c, fmt.Sprintf("用户 %s 需要预扣费 %s (funding=%s)", s.relayInfo.UserId, logger.FormatQuota(effectiveQuota), s.funding.Source()))
 	}
 
 	// ---- 1) 预扣令牌额度 ----
@@ -208,7 +208,7 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 		// 预扣费失败，回滚令牌额度
 		if s.tokenConsumed > 0 && !s.relayInfo.IsPlayground {
 			if rollbackErr := model.IncreaseTokenQuota(s.relayInfo.TokenId, s.relayInfo.TokenKey, s.tokenConsumed); rollbackErr != nil {
-				common.SysLog(fmt.Sprintf("error rolling back token quota (userId=%d, tokenId=%d, amount=%d, fundingErr=%s): %s",
+				common.SysLog(fmt.Sprintf("error rolling back token quota (userId=%s, tokenId=%s, amount=%d, fundingErr=%s): %s",
 					s.relayInfo.UserId, s.relayInfo.TokenId, s.tokenConsumed, err.Error(), rollbackErr.Error()))
 			}
 			s.tokenConsumed = 0
@@ -330,7 +330,7 @@ func (s *BillingSession) syncRelayInfo() {
 		info.SubscriptionPlanId = sub.PlanId
 		info.SubscriptionPlanTitle = sub.PlanTitle
 	} else {
-		info.SubscriptionId = 0
+		info.SubscriptionId = ""
 		info.SubscriptionPreConsumed = 0
 	}
 }

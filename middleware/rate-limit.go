@@ -122,26 +122,26 @@ func UploadRateLimit() func(c *gin.Context) {
 func userRateLimitFactory(maxRequestNum int, duration int64, mark string) func(c *gin.Context) {
 	if common.RedisEnabled {
 		return func(c *gin.Context) {
-			userId := c.GetInt("id")
-			if userId == 0 {
+			userId := c.GetString("id")
+			if common.IsEmptyID(userId) {
 				c.Status(http.StatusUnauthorized)
 				c.Abort()
 				return
 			}
-			key := fmt.Sprintf("rateLimit:%s:user:%d", mark, userId)
+			key := fmt.Sprintf("rateLimit:%s:user:%s", mark, userId)
 			userRedisRateLimiter(c, maxRequestNum, duration, key)
 		}
 	}
 	// It's safe to call multi times.
 	inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
 	return func(c *gin.Context) {
-		userId := c.GetInt("id")
-		if userId == 0 {
+		userId := c.GetString("id")
+		if common.IsEmptyID(userId) {
 			c.Status(http.StatusUnauthorized)
 			c.Abort()
 			return
 		}
-		key := fmt.Sprintf("%s:user:%d", mark, userId)
+		key := fmt.Sprintf("%s:user:%s", mark, userId)
 		if !inMemoryRateLimiter.Request(key, maxRequestNum, duration) {
 			c.Status(http.StatusTooManyRequests)
 			c.Abort()

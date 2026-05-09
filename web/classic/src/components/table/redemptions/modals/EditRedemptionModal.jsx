@@ -130,7 +130,7 @@ const EditRedemptionModal = (props) => {
     if (isEdit) {
       res = await API.mutation('updateRedemption', {
         ...localInputs,
-        id: parseInt(props.editingRedemption.id),
+        id: props.editingRedemption.id,
       });
     } else {
       res = await API.mutation('createRedemption', {

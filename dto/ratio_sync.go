@@ -1,14 +1,14 @@
 package dto
 
 type UpstreamDTO struct {
-	ID       int    `json:"id,omitempty"`
+	ID       string `json:"id,omitempty"`
 	Name     string `json:"name" binding:"required"`
 	BaseURL  string `json:"base_url" binding:"required"`
 	Endpoint string `json:"endpoint"`
 }
 
 type UpstreamRequest struct {
-	ChannelIDs []int64       `json:"channel_ids"`
+	ChannelIDs []string      `json:"channel_ids"`
 	Upstreams  []UpstreamDTO `json:"upstreams"`
 	Timeout    int           `json:"timeout"`
 }
@@ -31,7 +31,7 @@ type DifferenceItem struct {
 }
 
 type SyncableChannel struct {
-	ID      int    `json:"id"`
+	ID      string `json:"id"`
 	Name    string `json:"name"`
 	BaseURL string `json:"base_url"`
 	Status  int    `json:"status"`

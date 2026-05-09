@@ -226,7 +226,7 @@ const (
 const (
 	MsgRedeemFailed          = "redeem.failed"
 	MsgCreateDefaultTokenErr = "user.create_default_token_error"
-	MsgUuidDuplicate         = "common.uuid_duplicate"
+	MsgIdDuplicate           = "common.id_duplicate"
 	MsgInvalidInput          = "common.invalid_input"
 )
 

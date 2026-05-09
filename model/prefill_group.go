@@ -74,7 +74,7 @@ func (j *JSONValue) UnmarshalJSON(data []byte) error {
 }
 
 type PrefillGroup struct {
-	Id          int            `json:"id"`
+	Id          string         `json:"id" gorm:"primaryKey;type:varchar(32)"`
 	Name        string         `json:"name" gorm:"size:64;not null;uniqueIndex:uk_prefill_name,where:deleted_at IS NULL"`
 	Type        string         `json:"type" gorm:"size:32;index;not null"`
 	Items       JSONValue      `json:"items" gorm:"type:json"`
@@ -93,7 +93,7 @@ func (g *PrefillGroup) Insert() error {
 }
 
 // IsPrefillGroupNameDuplicated 检查组名称是否重复（排除自身 ID）
-func IsPrefillGroupNameDuplicated(id int, name string) (bool, error) {
+func IsPrefillGroupNameDuplicated(id string, name string) (bool, error) {
 	if name == "" {
 		return false, nil
 	}
@@ -109,8 +109,8 @@ func (g *PrefillGroup) Update() error {
 }
 
 // DeleteByID 根据 ID 删除组
-func DeletePrefillGroupByID(id int) error {
-	return DB.Delete(&PrefillGroup{}, id).Error
+func DeletePrefillGroupByID(id string) error {
+	return DB.Delete(&PrefillGroup{}, "id = ?", id).Error
 }
 
 // GetAllPrefillGroups 获取全部组，可按类型过滤（为空则返回全部）

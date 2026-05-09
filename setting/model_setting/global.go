@@ -10,12 +10,12 @@ import (
 type ChatCompletionsToResponsesPolicy struct {
 	Enabled       bool     `json:"enabled"`
 	AllChannels   bool     `json:"all_channels"`
-	ChannelIDs    []int    `json:"channel_ids,omitempty"`
+	ChannelIDs    []string `json:"channel_ids,omitempty"`
 	ChannelTypes  []int    `json:"channel_types,omitempty"`
 	ModelPatterns []string `json:"model_patterns,omitempty"`
 }
 
-func (p ChatCompletionsToResponsesPolicy) IsChannelEnabled(channelID int, channelType int) bool {
+func (p ChatCompletionsToResponsesPolicy) IsChannelEnabled(channelID string, channelType int) bool {
 	if !p.Enabled {
 		return false
 	}
@@ -23,7 +23,7 @@ func (p ChatCompletionsToResponsesPolicy) IsChannelEnabled(channelID int, channe
 		return true
 	}
 
-	if channelID > 0 && len(p.ChannelIDs) > 0 && slices.Contains(p.ChannelIDs, channelID) {
+	if strings.TrimSpace(channelID) != "" && len(p.ChannelIDs) > 0 && slices.Contains(p.ChannelIDs, channelID) {
 		return true
 	}
 	if channelType > 0 && len(p.ChannelTypes) > 0 && slices.Contains(p.ChannelTypes, channelType) {

@@ -99,7 +99,15 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		Header: make(http.Header),
 	}
 
-	cache, err := model.GetUserCache(1)
+	rootUser := model.GetRootUser()
+	if rootUser == nil || common.IsEmptyID(rootUser.Id) {
+		return testResult{
+			localErr:    errors.New("root user not found"),
+			newAPIError: nil,
+		}
+	}
+	testUserID := rootUser.Id
+	cache, err := model.GetUserCache(testUserID)
 	if err != nil {
 		return testResult{
 			localErr:    err,
@@ -107,13 +115,13 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		}
 	}
 	cache.WriteContext(c)
-	c.Set("id", 1)
+	c.Set("id", testUserID)
 
 	//c.Request.Header.Set("Authorization", "Bearer "+channel.Key)
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set("channel", channel.Type)
 	c.Set("base_url", channel.GetBaseURL())
-	group, _ := model.GetUserGroup(1, false)
+	group, _ := model.GetUserGroup(testUserID, false)
 	c.Set("group", group)
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, testModel)
@@ -223,7 +231,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	//// 创建一个用于日志的 info 副本，移除 ApiKey
 	//logInfo := info
 	//logInfo.ApiKey = ""
-	common.SysLog(fmt.Sprintf("testing channel %d with model %s , info %+v ", channel.Id, testModel, info.ToString()))
+	common.SysLog(fmt.Sprintf("testing channel %s with model %s , info %+v ", channel.Id, testModel, info.ToString()))
 
 	priceData, err := helper.ModelPriceHelper(c, info, 0, request.GetTokenCountMeta())
 	if err != nil {
@@ -352,7 +360,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		if httpResp.StatusCode != http.StatusOK {
 			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
 			common.SysError(fmt.Sprintf(
-				"channel test bad response: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
+				"channel test bad response: channel_id=%s name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
 				channel.Id,
 				channel.Name,
 				channel.Type,
@@ -407,7 +415,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	milliseconds := tok.Sub(tik).Milliseconds()
 	consumedTime := float64(milliseconds) / 1000.0
 	other := buildTestLogOther(c, info, priceData, usage, tieredResult)
-	model.RecordConsumeLog(c, 1, model.RecordConsumeLogParams{
+	model.RecordConsumeLog(c, testUserID, model.RecordConsumeLogParams{
 		ChannelId:        channel.Id,
 		PromptTokens:     usage.PromptTokens,
 		CompletionTokens: usage.CompletionTokens,
@@ -420,7 +428,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		Group:            info.UsingGroup,
 		Other:            other,
 	})
-	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
+	common.SysLog(fmt.Sprintf("testing channel #%s, response: \n%s", channel.Id, string(respBody)))
 	return testResult{
 		context:     c,
 		localErr:    nil,
@@ -693,11 +701,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 }
 
 func TestChannel(c *gin.Context) {
-	channelId, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	channelId := c.Param("id")
 	channel, err := model.CacheGetChannel(channelId)
 	if err != nil {
 		channel, err = model.GetChannelById(channelId, true)

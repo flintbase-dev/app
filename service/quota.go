@@ -42,7 +42,7 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 
 	// 1) Consume from wallet quota OR subscription item
 	if relayInfo != nil && relayInfo.BillingSource == BillingSourceSubscription {
-		if relayInfo.SubscriptionId == 0 {
+		if common.IsEmptyID(relayInfo.SubscriptionId) {
 			return errors.New("subscription id is missing")
 		}
 		delta := int64(quota)
@@ -132,7 +132,7 @@ func checkAndSendQuotaNotify(relayInfo *relaycommon.RelayInfo, quota int, preCon
 
 			err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, dto.NewNotify(dto.NotifyTypeQuotaExceed, prompt, content, values))
 			if err != nil {
-				common.SysError(fmt.Sprintf("failed to send quota notify to user %d: %s", relayInfo.UserId, err.Error()))
+				common.SysError(fmt.Sprintf("failed to send quota notify to user %s: %s", relayInfo.UserId, err.Error()))
 			}
 		}
 	})
@@ -143,7 +143,7 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 		if relayInfo == nil {
 			return
 		}
-		if relayInfo.SubscriptionId == 0 || relayInfo.SubscriptionAmountTotal <= 0 {
+		if common.IsEmptyID(relayInfo.SubscriptionId) || relayInfo.SubscriptionAmountTotal <= 0 {
 			return
 		}
 
@@ -181,7 +181,7 @@ func checkAndSendSubscriptionQuotaNotify(relayInfo *relaycommon.RelayInfo) {
 		}
 
 		if err := NotifyUser(relayInfo.UserId, relayInfo.UserEmail, relayInfo.UserSetting, dto.NewNotify(dto.NotifyTypeQuotaExceed, prompt, content, values)); err != nil {
-			common.SysError(fmt.Sprintf("failed to send subscription quota notify to user %d: %s", relayInfo.UserId, err.Error()))
+			common.SysError(fmt.Sprintf("failed to send subscription quota notify to user %s: %s", relayInfo.UserId, err.Error()))
 		}
 	})
 }

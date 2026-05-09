@@ -1,5 +1,5 @@
 CREATE TABLE channels (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(32) PRIMARY KEY,
     type BIGINT DEFAULT 0,
     "key" TEXT NOT NULL,
     open_ai_organization TEXT,
@@ -35,8 +35,8 @@ CREATE INDEX idx_channels_name ON channels (name);
 CREATE INDEX idx_channels_tag ON channels (tag);
 
 CREATE TABLE tokens (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT,
+    id VARCHAR(32) PRIMARY KEY,
+    user_id VARCHAR(32),
     "key" VARCHAR(128),
     status BIGINT DEFAULT 1,
     name TEXT,
@@ -60,7 +60,7 @@ CREATE INDEX idx_tokens_name ON tokens (name);
 CREATE INDEX idx_tokens_deleted_at ON tokens (deleted_at);
 
 CREATE TABLE users (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(32) PRIMARY KEY,
     username TEXT,
     workos_id TEXT NOT NULL,
     workos_organization_id TEXT DEFAULT '',
@@ -78,7 +78,7 @@ CREATE TABLE users (
     aff_count BIGINT DEFAULT 0,
     aff_quota BIGINT DEFAULT 0,
     aff_history BIGINT DEFAULT 0,
-    inviter_id BIGINT,
+    inviter_id VARCHAR(32),
     deleted_at TIMESTAMPTZ,
     setting TEXT,
     remark VARCHAR(255),
@@ -104,15 +104,15 @@ CREATE TABLE options (
 );
 
 CREATE TABLE redemptions (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT,
-    "key" CHAR(32),
+    id VARCHAR(32) PRIMARY KEY,
+    user_id VARCHAR(32),
+    "key" VARCHAR(24),
     status BIGINT DEFAULT 1,
     name TEXT,
     quota BIGINT DEFAULT 100,
     created_time BIGINT,
     redeemed_time BIGINT,
-    used_user_id BIGINT,
+    used_user_id VARCHAR(32),
     deleted_at TIMESTAMPTZ,
     expired_time BIGINT
 );
@@ -124,7 +124,7 @@ CREATE INDEX idx_redemptions_deleted_at ON redemptions (deleted_at);
 CREATE TABLE abilities (
     "group" VARCHAR(64) NOT NULL,
     model VARCHAR(255) NOT NULL,
-    channel_id BIGINT NOT NULL,
+    channel_id VARCHAR(32) NOT NULL,
     enabled BOOLEAN DEFAULT false,
     priority BIGINT DEFAULT 0,
     weight BIGINT DEFAULT 0,
@@ -138,15 +138,15 @@ CREATE INDEX idx_abilities_weight ON abilities (weight);
 CREATE INDEX idx_abilities_tag ON abilities (tag);
 
 CREATE TABLE audit_logs (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(32) PRIMARY KEY,
     created_at BIGINT NOT NULL,
     type BIGINT NOT NULL,
     category VARCHAR(32) NOT NULL DEFAULT 'audit' CHECK (category = 'audit'),
     event VARCHAR(128) NOT NULL,
     severity VARCHAR(32) NOT NULL DEFAULT 'info',
     result VARCHAR(32) NOT NULL DEFAULT 'success',
-    user_id BIGINT NOT NULL DEFAULT 0,
-    actor_user_id BIGINT NOT NULL DEFAULT 0,
+    user_id VARCHAR(32) NOT NULL DEFAULT '',
+    actor_user_id VARCHAR(32) NOT NULL DEFAULT '',
     content TEXT,
     username TEXT DEFAULT '',
     token_name TEXT DEFAULT '',
@@ -156,8 +156,8 @@ CREATE TABLE audit_logs (
     completion_tokens BIGINT DEFAULT 0,
     use_time BIGINT DEFAULT 0,
     is_stream BOOLEAN DEFAULT false,
-    channel_id BIGINT DEFAULT 0,
-    token_id BIGINT DEFAULT 0,
+    channel_id VARCHAR(32) DEFAULT '',
+    token_id VARCHAR(32) DEFAULT '',
     group_name TEXT DEFAULT '',
     ip TEXT DEFAULT '',
     request_id VARCHAR(64) DEFAULT '',
@@ -190,8 +190,8 @@ BEFORE DELETE ON audit_logs
 FOR EACH ROW EXECUTE FUNCTION prevent_append_only_mutation();
 
 CREATE TABLE credit_grants (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
+    id VARCHAR(32) PRIMARY KEY,
+    user_id VARCHAR(32) NOT NULL,
     source_type VARCHAR(64) NOT NULL,
     source_id VARCHAR(128) NOT NULL,
     amount BIGINT NOT NULL CHECK (amount > 0),
@@ -200,7 +200,7 @@ CREATE TABLE credit_grants (
     effective_at BIGINT NOT NULL,
     expires_at BIGINT NOT NULL DEFAULT 0,
     created_at BIGINT NOT NULL,
-    created_by BIGINT NOT NULL DEFAULT 0,
+    created_by VARCHAR(32) NOT NULL DEFAULT '',
     request_id VARCHAR(64) NOT NULL DEFAULT '',
     metadata TEXT NOT NULL DEFAULT '{}',
     CHECK (remaining_amount <= amount),
@@ -213,19 +213,19 @@ CREATE INDEX idx_credit_grants_fifo ON credit_grants (user_id, status, expires_a
 CREATE INDEX idx_credit_grants_request_id ON credit_grants (request_id);
 
 CREATE TABLE credit_ledger_entries (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    grant_id BIGINT REFERENCES credit_grants(id),
+    id VARCHAR(32) PRIMARY KEY,
+    user_id VARCHAR(32) NOT NULL,
+    grant_id VARCHAR(32) REFERENCES credit_grants(id),
     entry_type VARCHAR(32) NOT NULL CHECK (entry_type IN ('grant', 'consume', 'refund', 'adjustment', 'reversal', 'expire')),
     amount_delta BIGINT NOT NULL CHECK (amount_delta <> 0),
     balance_after BIGINT NOT NULL CHECK (balance_after >= 0),
     request_id VARCHAR(64) NOT NULL DEFAULT '',
     source_type VARCHAR(64) NOT NULL,
     source_id VARCHAR(128) NOT NULL,
-    actor_user_id BIGINT NOT NULL DEFAULT 0,
+    actor_user_id VARCHAR(32) NOT NULL DEFAULT '',
     reason TEXT,
     created_at BIGINT NOT NULL,
-    reversal_of_id BIGINT REFERENCES credit_ledger_entries(id),
+    reversal_of_id VARCHAR(32) REFERENCES credit_ledger_entries(id),
     metadata TEXT NOT NULL DEFAULT '{}'
 );
 
@@ -244,9 +244,9 @@ BEFORE DELETE ON credit_ledger_entries
 FOR EACH ROW EXECUTE FUNCTION prevent_append_only_mutation();
 
 CREATE TABLE midjourneys (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(32) PRIMARY KEY,
     code BIGINT,
-    user_id BIGINT,
+    user_id VARCHAR(32),
     action VARCHAR(40),
     mj_id TEXT,
     prompt TEXT,
@@ -262,7 +262,7 @@ CREATE TABLE midjourneys (
     status VARCHAR(20),
     progress VARCHAR(30),
     fail_reason TEXT,
-    channel_id BIGINT,
+    channel_id VARCHAR(32),
     quota BIGINT,
     buttons TEXT,
     properties TEXT
@@ -278,8 +278,8 @@ CREATE INDEX idx_midjourneys_status ON midjourneys (status);
 CREATE INDEX idx_midjourneys_progress ON midjourneys (progress);
 
 CREATE TABLE top_ups (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT,
+    id VARCHAR(32) PRIMARY KEY,
+    user_id VARCHAR(32),
     amount BIGINT,
     money DOUBLE PRECISION,
     trade_no VARCHAR(255),
@@ -294,14 +294,14 @@ CREATE UNIQUE INDEX idx_top_ups_trade_no ON top_ups (trade_no);
 CREATE INDEX idx_top_ups_user_id ON top_ups (user_id);
 
 CREATE TABLE tasks (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(32) PRIMARY KEY,
     created_at BIGINT,
     updated_at BIGINT,
     task_id VARCHAR(191),
     platform VARCHAR(30),
-    user_id BIGINT,
+    user_id VARCHAR(32),
     "group" VARCHAR(50),
-    channel_id BIGINT,
+    channel_id VARCHAR(32),
     quota BIGINT,
     action VARCHAR(40),
     status VARCHAR(20),
@@ -328,12 +328,12 @@ CREATE INDEX idx_tasks_finish_time ON tasks (finish_time);
 CREATE INDEX idx_tasks_progress ON tasks (progress);
 
 CREATE TABLE models (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(32) PRIMARY KEY,
     model_name VARCHAR(128) NOT NULL,
     description TEXT,
     icon VARCHAR(128),
     tags VARCHAR(255),
-    vendor_id BIGINT,
+    vendor_id VARCHAR(32),
     endpoints TEXT,
     status BIGINT DEFAULT 1,
     sync_official BIGINT DEFAULT 1,
@@ -348,7 +348,7 @@ CREATE INDEX idx_models_vendor_id ON models (vendor_id);
 CREATE INDEX idx_models_deleted_at ON models (deleted_at);
 
 CREATE TABLE vendors (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(32) PRIMARY KEY,
     name VARCHAR(128) NOT NULL,
     description TEXT,
     icon VARCHAR(128),
@@ -362,7 +362,7 @@ CREATE UNIQUE INDEX uk_vendor_name_delete_at ON vendors (name) WHERE deleted_at 
 CREATE INDEX idx_vendors_deleted_at ON vendors (deleted_at);
 
 CREATE TABLE prefill_groups (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(32) PRIMARY KEY,
     name VARCHAR(64) NOT NULL,
     type VARCHAR(32) NOT NULL,
     items JSONB,
@@ -377,14 +377,14 @@ CREATE INDEX idx_prefill_groups_type ON prefill_groups (type);
 CREATE INDEX idx_prefill_groups_deleted_at ON prefill_groups (deleted_at);
 
 CREATE TABLE setups (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(32) PRIMARY KEY,
     version VARCHAR(50) NOT NULL,
     initialized_at BIGINT NOT NULL
 );
 
 CREATE TABLE checkins (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
+    id VARCHAR(32) PRIMARY KEY,
+    user_id VARCHAR(32) NOT NULL,
     checkin_date VARCHAR(10) NOT NULL,
     quota_awarded BIGINT NOT NULL,
     created_at BIGINT
@@ -393,9 +393,9 @@ CREATE TABLE checkins (
 CREATE UNIQUE INDEX idx_user_checkin_date ON checkins (user_id, checkin_date);
 
 CREATE TABLE subscription_orders (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT,
-    plan_id BIGINT,
+    id VARCHAR(32) PRIMARY KEY,
+    user_id VARCHAR(32),
+    plan_id VARCHAR(32),
     money DOUBLE PRECISION,
     trade_no VARCHAR(255),
     payment_method VARCHAR(50),
@@ -411,9 +411,9 @@ CREATE INDEX idx_subscription_orders_user_id ON subscription_orders (user_id);
 CREATE INDEX idx_subscription_orders_plan_id ON subscription_orders (plan_id);
 
 CREATE TABLE user_subscriptions (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT,
-    plan_id BIGINT,
+    id VARCHAR(32) PRIMARY KEY,
+    user_id VARCHAR(32),
+    plan_id VARCHAR(32),
     amount_total BIGINT NOT NULL DEFAULT 0,
     amount_used BIGINT NOT NULL DEFAULT 0,
     start_time BIGINT,
@@ -436,10 +436,10 @@ CREATE INDEX idx_user_subscriptions_next_reset_time ON user_subscriptions (next_
 CREATE INDEX idx_user_sub_active ON user_subscriptions (user_id, status, end_time);
 
 CREATE TABLE subscription_pre_consume_records (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(32) PRIMARY KEY,
     request_id VARCHAR(64),
-    user_id BIGINT,
-    user_subscription_id BIGINT,
+    user_id VARCHAR(32),
+    user_subscription_id VARCHAR(32),
     pre_consumed BIGINT NOT NULL DEFAULT 0,
     status VARCHAR(32),
     created_at BIGINT,
@@ -453,7 +453,7 @@ CREATE INDEX idx_subscription_pre_consume_records_status ON subscription_pre_con
 CREATE INDEX idx_subscription_pre_consume_records_updated_at ON subscription_pre_consume_records (updated_at);
 
 CREATE TABLE perf_metrics (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(32) PRIMARY KEY,
     model_name VARCHAR(128),
     "group" VARCHAR(64),
     bucket_ts BIGINT,
@@ -470,7 +470,7 @@ CREATE UNIQUE INDEX idx_perf_model_group_bucket ON perf_metrics (model_name, "gr
 CREATE INDEX idx_perf_bucket_ts ON perf_metrics (bucket_ts);
 
 CREATE TABLE subscription_plans (
-    id BIGSERIAL PRIMARY KEY,
+    id VARCHAR(32) PRIMARY KEY,
     title VARCHAR(128) NOT NULL,
     subtitle VARCHAR(255) DEFAULT '',
     price_amount NUMERIC(10,6) NOT NULL DEFAULT 0,

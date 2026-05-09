@@ -3,13 +3,14 @@ package model
 import (
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
 // PerfMetric stores aggregated relay performance metrics for the model square.
 type PerfMetric struct {
-	Id             int    `json:"id" gorm:"primaryKey"`
+	Id             string `json:"id" gorm:"primaryKey;type:varchar(32)"`
 	ModelName      string `json:"model_name" gorm:"size:128;uniqueIndex:idx_perf_model_group_bucket,priority:1"`
 	Group          string `json:"group" gorm:"column:group;size:64;uniqueIndex:idx_perf_model_group_bucket,priority:2"`
 	BucketTs       int64  `json:"bucket_ts" gorm:"uniqueIndex:idx_perf_model_group_bucket,priority:3;index:idx_perf_bucket_ts"`
@@ -24,6 +25,13 @@ type PerfMetric struct {
 
 func (PerfMetric) TableName() string {
 	return "perf_metrics"
+}
+
+func (m *PerfMetric) BeforeCreate(tx *gorm.DB) error {
+	if common.IsEmptyID(m.Id) {
+		m.Id = common.MustNewTypedID("met", 12)
+	}
+	return nil
 }
 
 func UpsertPerfMetric(metric *PerfMetric) error {

@@ -123,7 +123,7 @@ const EditUserModal = (props) => {
   const submit = async (values) => {
     setLoading(true);
     const payload = {
-      id: parseInt(userId),
+      id: userId,
       username: values.username,
       display_name: values.display_name,
       group: values.group,
@@ -147,7 +147,7 @@ const EditUserModal = (props) => {
     setAdjustLoading(true);
     try {
       const res = await API.mutation('manageUser', {
-        id: parseInt(userId),
+        id: userId,
         action: 'add_quota',
         mode: adjustMode,
         value: Math.abs(quotaVal),

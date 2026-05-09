@@ -218,9 +218,9 @@ func Relay(c *gin.Context, relayFormat types.RelayFormat) {
 	}
 }
 
-func addUsedChannel(c *gin.Context, channelId int) {
+func addUsedChannel(c *gin.Context, channelId string) {
 	useChannel := c.GetStringSlice("use_channel")
-	useChannel = append(useChannel, fmt.Sprintf("%d", channelId))
+	useChannel = append(useChannel, channelId)
 	c.Set("use_channel", useChannel)
 }
 
@@ -261,7 +261,7 @@ func getChannel(c *gin.Context, info *relaycommon.RelayInfo, retryParam *service
 			autoBanInt = 0
 		}
 		return &model.Channel{
-			Id:      c.GetInt("channel_id"),
+			Id:      c.GetString("channel_id"),
 			Type:    c.GetInt("channel_type"),
 			Name:    c.GetString("channel_name"),
 			AutoBan: &autoBanInt,
@@ -318,7 +318,7 @@ func shouldRetry(c *gin.Context, openaiErr *types.NewAPIError, retryTimes int) b
 }
 
 func processChannelError(c *gin.Context, channelError types.ChannelError, err *types.NewAPIError) {
-	logger.LogError(c, fmt.Sprintf("channel error (channel #%d, status code: %d): %s", channelError.ChannelId, err.StatusCode, err.Error()))
+	logger.LogError(c, fmt.Sprintf("channel error (channel #%s, status code: %d): %s", channelError.ChannelId, err.StatusCode, err.Error()))
 	// 不要使用context获取渠道信息，异步处理时可能会出现渠道信息不一致的情况
 	// do not use context to get channel info, there may be inconsistent channel info when processing asynchronously
 	if service.ShouldDisableChannel(err) && channelError.AutoBan {
@@ -329,12 +329,12 @@ func processChannelError(c *gin.Context, channelError types.ChannelError, err *t
 
 	if constant.ErrorLogEnabled && types.IsRecordErrorLog(err) {
 		// 保存错误日志到数据库中
-		userId := c.GetInt("id")
+		userId := c.GetString("id")
 		tokenName := c.GetString("token_name")
 		modelName := c.GetString("original_model")
-		tokenId := c.GetInt("token_id")
+		tokenId := c.GetString("token_id")
 		userGroup := c.GetString("group")
-		channelId := c.GetInt("channel_id")
+		channelId := c.GetString("channel_id")
 		other := make(map[string]interface{})
 		if c.Request != nil && c.Request.URL != nil {
 			other["request_path"] = c.Request.URL.Path

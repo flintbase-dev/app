@@ -43,7 +43,8 @@ func GetPricing(c *gin.Context) {
 	}
 	var group string
 	if exists {
-		user, err := model.GetUserCache(userId.(int))
+		userID, _ := userId.(string)
+		user, err := model.GetUserCache(userID)
 		if err == nil {
 			group = user.Group
 			for g := range groupRatio {
