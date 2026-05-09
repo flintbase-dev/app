@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -35,13 +34,21 @@ func validUserInfo(username string, role int) bool {
 
 func authHelper(c *gin.Context, minRole int) {
 	session := sessions.Default(c)
-	username := session.Get("username")
-	role := session.Get("role")
-	id := session.Get("id")
-	status := session.Get("status")
 	useAccessToken := false
-	if username == nil {
-		// Check access token
+
+	var user *model.User
+	if sessionUserID, ok := session.Get("id").(int); ok && sessionUserID != 0 {
+		var err error
+		user, err = model.GetUserById(sessionUserID, false)
+		if err != nil {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn),
+			})
+			c.Abort()
+			return
+		}
+	} else {
 		accessToken := c.Request.Header.Get("Authorization")
 		if accessToken == "" {
 			c.JSON(http.StatusUnauthorized, gin.H{
@@ -51,7 +58,8 @@ func authHelper(c *gin.Context, minRole int) {
 			c.Abort()
 			return
 		}
-		user, authErr := model.ValidateAccessToken(accessToken)
+		var authErr error
+		user, authErr = model.ValidateAccessToken(accessToken)
 		if authErr != nil {
 			if errors.Is(authErr, model.ErrDatabase) {
 				common.SysLog("ValidateAccessToken database error: " + authErr.Error())
@@ -68,59 +76,25 @@ func authHelper(c *gin.Context, minRole int) {
 			c.Abort()
 			return
 		}
-		if user != nil && user.Username != "" {
-			if !validUserInfo(user.Username, user.Role) {
-				c.JSON(http.StatusOK, gin.H{
-					"success": false,
-					"message": common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid),
-				})
-				c.Abort()
-				return
-			}
-			// Token is valid
-			username = user.Username
-			role = user.Role
-			id = user.Id
-			status = user.Status
-			useAccessToken = true
-		} else {
+		useAccessToken = true
+	}
+
+	if user == nil || user.Username == "" {
+		if useAccessToken {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid),
 			})
-			c.Abort()
-			return
+		} else {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": common.TranslateMessage(c, i18n.MsgAuthNotLoggedIn),
+			})
 		}
-	}
-	// get header New-Api-User
-	apiUserIdStr := c.Request.Header.Get("New-Api-User")
-	if apiUserIdStr == "" {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": common.TranslateMessage(c, i18n.MsgAuthUserIdNotProvided),
-		})
 		c.Abort()
 		return
 	}
-	apiUserId, err := strconv.Atoi(apiUserIdStr)
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": common.TranslateMessage(c, i18n.MsgAuthUserIdFormatError),
-		})
-		c.Abort()
-		return
-
-	}
-	if id != apiUserId {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": common.TranslateMessage(c, i18n.MsgAuthUserIdMismatch),
-		})
-		c.Abort()
-		return
-	}
-	if status.(int) == common.UserStatusDisabled {
+	if user.Status == common.UserStatusDisabled {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthUserBanned),
@@ -128,7 +102,7 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if role.(int) < minRole {
+	if user.Role < minRole {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthInsufficientPrivilege),
@@ -136,7 +110,7 @@ func authHelper(c *gin.Context, minRole int) {
 		c.Abort()
 		return
 	}
-	if !validUserInfo(username.(string), role.(int)) {
+	if !validUserInfo(user.Username, user.Role) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthUserInfoInvalid),
@@ -146,11 +120,11 @@ func authHelper(c *gin.Context, minRole int) {
 	}
 	// 防止不同newapi版本冲突，导致数据不通用
 	c.Header("Auth-Version", "864b7076dbcd0a3c01b5520316720ebf")
-	c.Set("username", username)
-	c.Set("role", role)
-	c.Set("id", id)
-	c.Set("group", session.Get("group"))
-	c.Set("user_group", session.Get("group"))
+	c.Set("username", user.Username)
+	c.Set("role", user.Role)
+	c.Set("id", user.Id)
+	c.Set("group", user.Group)
+	c.Set("user_group", user.Group)
 	c.Set("use_access_token", useAccessToken)
 
 	c.Next()

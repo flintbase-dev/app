@@ -37,7 +37,6 @@ export const useUsersData = () => {
   const [userCount, setUserCount] = useState(0);
 
   // Modal states
-  const [showAddUser, setShowAddUser] = useState(false);
   const [showEditUser, setShowEditUser] = useState(false);
   const [editingUser, setEditingUser] = useState({
     id: undefined,
@@ -154,40 +153,6 @@ export const useUsersData = () => {
     setLoading(false);
   };
 
-  const resetUserPasskey = async (user) => {
-    if (!user) {
-      return;
-    }
-    try {
-      const res = await API.delete(`/api/user/${user.id}/reset_passkey`);
-      const { success, message } = res.data;
-      if (success) {
-        showSuccess(t('Passkey 已重置'));
-      } else {
-        showError(message || t('操作失败，请重试'));
-      }
-    } catch (error) {
-      showError(t('操作失败，请重试'));
-    }
-  };
-
-  const resetUserTwoFA = async (user) => {
-    if (!user) {
-      return;
-    }
-    try {
-      const res = await API.delete(`/api/user/${user.id}/2fa`);
-      const { success, message } = res.data;
-      if (success) {
-        showSuccess(t('二步验证已重置'));
-      } else {
-        showError(message || t('操作失败，请重试'));
-      }
-    } catch (error) {
-      showError(t('操作失败，请重试'));
-    }
-  };
-
   // Handle page change
   const handlePageChange = (page) => {
     setActivePage(page);
@@ -253,10 +218,6 @@ export const useUsersData = () => {
   };
 
   // Modal control functions
-  const closeAddUser = () => {
-    setShowAddUser(false);
-  };
-
   const closeEditUser = () => {
     setShowEditUser(false);
     setEditingUser({
@@ -285,10 +246,8 @@ export const useUsersData = () => {
     groupOptions,
 
     // Modal state
-    showAddUser,
     showEditUser,
     editingUser,
-    setShowAddUser,
     setShowEditUser,
     setEditingUser,
 
@@ -305,13 +264,10 @@ export const useUsersData = () => {
     loadUsers,
     searchUsers,
     manageUser,
-    resetUserPasskey,
-    resetUserTwoFA,
     handlePageChange,
     handlePageSizeChange,
     handleRow,
     refresh,
-    closeAddUser,
     closeEditUser,
     getFormValues,
 

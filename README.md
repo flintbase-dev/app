@@ -116,6 +116,12 @@ cd new-api
 # Edit docker-compose.yml configuration
 nano docker-compose.yml
 
+# Configure WorkOS Hosted UI
+export WORKOS_API_KEY="sk_test_..."
+export WORKOS_CLIENT_ID="client_..."
+export WORKOS_REDIRECT_URI="https://your-domain.com/api/workos/callback"
+export WORKOS_ROOT_EMAILS="admin@example.com"
+
 # Start the service
 docker-compose up -d
 ```
@@ -137,6 +143,10 @@ docker run --rm \
 docker run --name new-api -d --restart always \
   -p 3000:3000 \
   -e SQL_DSN="postgresql://root:123456@postgres-host:5432/new-api" \
+  -e WORKOS_API_KEY="sk_test_..." \
+  -e WORKOS_CLIENT_ID="client_..." \
+  -e WORKOS_REDIRECT_URI="https://your-domain.com/api/workos/callback" \
+  -e WORKOS_ROOT_EMAILS="admin@example.com" \
   -e TZ=Asia/Shanghai \
   -v ./data:/data \
   calciumion/new-api:latest
@@ -197,10 +207,8 @@ docker run --name new-api -d --restart always \
 
 ### 🔐 Authorization and Security
 
-- 😈 Discord authorization login
-- 🤖 LinuxDO authorization login
-- 📱 Telegram authorization login
-- 🔑 OIDC unified authentication
+- 🔐 WorkOS Hosted UI / AuthKit as the only user login path
+- 🧑‍💼 First WorkOS user, `WORKOS_ROOT_EMAILS`, or `WORKOS_ROOT_USER_IDS` can become root
 - 🔍 Key quota query usage (with [neko-api-key-tool](https://github.com/Calcium-Ion/neko-api-key-tool))
 
 ### 🚀 Advanced Features

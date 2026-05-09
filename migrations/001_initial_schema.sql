@@ -62,16 +62,13 @@ CREATE INDEX idx_tokens_deleted_at ON tokens (deleted_at);
 CREATE TABLE users (
     id BIGSERIAL PRIMARY KEY,
     username TEXT,
-    password TEXT NOT NULL,
+    workos_id TEXT NOT NULL,
+    workos_organization_id TEXT DEFAULT '',
+    workos_authentication_method TEXT DEFAULT '',
     display_name TEXT,
     role BIGINT DEFAULT 1,
     status BIGINT DEFAULT 1,
     email TEXT,
-    github_id TEXT,
-    discord_id TEXT,
-    oidc_id TEXT,
-    wechat_id TEXT,
-    telegram_id TEXT,
     access_token CHAR(32),
     quota BIGINT DEFAULT 0,
     used_quota BIGINT DEFAULT 0,
@@ -83,7 +80,6 @@ CREATE TABLE users (
     aff_history BIGINT DEFAULT 0,
     inviter_id BIGINT,
     deleted_at TIMESTAMPTZ,
-    linux_do_id TEXT,
     setting TEXT,
     remark VARCHAR(255),
     stripe_customer VARCHAR(64),
@@ -92,44 +88,15 @@ CREATE TABLE users (
 );
 
 CREATE UNIQUE INDEX idx_users_username ON users (username);
+CREATE UNIQUE INDEX idx_users_workos_id ON users (workos_id);
+CREATE INDEX idx_users_workos_organization_id ON users (workos_organization_id);
 CREATE INDEX idx_users_display_name ON users (display_name);
 CREATE INDEX idx_users_email ON users (email);
-CREATE INDEX idx_users_github_id ON users (github_id);
-CREATE INDEX idx_users_discord_id ON users (discord_id);
-CREATE INDEX idx_users_oidc_id ON users (oidc_id);
-CREATE INDEX idx_users_wechat_id ON users (wechat_id);
-CREATE INDEX idx_users_telegram_id ON users (telegram_id);
 CREATE UNIQUE INDEX idx_users_access_token ON users (access_token);
 CREATE UNIQUE INDEX idx_users_aff_code ON users (aff_code);
 CREATE INDEX idx_users_inviter_id ON users (inviter_id);
 CREATE INDEX idx_users_deleted_at ON users (deleted_at);
-CREATE INDEX idx_users_linux_do_id ON users (linux_do_id);
 CREATE INDEX idx_users_stripe_customer ON users (stripe_customer);
-
-CREATE TABLE passkey_credentials (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    credential_id VARCHAR(512) NOT NULL,
-    public_key TEXT NOT NULL,
-    attestation_type VARCHAR(255),
-    aaguid VARCHAR(512),
-    sign_count BIGINT DEFAULT 0,
-    clone_warning BOOLEAN DEFAULT false,
-    user_present BOOLEAN DEFAULT false,
-    user_verified BOOLEAN DEFAULT false,
-    backup_eligible BOOLEAN DEFAULT false,
-    backup_state BOOLEAN DEFAULT false,
-    transports TEXT,
-    attachment VARCHAR(32),
-    last_used_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ,
-    updated_at TIMESTAMPTZ,
-    deleted_at TIMESTAMPTZ
-);
-
-CREATE UNIQUE INDEX idx_passkey_credentials_user_id ON passkey_credentials (user_id);
-CREATE UNIQUE INDEX idx_passkey_credentials_credential_id ON passkey_credentials (credential_id);
-CREATE INDEX idx_passkey_credentials_deleted_at ON passkey_credentials (deleted_at);
 
 CREATE TABLE options (
     "key" VARCHAR(191) PRIMARY KEY,
@@ -360,35 +327,6 @@ CREATE TABLE setups (
     initialized_at BIGINT NOT NULL
 );
 
-CREATE TABLE two_fas (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    secret VARCHAR(255) NOT NULL,
-    is_enabled BOOLEAN DEFAULT false,
-    failed_attempts BIGINT DEFAULT 0,
-    locked_until TIMESTAMPTZ,
-    last_used_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ,
-    updated_at TIMESTAMPTZ,
-    deleted_at TIMESTAMPTZ
-);
-
-CREATE UNIQUE INDEX idx_two_fas_user_id ON two_fas (user_id);
-CREATE INDEX idx_two_fas_deleted_at ON two_fas (deleted_at);
-
-CREATE TABLE two_fa_backup_codes (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    code_hash VARCHAR(255) NOT NULL,
-    is_used BOOLEAN DEFAULT false,
-    used_at TIMESTAMPTZ,
-    created_at TIMESTAMPTZ,
-    deleted_at TIMESTAMPTZ
-);
-
-CREATE INDEX idx_two_fa_backup_codes_user_id ON two_fa_backup_codes (user_id);
-CREATE INDEX idx_two_fa_backup_codes_deleted_at ON two_fa_backup_codes (deleted_at);
-
 CREATE TABLE checkins (
     id BIGSERIAL PRIMARY KEY,
     user_id BIGINT NOT NULL,
@@ -458,43 +396,6 @@ CREATE INDEX idx_subscription_pre_consume_records_user_id ON subscription_pre_co
 CREATE INDEX idx_subscription_pre_consume_records_user_subscription_id ON subscription_pre_consume_records (user_subscription_id);
 CREATE INDEX idx_subscription_pre_consume_records_status ON subscription_pre_consume_records (status);
 CREATE INDEX idx_subscription_pre_consume_records_updated_at ON subscription_pre_consume_records (updated_at);
-
-CREATE TABLE custom_oauth_providers (
-    id BIGSERIAL PRIMARY KEY,
-    name VARCHAR(64) NOT NULL,
-    slug VARCHAR(64) NOT NULL,
-    icon VARCHAR(128) DEFAULT '',
-    enabled BOOLEAN DEFAULT false,
-    client_id VARCHAR(256),
-    client_secret VARCHAR(512),
-    authorization_endpoint VARCHAR(512),
-    token_endpoint VARCHAR(512),
-    user_info_endpoint VARCHAR(512),
-    scopes VARCHAR(256) DEFAULT 'openid profile email',
-    user_id_field VARCHAR(128) DEFAULT 'sub',
-    username_field VARCHAR(128) DEFAULT 'preferred_username',
-    display_name_field VARCHAR(128) DEFAULT 'name',
-    email_field VARCHAR(128) DEFAULT 'email',
-    well_known VARCHAR(512),
-    auth_style BIGINT DEFAULT 0,
-    access_policy TEXT,
-    access_denied_message VARCHAR(512),
-    created_at TIMESTAMPTZ,
-    updated_at TIMESTAMPTZ
-);
-
-CREATE UNIQUE INDEX idx_custom_oauth_providers_slug ON custom_oauth_providers (slug);
-
-CREATE TABLE user_oauth_bindings (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT NOT NULL,
-    provider_id BIGINT NOT NULL,
-    provider_user_id VARCHAR(256) NOT NULL,
-    created_at TIMESTAMPTZ
-);
-
-CREATE UNIQUE INDEX ux_user_provider ON user_oauth_bindings (user_id, provider_id);
-CREATE UNIQUE INDEX ux_provider_userid ON user_oauth_bindings (provider_id, provider_user_id);
 
 CREATE TABLE perf_metrics (
     id BIGSERIAL PRIMARY KEY,

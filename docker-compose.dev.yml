@@ -26,9 +26,6 @@ services:
     environment:
       - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
       - MIGRATION_DIR=/migrations
-      - INIT_ROOT_USERNAME=root
-      - INIT_ROOT_PASSWORD=12345678
-      - INIT_ROOT_QUOTA=100000000
       - INIT_SELF_USE_MODE_ENABLED=false
       - INIT_DEMO_SITE_ENABLED=false
       - TZ=Asia/Shanghai
@@ -54,6 +51,12 @@ services:
       - REDIS_CONN_STRING=redis://redis
       - TZ=Asia/Shanghai
       - BATCH_UPDATE_ENABLED=true
+      - WORKOS_API_KEY=${WORKOS_API_KEY:-}
+      - WORKOS_CLIENT_ID=${WORKOS_CLIENT_ID:-}
+      - WORKOS_REDIRECT_URI=${WORKOS_REDIRECT_URI:-}
+      - WORKOS_ROOT_EMAILS=${WORKOS_ROOT_EMAILS:-}
+      - WORKOS_ROOT_USER_IDS=${WORKOS_ROOT_USER_IDS:-}
+      - WORKOS_API_BASE_URL=${WORKOS_API_BASE_URL:-}
     depends_on:
       redis:
         condition: service_started

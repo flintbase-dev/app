@@ -37,7 +37,9 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [logoLoaded, setLogoLoaded] = useState(false);
   const navigate = useNavigate();
-  const [currentLang, setCurrentLang] = useState(normalizeLanguage(i18n.language));
+  const [currentLang, setCurrentLang] = useState(
+    normalizeLanguage(i18n.language),
+  );
   const location = useLocation();
 
   const loading = statusState?.status === undefined;
@@ -140,12 +142,11 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
   // Actions
   const logout = useCallback(async () => {
-    await API.get('/api/user/logout');
-    showSuccess(t('注销成功!'));
     userDispatch({ type: 'logout' });
     localStorage.removeItem('user');
-    navigate('/login');
-  }, [navigate, t, userDispatch]);
+    showSuccess(t('注销成功!'));
+    window.location.assign('/api/workos/logout');
+  }, [t, userDispatch]);
 
   const handleLanguageChange = useCallback(
     async (lang) => {

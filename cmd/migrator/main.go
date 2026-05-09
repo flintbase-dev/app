@@ -175,28 +175,12 @@ func applyMigration(ctx context.Context, db *sql.DB, version string, sqlText str
 
 func bootstrap(ctx context.Context, db *sql.DB) error {
 	now := time.Now().Unix()
-	username := envString("INIT_ROOT_USERNAME", "root")
-	password := envString("INIT_ROOT_PASSWORD", "12345678")
-	quota := envInt("INIT_ROOT_QUOTA", 100000000)
-
-	hashedPassword, err := common.Password2Hash(password)
-	if err != nil {
-		return fmt.Errorf("hash root password: %w", err)
-	}
 
 	tx, err := db.BeginTx(ctx, nil)
 	if err != nil {
 		return err
 	}
 	defer tx.Rollback()
-
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO users (username, password, role, status, display_name, quota, "group", created_at, last_login_at)
-SELECT $1, $2, $3, $4, $5, $6, 'default', $7, 0
-WHERE NOT EXISTS (SELECT 1 FROM users)
-`, username, hashedPassword, common.RoleRootUser, common.UserStatusEnabled, "Root User", quota, now); err != nil {
-		return fmt.Errorf("create root user: %w", err)
-	}
 
 	if _, err := tx.ExecContext(ctx, `
 INSERT INTO setups (version, initialized_at)
@@ -216,7 +200,7 @@ WHERE NOT EXISTS (SELECT 1 FROM setups)
 	if err := tx.Commit(); err != nil {
 		return err
 	}
-	log.Printf("database bootstrap completed for root user %q", username)
+	log.Print("database bootstrap completed")
 	return nil
 }
 

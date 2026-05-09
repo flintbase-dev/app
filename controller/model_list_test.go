@@ -113,7 +113,7 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	require.NoError(t, db.Create(&model.User{
 		Id:       1001,
 		Username: "model-list-user",
-		Password: "password",
+		WorkOSId: "user_model_list_test",
 		Group:    "default",
 		Status:   common.UserStatusEnabled,
 	}).Error)

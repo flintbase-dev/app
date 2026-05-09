@@ -213,8 +213,6 @@ const renderOperations = (
     showDemoteModal,
     showEnableDisableModal,
     showDeleteModal,
-    showResetPasskeyModal,
-    showResetTwoFAModal,
     showUserSubscriptionsModal,
     t,
   },
@@ -228,19 +226,6 @@ const renderOperations = (
       node: 'item',
       name: t('订阅管理'),
       onClick: () => showUserSubscriptionsModal(record),
-    },
-    {
-      node: 'divider',
-    },
-    {
-      node: 'item',
-      name: t('重置 Passkey'),
-      onClick: () => showResetPasskeyModal(record),
-    },
-    {
-      node: 'item',
-      name: t('重置 2FA'),
-      onClick: () => showResetTwoFAModal(record),
     },
     {
       node: 'divider',
@@ -313,8 +298,6 @@ export const getUsersColumns = ({
   showDemoteModal,
   showEnableDisableModal,
   showDeleteModal,
-  showResetPasskeyModal,
-  showResetTwoFAModal,
   showUserSubscriptionsModal,
 }) => {
   return [
@@ -380,8 +363,6 @@ export const getUsersColumns = ({
           showDemoteModal,
           showEnableDisableModal,
           showDeleteModal,
-          showResetPasskeyModal,
-          showResetTwoFAModal,
           showUserSubscriptionsModal,
           t,
         }),

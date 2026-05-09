@@ -645,7 +645,7 @@ const TopUp = () => {
                 ? data.waffo_min_topup
                 : enableWaffoPancakeTopUp
                   ? data.waffo_pancake_min_topup
-                : 1;
+                  : 1;
           setEnableOnlineTopUp(enableOnlineTopUp);
           setEnableStripeTopUp(enableStripeTopUp);
           setEnableCreemTopUp(enableCreemTopUp);
@@ -698,7 +698,11 @@ const TopUp = () => {
     const res = await API.get('/api/user/aff');
     const { success, message, data } = res.data;
     if (success) {
-      let link = `${window.location.origin}/register?aff=${data}`;
+      const params = new URLSearchParams({
+        screen_hint: 'sign-up',
+        aff: data,
+      });
+      const link = `${window.location.origin}/login?${params.toString()}`;
       setAffLink(link);
     } else {
       showError(message);
