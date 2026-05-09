@@ -24,13 +24,11 @@ import {
   Typography,
   Card,
   Button,
-  Select,
   Divider,
   Tooltip,
 } from '@douyinfe/semi-ui';
 import { Crown, CalendarClock, Package } from 'lucide-react';
 import { SiStripe } from 'react-icons/si';
-import { IconCreditCard } from '@douyinfe/semi-icons';
 import { renderQuota } from '../../../helpers';
 import { getCurrencyConfig } from '../../../helpers/render';
 import {
@@ -46,16 +44,9 @@ const SubscriptionPurchaseModal = ({
   onCancel,
   selectedPlan,
   paying,
-  selectedEpayMethod,
-  setSelectedEpayMethod,
-  epayMethods = [],
-  enableOnlineTopUp = false,
   enableStripeTopUp = false,
-  enableCreemTopUp = false,
   purchaseLimitInfo = null,
   onPayStripe,
-  onPayCreem,
-  onPayEpay,
 }) => {
   const plan = selectedPlan?.plan;
   const totalAmount = Number(plan?.total_amount || 0);
@@ -65,11 +56,7 @@ const SubscriptionPurchaseModal = ({
   const displayPrice = convertedPrice.toFixed(
     Number.isInteger(convertedPrice) ? 0 : 2,
   );
-  // 只有当管理员开启支付网关 AND 套餐配置了对应的支付ID时才显示
   const hasStripe = enableStripeTopUp && !!plan?.stripe_price_id;
-  const hasCreem = enableCreemTopUp && !!plan?.creem_product_id;
-  const hasEpay = enableOnlineTopUp && epayMethods.length > 0;
-  const hasAnyPayment = hasStripe || hasCreem || hasEpay;
   const purchaseLimit = Number(purchaseLimitInfo?.limit || 0);
   const purchaseCount = Number(purchaseLimitInfo?.count || 0);
   const purchaseLimitReached =
@@ -179,68 +166,22 @@ const SubscriptionPurchaseModal = ({
             />
           )}
 
-          {hasAnyPayment ? (
+          {hasStripe ? (
             <div className='space-y-3'>
               <Text size='small' type='tertiary'>
                 {t('选择支付方式')}：
               </Text>
 
-              {/* Stripe / Creem */}
-              {(hasStripe || hasCreem) && (
-                <div className='flex gap-2'>
-                  {hasStripe && (
-                    <Button
-                      theme='light'
-                      className='flex-1'
-                      icon={<SiStripe size={14} color='#635BFF' />}
-                      onClick={onPayStripe}
-                      loading={paying}
-                      disabled={purchaseLimitReached}
-                    >
-                      Stripe
-                    </Button>
-                  )}
-                  {hasCreem && (
-                    <Button
-                      theme='light'
-                      className='flex-1'
-                      icon={<IconCreditCard />}
-                      onClick={onPayCreem}
-                      loading={paying}
-                      disabled={purchaseLimitReached}
-                    >
-                      Creem
-                    </Button>
-                  )}
-                </div>
-              )}
-
-              {/* 易支付 */}
-              {hasEpay && (
-                <div className='flex gap-2'>
-                  <Select
-                    value={selectedEpayMethod}
-                    onChange={setSelectedEpayMethod}
-                    style={{ flex: 1 }}
-                    size='default'
-                    placeholder={t('选择支付方式')}
-                    optionList={epayMethods.map((m) => ({
-                      value: m.type,
-                      label: m.name || m.type,
-                    }))}
-                    disabled={purchaseLimitReached}
-                  />
-                  <Button
-                    theme='solid'
-                    type='primary'
-                    onClick={onPayEpay}
-                    loading={paying}
-                    disabled={!selectedEpayMethod || purchaseLimitReached}
-                  >
-                    {t('支付')}
-                  </Button>
-                </div>
-              )}
+              <Button
+                theme='light'
+                block
+                icon={<SiStripe size={14} color='#635BFF' />}
+                onClick={onPayStripe}
+                loading={paying}
+                disabled={purchaseLimitReached}
+              >
+                Stripe
+              </Button>
             </div>
           ) : (
             <Banner

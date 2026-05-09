@@ -26,11 +26,6 @@ const DrawingSetting = () => {
   let [inputs, setInputs] = useState({
     /* 绘图设置 */
     DrawingEnabled: false,
-    MjNotifyEnabled: false,
-    MjAccountFilterEnabled: false,
-    MjForwardUrlEnabled: false,
-    MjModeClearEnabled: false,
-    MjActionCheckSuccessEnabled: false,
   });
 
   let [loading, setLoading] = useState(false);

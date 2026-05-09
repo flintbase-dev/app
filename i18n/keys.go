@@ -131,7 +131,6 @@ const (
 	MsgPaymentStripeNotConfig  = "payment.stripe_not_configured"
 	MsgPaymentWebhookNotConfig = "payment.webhook_not_configured"
 	MsgPaymentPriceIdNotConfig = "payment.price_id_not_configured"
-	MsgPaymentCreemNotConfig   = "payment.creem_not_configured"
 )
 
 // Topup related messages
@@ -151,7 +150,6 @@ const (
 	MsgChannelGetListFailed      = "channel.get_list_failed"
 	MsgChannelGetTagsFailed      = "channel.get_tags_failed"
 	MsgChannelGetKeyFailed       = "channel.get_key_failed"
-	MsgChannelGetOllamaFailed    = "channel.get_ollama_failed"
 	MsgChannelQueryFailed        = "channel.query_failed"
 	MsgChannelNoValidUpstream    = "channel.no_valid_upstream"
 	MsgChannelUpstreamSaturated  = "channel.upstream_saturated"
@@ -211,20 +209,6 @@ const (
 	MsgSettingSaved            = "setting.saved"
 )
 
-// Deployment related messages (io.net)
-const (
-	MsgDeploymentNotEnabled     = "deployment.not_enabled"
-	MsgDeploymentIdRequired     = "deployment.id_required"
-	MsgDeploymentContainerIdReq = "deployment.container_id_required"
-	MsgDeploymentNameEmpty      = "deployment.name_empty"
-	MsgDeploymentNameTaken      = "deployment.name_taken"
-	MsgDeploymentHardwareIdReq  = "deployment.hardware_id_required"
-	MsgDeploymentHardwareInvId  = "deployment.hardware_invalid_id"
-	MsgDeploymentApiKeyRequired = "deployment.api_key_required"
-	MsgDeploymentInvalidPayload = "deployment.invalid_payload"
-	MsgDeploymentNotFound       = "deployment.not_found"
-)
-
 // Performance related messages
 const (
 	MsgPerfDiskCacheCleared = "performance.disk_cache_cleared"
@@ -259,6 +243,5 @@ const (
 	MsgDistributorGroupAccessDenied       = "distributor.group_access_denied"
 	MsgDistributorGetChannelFailed        = "distributor.get_channel_failed"
 	MsgDistributorNoAvailableChannel      = "distributor.no_available_channel"
-	MsgDistributorInvalidMidjourney       = "distributor.invalid_midjourney_request"
 	MsgDistributorInvalidParseModel       = "distributor.invalid_request_parse_model"
 )

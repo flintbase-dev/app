@@ -174,14 +174,11 @@ export default function UpstreamRatioSync(props) {
               id === MODELS_DEV_PRESET_ID ||
               base === MODELS_DEV_PRESET_BASE_URL ||
               name === MODELS_DEV_PRESET_NAME;
-            const isOpenRouter = channelType === 20;
             if (!merged[id]) {
               if (isModelsDevPreset) {
                 merged[id] = MODELS_DEV_PRESET_ENDPOINT;
               } else if (isOfficialRatioPreset) {
                 merged[id] = OFFICIAL_RATIO_PRESET_ENDPOINT;
-              } else if (isOpenRouter) {
-                merged[id] = 'openrouter';
               } else {
                 merged[id] = DEFAULT_ENDPOINT;
               }

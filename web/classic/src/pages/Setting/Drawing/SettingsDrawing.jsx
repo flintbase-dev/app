@@ -18,7 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useEffect, useState, useRef } from 'react';
-import { Button, Col, Form, Row, Spin, Tag } from '@douyinfe/semi-ui';
+import { Button, Col, Form, Row, Spin } from '@douyinfe/semi-ui';
 import {
   compareObjects,
   API,
@@ -33,11 +33,6 @@ export default function SettingsDrawing(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     DrawingEnabled: false,
-    MjNotifyEnabled: false,
-    MjAccountFilterEnabled: false,
-    MjForwardUrlEnabled: false,
-    MjModeClearEnabled: false,
-    MjActionCheckSuccessEnabled: false,
   });
   const refForm = useRef();
   const [inputsRow, setInputsRow] = useState(inputs);
@@ -87,7 +82,6 @@ export default function SettingsDrawing(props) {
     setInputs(currentInputs);
     setInputsRow(structuredClone(currentInputs));
     refForm.current.setValues(currentInputs);
-    localStorage.setItem('mj_notify_enabled', String(inputs.MjNotifyEnabled));
   }, [props.options]);
 
   return (
@@ -113,87 +107,6 @@ export default function SettingsDrawing(props) {
                       DrawingEnabled: value,
                     });
                   }}
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'MjNotifyEnabled'}
-                  label={t('允许回调（会泄露服务器 IP 地址）')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      MjNotifyEnabled: value,
-                    })
-                  }
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'MjAccountFilterEnabled'}
-                  label={t('允许 AccountFilter 参数')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      MjAccountFilterEnabled: value,
-                    })
-                  }
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'MjForwardUrlEnabled'}
-                  label={t('开启之后将上游地址替换为服务器地址')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      MjForwardUrlEnabled: value,
-                    })
-                  }
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'MjModeClearEnabled'}
-                  label={
-                    <>
-                      {t('开启之后会清除用户提示词中的')} <Tag>--fast</Tag> 、
-                      <Tag>--relax</Tag> {t('以及')} <Tag>--turbo</Tag>{' '}
-                      {t('参数')}
-                    </>
-                  }
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      MjModeClearEnabled: value,
-                    })
-                  }
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'MjActionCheckSuccessEnabled'}
-                  label={t('检测必须等待绘图成功才能进行放大等操作')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      MjActionCheckSuccessEnabled: value,
-                    })
-                  }
                 />
               </Col>
             </Row>

@@ -190,13 +190,6 @@ WHERE NOT EXISTS (SELECT 1 FROM setups)
 		return fmt.Errorf("create setup record: %w", err)
 	}
 
-	if err := insertOption(ctx, tx, "SelfUseModeEnabled", strconv.FormatBool(envBool("INIT_SELF_USE_MODE_ENABLED", false))); err != nil {
-		return err
-	}
-	if err := insertOption(ctx, tx, "DemoSiteEnabled", strconv.FormatBool(envBool("INIT_DEMO_SITE_ENABLED", false))); err != nil {
-		return err
-	}
-
 	if err := tx.Commit(); err != nil {
 		return err
 	}

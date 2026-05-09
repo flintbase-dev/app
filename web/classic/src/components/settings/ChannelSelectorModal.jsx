@@ -127,7 +127,6 @@ const ChannelSelectorModal = forwardRef(
       const getEndpointType = (ep) => {
         if (ep === '/api/ratio_config') return 'ratio_config';
         if (ep === '/api/pricing') return 'pricing';
-        if (ep === 'openrouter') return 'openrouter';
         return 'custom';
       };
 
@@ -138,8 +137,6 @@ const ChannelSelectorModal = forwardRef(
           updateEndpoint(channelId, '/api/ratio_config');
         } else if (val === 'pricing') {
           updateEndpoint(channelId, '/api/pricing');
-        } else if (val === 'openrouter') {
-          updateEndpoint(channelId, 'openrouter');
         } else {
           if (currentType !== 'custom') {
             updateEndpoint(channelId, '');
@@ -157,7 +154,6 @@ const ChannelSelectorModal = forwardRef(
             optionList={[
               { label: 'pricing', value: 'pricing' },
               { label: 'ratio_config', value: 'ratio_config' },
-              { label: 'OpenRouter', value: 'openrouter' },
               { label: 'custom', value: 'custom' },
             ]}
           />

@@ -50,10 +50,6 @@ const STATUS_CONFIG = {
 // 支付方式映射
 const PAYMENT_METHOD_MAP = {
   stripe: 'Stripe',
-  creem: 'Creem',
-  waffo: 'Waffo',
-  alipay: '支付宝',
-  wxpay: '微信',
 };
 
 const TopupHistoryModal = ({ visible, onCancel, t }) => {

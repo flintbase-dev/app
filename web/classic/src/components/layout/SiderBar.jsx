@@ -39,14 +39,11 @@ const routerMap = {
   user: '/console/user',
   subscription: '/console/subscription',
   log: '/console/log',
-  midjourney: '/console/midjourney',
   setting: '/console/setting',
   about: '/about',
   detail: '/console',
   pricing: '/pricing',
-  task: '/console/task',
   models: '/console/models',
-  deployment: '/console/deployment',
   playground: '/console/playground',
   personal: '/console/personal',
 };
@@ -89,22 +86,6 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         itemKey: 'log',
         to: '/log',
       },
-      {
-        text: t('绘图日志'),
-        itemKey: 'midjourney',
-        to: '/midjourney',
-        className:
-          localStorage.getItem('enable_drawing') === 'true'
-            ? ''
-            : 'tableHiddle',
-      },
-      {
-        text: t('任务日志'),
-        itemKey: 'task',
-        to: '/task',
-        className:
-          localStorage.getItem('enable_task') === 'true' ? '' : 'tableHiddle',
-      },
     ];
 
     // 根据配置过滤项目
@@ -114,13 +95,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     });
 
     return filteredItems;
-  }, [
-    localStorage.getItem('enable_data_export'),
-    localStorage.getItem('enable_drawing'),
-    localStorage.getItem('enable_task'),
-    t,
-    isModuleVisible,
-  ]);
+  }, [localStorage.getItem('enable_data_export'), t, isModuleVisible]);
 
   const financeItems = useMemo(() => {
     const items = [
@@ -163,12 +138,6 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('模型管理'),
         itemKey: 'models',
         to: '/console/models',
-        className: isAdmin() ? '' : 'tableHiddle',
-      },
-      {
-        text: t('模型部署'),
-        itemKey: 'deployment',
-        to: '/deployment',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

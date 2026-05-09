@@ -38,7 +38,12 @@ import {
   RadioGroup,
   Radio,
 } from '@douyinfe/semi-ui';
-import { IconUser, IconSave, IconClose, IconCoin } from '@douyinfe/semi-icons';
+import {
+  IconUser,
+  IconSave,
+  IconClose,
+  IconCoinMoneyStroked,
+} from '@douyinfe/semi-icons';
 import {
   quotaToDisplayAmount,
   displayAmountToQuota,
@@ -292,7 +297,7 @@ const EditUserModal = (props) => {
                     <div className='flex items-center justify-between gap-3'>
                       <div className='flex items-center min-w-0'>
                         <Avatar size='small' color='green' className='mr-2'>
-                          <IconCoin size={16} />
+                          <IconCoinMoneyStroked size={16} />
                         </Avatar>
                         <div className='min-w-0'>
                           <Text className='text-base font-medium'>

@@ -84,8 +84,6 @@ export default function SettingsSidebarModulesUser() {
         detail: isSidebarModuleAllowed('console', 'detail'),
         token: isSidebarModuleAllowed('console', 'token'),
         log: isSidebarModuleAllowed('console', 'log'),
-        midjourney: isSidebarModuleAllowed('console', 'midjourney'),
-        task: isSidebarModuleAllowed('console', 'task'),
       };
     }
 
@@ -104,7 +102,6 @@ export default function SettingsSidebarModulesUser() {
         enabled: true,
         channel: isSidebarModuleAllowed('admin', 'channel'),
         models: isSidebarModuleAllowed('admin', 'models'),
-        deployment: isSidebarModuleAllowed('admin', 'deployment'),
         redemption: isSidebarModuleAllowed('admin', 'redemption'),
         user: isSidebarModuleAllowed('admin', 'user'),
         setting: isSidebarModuleAllowed('admin', 'setting'),
@@ -311,12 +308,6 @@ export default function SettingsSidebarModulesUser() {
         { key: 'detail', title: t('数据看板'), description: t('系统数据统计') },
         { key: 'token', title: t('令牌管理'), description: t('API令牌管理') },
         { key: 'log', title: t('使用日志'), description: t('API使用记录') },
-        {
-          key: 'midjourney',
-          title: t('绘图日志'),
-          description: t('绘图任务记录'),
-        },
-        { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
       ],
     },
     {
@@ -339,11 +330,6 @@ export default function SettingsSidebarModulesUser() {
       modules: [
         { key: 'channel', title: t('渠道管理'), description: t('API渠道配置') },
         { key: 'models', title: t('模型管理'), description: t('AI模型配置') },
-        {
-          key: 'deployment',
-          title: t('模型部署'),
-          description: t('模型部署管理'),
-        },
         {
           key: 'redemption',
           title: t('兑换码管理'),

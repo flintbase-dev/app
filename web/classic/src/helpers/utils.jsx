@@ -137,7 +137,7 @@ export function showError(error) {
           Toast.error('错误：服务器内部错误，请联系管理员！');
           break;
         case 405:
-          Toast.info('本站仅作演示之用，无服务端！');
+          Toast.error('错误：请求方法不被允许！');
           break;
         default:
           Toast.error('错误：' + error.message);

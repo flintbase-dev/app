@@ -4,7 +4,6 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/types"
 )
 
@@ -24,7 +23,6 @@ const (
 // 1 === ￥0.014 / 1k tokens
 
 var defaultModelRatio = map[string]float64{
-	//"midjourney":                50,
 	"gpt-4-gizmo-*":                           15,
 	"gpt-4o-gizmo-*":                          2.5,
 	"gpt-4-all":                               15,
@@ -274,37 +272,9 @@ var defaultModelRatio = map[string]float64{
 }
 
 var defaultModelPrice = map[string]float64{
-	"suno_music":                     0.1,
-	"suno_lyrics":                    0.01,
-	"dall-e-3":                       0.04,
-	"imagen-3.0-generate-002":        0.03,
-	"black-forest-labs/flux-1.1-pro": 0.04,
-	"gpt-4-gizmo-*":                  0.1,
-	"mj_video":                       0.8,
-	"mj_imagine":                     0.1,
-	"mj_edits":                       0.1,
-	"mj_variation":                   0.1,
-	"mj_reroll":                      0.1,
-	"mj_blend":                       0.1,
-	"mj_modal":                       0.1,
-	"mj_zoom":                        0.1,
-	"mj_shorten":                     0.1,
-	"mj_high_variation":              0.1,
-	"mj_low_variation":               0.1,
-	"mj_pan":                         0.1,
-	"mj_inpaint":                     0,
-	"mj_custom_zoom":                 0,
-	"mj_describe":                    0.05,
-	"mj_upscale":                     0.05,
-	"swap_face":                      0.05,
-	"mj_upload":                      0.05,
-	"sora-2":                         0.3,
-	"sora-2-pro":                     0.5,
-	"gpt-4o-mini-tts":                0.3,
-	"veo-3.0-generate-001":           0.4,
-	"veo-3.0-fast-generate-001":      0.15,
-	"veo-3.1-generate-preview":       0.4,
-	"veo-3.1-fast-generate-preview":  0.15,
+	"dall-e-3":        0.04,
+	"gpt-4-gizmo-*":   0.1,
+	"gpt-4o-mini-tts": 0.3,
 }
 
 var defaultAudioRatio = map[string]float64{
@@ -408,7 +378,7 @@ func GetModelRatio(name string) (float64, bool, string) {
 			}
 			//return 0, true, name
 		}
-		return 37.5, operation_setting.SelfUseModeEnabled, name
+		return 0, false, name
 	}
 	return ratio, true, name
 }

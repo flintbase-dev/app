@@ -22,7 +22,6 @@ var TopUpLink = ""
 var QuotaPerUnit = 500 * 1000.0 // $0.002 / 1K tokens
 var DisplayTokenStatEnabled = true
 var DrawingEnabled = true
-var TaskEnabled = true
 var DataExportEnabled = true
 var DataExportInterval = 5         // unit: minute
 var DataExportDefaultTime = "hour" // unit: minute
@@ -98,9 +97,6 @@ var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
 
 var GeminiSafetySetting string
-
-// https://docs.cohere.com/docs/safety-modes Type; NONE/CONTEXTUAL/STRICT
-var CohereSafetySetting string
 
 const (
 	RequestIdKey = "X-Oneapi-Request-Id"

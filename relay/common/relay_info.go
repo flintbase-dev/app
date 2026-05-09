@@ -1,10 +1,8 @@
 package common
 
 import (
-	"encoding/json"
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"time"
 
@@ -17,7 +15,6 @@ import (
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 )
 
 type ThinkingContentInfo struct {
@@ -42,11 +39,6 @@ type ClaudeConvertInfo struct {
 
 	ToolCallBaseIndex      int
 	ToolCallMaxIndexOffset int
-}
-
-type RerankerInfo struct {
-	Documents       []any
-	ReturnDocuments bool
 }
 
 type BuildInToolInfo struct {
@@ -106,13 +98,6 @@ type RelayInfo struct {
 	RequestHeaders         map[string]string
 	ShouldIncludeUsage     bool
 	DisablePing            bool // 是否禁止向下游发送自定义 Ping
-	ClientWs               *websocket.Conn
-	TargetWs               *websocket.Conn
-	InputAudioFormat       string
-	OutputAudioFormat      string
-	RealtimeTools          []dto.RealTimeTool
-	IsFirstRequest         bool
-	AudioUsage             bool
 	ReasoningEffort        string
 	UserSetting            dto.UserSetting
 	UserEmail              string
@@ -121,10 +106,6 @@ type RelayInfo struct {
 	SendResponseCount      int
 	ReceivedResponseCount  int
 	FinalPreConsumedQuota  int // 最终预消耗的配额
-	// ForcePreConsume 为 true 时禁用 BillingSession 的信任额度旁路，
-	// 强制预扣全额。用于异步任务（视频/音乐生成等），因为请求返回后任务仍在运行，
-	// 必须在提交前锁定全额。
-	ForcePreConsume bool
 	// Billing 是计费会话，封装了预扣费/结算/退款的统一生命周期。
 	// 免费模型时为 nil。
 	Billing BillingSettler
@@ -174,10 +155,8 @@ type RelayInfo struct {
 	ThinkingContentInfo
 	TokenCountMeta
 	*ClaudeConvertInfo
-	*RerankerInfo
 	*ResponsesUsageInfo
 	*ChannelMeta
-	*TaskRelayInfo
 }
 
 func (info *RelayInfo) InitChannelMeta(c *gin.Context) {
@@ -263,12 +242,6 @@ func (info *RelayInfo) ToString() string {
 	fmt.Fprintf(b, "Timing{ Start: %s, FirstResponse: %s, LatencyMs: %d }, ",
 		info.StartTime.Format(time.RFC3339Nano), info.FirstResponseTime.Format(time.RFC3339Nano), latencyMs)
 
-	// Audio / realtime
-	if info.InputAudioFormat != "" || info.OutputAudioFormat != "" || len(info.RealtimeTools) > 0 || info.AudioUsage {
-		fmt.Fprintf(b, "Realtime{ AudioUsage: %t, InFmt: %q, OutFmt: %q, Tools: %d }, ",
-			info.AudioUsage, info.InputAudioFormat, info.OutputAudioFormat, len(info.RealtimeTools))
-	}
-
 	// Reasoning
 	if info.ReasoningEffort != "" {
 		fmt.Fprintf(b, "ReasoningEffort: %q, ", info.ReasoningEffort)
@@ -310,34 +283,12 @@ func (info *RelayInfo) ToString() string {
 
 // 定义支持流式选项的通道类型
 var streamSupportedChannels = map[int]bool{
-	constant.ChannelTypeOpenAI:      true,
-	constant.ChannelTypeAnthropic:   true,
-	constant.ChannelTypeAws:         true,
-	constant.ChannelTypeGemini:      true,
-	constant.ChannelCloudflare:      true,
-	constant.ChannelTypeAzure:       true,
-	constant.ChannelTypeVolcEngine:  true,
-	constant.ChannelTypeOllama:      true,
-	constant.ChannelTypeXai:         true,
-	constant.ChannelTypeDeepSeek:    true,
-	constant.ChannelTypeBaiduV2:     true,
-	constant.ChannelTypeZhipu_v4:    true,
-	constant.ChannelTypeAli:         true,
-	constant.ChannelTypeSubmodel:    true,
-	constant.ChannelTypeCodex:       true,
-	constant.ChannelTypeMoonshot:    true,
-	constant.ChannelTypeMiniMax:     true,
-	constant.ChannelTypeSiliconFlow: true,
-}
-
-func GenRelayInfoWs(c *gin.Context, ws *websocket.Conn) *RelayInfo {
-	info := genBaseRelayInfo(c, nil)
-	info.RelayFormat = types.RelayFormatOpenAIRealtime
-	info.ClientWs = ws
-	info.InputAudioFormat = "pcm16"
-	info.OutputAudioFormat = "pcm16"
-	info.IsFirstRequest = true
-	return info
+	constant.ChannelTypeOpenAI:    true,
+	constant.ChannelTypeAnthropic: true,
+	constant.ChannelTypeAws:       true,
+	constant.ChannelTypeGemini:    true,
+	constant.ChannelTypeVertexAi:  true,
+	constant.ChannelTypeAzure:     true,
 }
 
 func GenRelayInfoClaude(c *gin.Context, request dto.Request) *RelayInfo {
@@ -348,29 +299,6 @@ func GenRelayInfoClaude(c *gin.Context, request dto.Request) *RelayInfo {
 		LastMessagesType: LastMessageTypeNone,
 	}
 	info.IsClaudeBetaQuery = c.Query("beta") == "true"
-	return info
-}
-
-func GenRelayInfoRerank(c *gin.Context, request *dto.RerankRequest) *RelayInfo {
-	info := genBaseRelayInfo(c, request)
-	info.RelayMode = relayconstant.RelayModeRerank
-	info.RelayFormat = types.RelayFormatRerank
-	info.RerankerInfo = &RerankerInfo{
-		Documents:       request.Documents,
-		ReturnDocuments: request.GetReturnDocuments(),
-	}
-	return info
-}
-
-func GenRelayInfoOpenAIAudio(c *gin.Context, request dto.Request) *RelayInfo {
-	info := genBaseRelayInfo(c, request)
-	info.RelayFormat = types.RelayFormatOpenAIAudio
-	return info
-}
-
-func GenRelayInfoEmbedding(c *gin.Context, request dto.Request) *RelayInfo {
-	info := genBaseRelayInfo(c, request)
-	info.RelayFormat = types.RelayFormatEmbedding
 	return info
 }
 
@@ -491,12 +419,6 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		info.RelayMode = c.GetInt("relay_mode")
 	}
 
-	if strings.HasPrefix(c.Request.URL.Path, "/pg") {
-		info.IsPlayground = true
-		info.RequestURLPath = strings.TrimPrefix(info.RequestURLPath, "/pg")
-		info.RequestURLPath = "/v1" + info.RequestURLPath
-	}
-
 	userSetting, ok := common.GetContextKeyType[dto.UserSetting](c, constant.ContextKeyUserSetting)
 	if ok {
 		info.UserSetting = userSetting
@@ -526,30 +448,18 @@ func cloneRequestHeaders(c *gin.Context) map[string]string {
 	return headers
 }
 
-func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Request, ws *websocket.Conn) (*RelayInfo, error) {
+func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Request) (*RelayInfo, error) {
 	var info *RelayInfo
 	var err error
 	switch relayFormat {
 	case types.RelayFormatOpenAI:
 		info = GenRelayInfoOpenAI(c, request)
-	case types.RelayFormatOpenAIAudio:
-		info = GenRelayInfoOpenAIAudio(c, request)
 	case types.RelayFormatOpenAIImage:
 		info = GenRelayInfoImage(c, request)
-	case types.RelayFormatOpenAIRealtime:
-		info = GenRelayInfoWs(c, ws)
 	case types.RelayFormatClaude:
 		info = GenRelayInfoClaude(c, request)
-	case types.RelayFormatRerank:
-		if request, ok := request.(*dto.RerankRequest); ok {
-			info = GenRelayInfoRerank(c, request)
-			break
-		}
-		err = errors.New("request is not a RerankRequest")
 	case types.RelayFormatGemini:
 		info = GenRelayInfoGemini(c, request)
-	case types.RelayFormatEmbedding:
-		info = GenRelayInfoEmbedding(c, request)
 	case types.RelayFormatOpenAIResponses:
 		if request, ok := request.(*dto.OpenAIResponsesRequest); ok {
 			info = GenRelayInfoResponses(c, request)
@@ -561,12 +471,6 @@ func GenRelayInfo(c *gin.Context, relayFormat types.RelayFormat, request dto.Req
 			return GenRelayInfoResponsesCompaction(c, request), nil
 		}
 		return nil, errors.New("request is not a OpenAIResponsesCompactionRequest")
-	case types.RelayFormatTask:
-		info = genBaseRelayInfo(c, nil)
-		info.TaskRelayInfo = &TaskRelayInfo{}
-	case types.RelayFormatMjProxy:
-		info = genBaseRelayInfo(c, nil)
-		info.TaskRelayInfo = &TaskRelayInfo{}
 	default:
 		err = errors.New("invalid relay format")
 	}
@@ -658,127 +562,11 @@ func (info *RelayInfo) HasSendResponse() bool {
 	return info.FirstResponseTime.After(info.StartTime)
 }
 
-type TaskRelayInfo struct {
-	Action       string
-	OriginTaskID string
-	// PublicTaskID 是提交时预生成的 task_xxxx 格式公开 ID，
-	// 供 DoResponse 在返回给客户端时使用（避免暴露上游真实 ID）。
-	PublicTaskID string
-
-	ConsumeQuota bool
-
-	// LockedChannel holds the full channel object when the request is bound to
-	// a specific channel (e.g., remix on origin task's channel). Stored as any
-	// to avoid an import cycle with model; callers type-assert to *model.Channel.
-	LockedChannel any
-}
-
-type TaskSubmitReq struct {
-	Prompt         string                 `json:"prompt"`
-	Model          string                 `json:"model,omitempty"`
-	Mode           string                 `json:"mode,omitempty"`
-	Image          string                 `json:"image,omitempty"`
-	Images         []string               `json:"images,omitempty"`
-	Size           string                 `json:"size,omitempty"`
-	Duration       int                    `json:"duration,omitempty"`
-	Seconds        string                 `json:"seconds,omitempty"`
-	InputReference string                 `json:"input_reference,omitempty"`
-	Metadata       map[string]interface{} `json:"metadata,omitempty"`
-}
-
-func (t *TaskSubmitReq) GetPrompt() string {
-	return t.Prompt
-}
-
-func (t *TaskSubmitReq) HasImage() bool {
-	return len(t.Images) > 0
-}
-
-func (t *TaskSubmitReq) UnmarshalJSON(data []byte) error {
-	type Alias TaskSubmitReq
-	aux := &struct {
-		Metadata json.RawMessage `json:"metadata,omitempty"`
-		Duration json.RawMessage `json:"duration,omitempty"`
-		*Alias
-	}{
-		Alias: (*Alias)(t),
-	}
-
-	if err := common.Unmarshal(data, &aux); err != nil {
-		return err
-	}
-
-	if len(aux.Duration) > 0 {
-		var durationInt int
-		if err := common.Unmarshal(aux.Duration, &durationInt); err == nil {
-			t.Duration = durationInt
-		} else {
-			var durationStr string
-			if err := common.Unmarshal(aux.Duration, &durationStr); err == nil && durationStr != "" {
-				if v, err := strconv.Atoi(durationStr); err == nil {
-					t.Duration = v
-				}
-			}
-		}
-	}
-
-	if len(aux.Metadata) > 0 {
-		var metadataStr string
-		if err := common.Unmarshal(aux.Metadata, &metadataStr); err == nil && metadataStr != "" {
-			var metadataObj map[string]interface{}
-			if err := common.Unmarshal([]byte(metadataStr), &metadataObj); err == nil {
-				t.Metadata = metadataObj
-				return nil
-			}
-		}
-
-		var metadataObj map[string]interface{}
-		if err := common.Unmarshal(aux.Metadata, &metadataObj); err == nil {
-			t.Metadata = metadataObj
-		}
-	}
-
-	return nil
-}
-func (t *TaskSubmitReq) UnmarshalMetadata(v any) error {
-	metadata := t.Metadata
-	if metadata != nil {
-		metadataBytes, err := common.Marshal(metadata)
-		if err != nil {
-			return fmt.Errorf("marshal metadata failed: %w", err)
-		}
-		err = common.Unmarshal(metadataBytes, v)
-		if err != nil {
-			return fmt.Errorf("unmarshal metadata to target failed: %w", err)
-		}
-	}
-	return nil
-}
-
-type TaskInfo struct {
-	Code             int    `json:"code"`
-	TaskID           string `json:"task_id"`
-	Status           string `json:"status"`
-	Reason           string `json:"reason,omitempty"`
-	Url              string `json:"url,omitempty"`
-	RemoteUrl        string `json:"remote_url,omitempty"`
-	Progress         string `json:"progress,omitempty"`
-	CompletionTokens int    `json:"completion_tokens,omitempty"` // 用于按倍率计费
-	TotalTokens      int    `json:"total_tokens,omitempty"`      // 用于按倍率计费
-}
-
-func FailTaskInfo(reason string) *TaskInfo {
-	return &TaskInfo{
-		Status: "FAILURE",
-		Reason: reason,
-	}
-}
-
 // RemoveDisabledFields 从请求 JSON 数据中移除渠道设置中禁用的字段
 // service_tier: 服务层级字段，可能导致额外计费（OpenAI、Claude、Responses API 支持）
 // inference_geo: Claude 数据驻留推理区域字段（仅 Claude 支持，默认过滤）
 // speed: Claude 推理速度模式字段（仅 Claude 支持，默认过滤）
-// store: 数据存储授权字段，涉及用户隐私（仅 OpenAI、Responses API 支持，默认允许透传，禁用后可能导致 Codex 无法使用）
+// store: 数据存储授权字段，涉及用户隐私（仅 OpenAI、Responses API 支持，默认允许透传）
 // safety_identifier: 安全标识符，用于向 OpenAI 报告违规用户（仅 OpenAI 支持，涉及用户隐私）
 // stream_options.include_obfuscation: 响应流混淆控制字段（仅 OpenAI Responses API 支持）
 func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOtherSettings, channelPassThroughEnabled bool) ([]byte, error) {
@@ -813,7 +601,7 @@ func RemoveDisabledFields(jsonData []byte, channelOtherSettings dto.ChannelOther
 		}
 	}
 
-	// 默认允许 store 透传，除非明确禁用（禁用可能影响 Codex 使用）
+	// 默认允许 store 透传，除非明确禁用
 	if channelOtherSettings.DisableStore {
 		if _, exists := data["store"]; exists {
 			delete(data, "store")

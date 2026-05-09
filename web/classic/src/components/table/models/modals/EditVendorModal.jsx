@@ -157,7 +157,7 @@ const EditVendorModal = ({ visible, handleClose, refresh, editingVendor }) => {
               extraText={
                 <span>
                   {t(
-                    "图标使用@lobehub/icons库，如：OpenAI、Claude.Color，支持链式参数：OpenAI.Avatar.type={'platform'}、OpenRouter.Avatar.shape={'square'}，查询所有可用图标请 ",
+                    "图标使用@lobehub/icons库，如：OpenAI、Claude.Color，支持链式参数：OpenAI.Avatar.type={'platform'}、Claude.Avatar.shape={'square'}，查询所有可用图标请 ",
                   )}
                   <Typography.Text
                     link={{

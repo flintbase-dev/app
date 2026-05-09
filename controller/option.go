@@ -27,12 +27,7 @@ var completionRatioMetaOptionKeys = []string{
 }
 
 func isVisiblePublicKeyOption(key string) bool {
-	switch key {
-	case "WaffoPancakeWebhookPublicKey", "WaffoPancakeWebhookTestKey":
-		return true
-	default:
-		return false
-	}
+	return false
 }
 
 func collectModelNamesFromOptionValue(raw string, modelNames map[string]struct{}) {

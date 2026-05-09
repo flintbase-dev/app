@@ -38,7 +38,6 @@ import { IconDelete, IconMenu, IconPlus } from '@douyinfe/semi-icons';
 import { copy, showError, showSuccess, verifyJSON } from '../../../../helpers';
 import {
   CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE,
-  CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE,
 } from '../../../../constants/channel-affinity-template.constants';
 
 const { Text } = Typography;
@@ -415,12 +414,6 @@ const TEMPLATE_PRESET_CONFIG = {
     label: 'Claude CLI 请求头透传',
     kind: 'operations',
     payload: CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE,
-  },
-  codex_cli_headers_passthrough: {
-    group: 'scenario',
-    label: 'Codex CLI 请求头透传',
-    kind: 'operations',
-    payload: CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE,
   },
   aws_bedrock_anthropic_beta_override: {
     group: 'scenario',

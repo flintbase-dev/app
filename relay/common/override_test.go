@@ -1360,7 +1360,7 @@ func TestApplyParamOverridePassHeadersSkipsMissingHeaders(t *testing.T) {
 		"operations": []interface{}{
 			map[string]interface{}{
 				"mode":  "pass_headers",
-				"value": []interface{}{"X-Codex-Beta-Features", "Session_id"},
+				"value": []interface{}{"X-Trace-Id", "Session_id"},
 			},
 		},
 	}
@@ -1383,7 +1383,7 @@ func TestApplyParamOverridePassHeadersSkipsMissingHeaders(t *testing.T) {
 	if headers["session_id"] != "sess-123" {
 		t.Fatalf("expected session_id to be passed, got: %v", headers["session_id"])
 	}
-	if _, exists := headers["x-codex-beta-features"]; exists {
+	if _, exists := headers["x-missing-header"]; exists {
 		t.Fatalf("expected missing header to be skipped")
 	}
 }
@@ -1864,7 +1864,7 @@ func TestApplyParamOverrideWithRelayInfoSyncRuntimeHeaders(t *testing.T) {
 func TestApplyParamOverrideWithRelayInfoOperationsAndStaticHeaders(t *testing.T) {
 	info := &RelayInfo{
 		RequestHeaders: map[string]string{
-			"Originator": "Codex CLI",
+			"X-Trace-Id": "trace-123",
 		},
 		ChannelMeta: &ChannelMeta{
 			ParamOverride: map[string]interface{}{
@@ -1876,7 +1876,7 @@ func TestApplyParamOverrideWithRelayInfoOperationsAndStaticHeaders(t *testing.T)
 					},
 					map[string]interface{}{
 						"mode":  "pass_headers",
-						"value": []interface{}{"Originator"},
+						"value": []interface{}{"X-Trace-Id"},
 					},
 				},
 			},
@@ -1898,8 +1898,8 @@ func TestApplyParamOverrideWithRelayInfoOperationsAndStaticHeaders(t *testing.T)
 	if info.RuntimeHeadersOverride["x-static"] != "static-value" {
 		t.Fatalf("expected x-static to be preserved, got: %v", info.RuntimeHeadersOverride["x-static"])
 	}
-	if info.RuntimeHeadersOverride["originator"] != "Codex CLI" {
-		t.Fatalf("expected originator header to be passed, got: %v", info.RuntimeHeadersOverride["originator"])
+	if info.RuntimeHeadersOverride["x-trace-id"] != "trace-123" {
+		t.Fatalf("expected x-trace-id header to be passed, got: %v", info.RuntimeHeadersOverride["x-trace-id"])
 	}
 }
 

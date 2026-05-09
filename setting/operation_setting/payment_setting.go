@@ -1,7 +1,6 @@
 package operation_setting
 
 import (
-	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/config"
 )
 
@@ -16,33 +15,6 @@ var paymentSetting = PaymentSetting{
 	AmountDiscount: map[int]float64{},
 }
 
-var PayAddress = ""
-var CustomCallbackAddress = ""
-var EpayId = ""
-var EpayKey = ""
-var Price = 7.3
-var MinTopUp = 1
-var USDExchangeRate = 7.3
-
-var PayMethods = []map[string]string{
-	{
-		"name":  "支付宝",
-		"color": "rgba(var(--semi-blue-5), 1)",
-		"type":  "alipay",
-	},
-	{
-		"name":  "微信",
-		"color": "rgba(var(--semi-green-5), 1)",
-		"type":  "wxpay",
-	},
-	{
-		"name":      "自定义1",
-		"color":     "black",
-		"type":      "custom1",
-		"min_topup": "50",
-	},
-}
-
 func init() {
 	// 注册到全局配置管理器
 	config.GlobalConfig.Register("payment_setting", &paymentSetting)
@@ -50,26 +22,4 @@ func init() {
 
 func GetPaymentSetting() *PaymentSetting {
 	return &paymentSetting
-}
-
-func UpdatePayMethodsByJsonString(jsonString string) error {
-	PayMethods = make([]map[string]string, 0)
-	return common.Unmarshal([]byte(jsonString), &PayMethods)
-}
-
-func PayMethods2JsonString() string {
-	jsonBytes, err := common.Marshal(PayMethods)
-	if err != nil {
-		return "[]"
-	}
-	return string(jsonBytes)
-}
-
-func ContainsPayMethod(method string) bool {
-	for _, payMethod := range PayMethods {
-		if payMethod["type"] == method {
-			return true
-		}
-	}
-	return false
 }

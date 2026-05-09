@@ -22,9 +22,7 @@ func TestGeneralOpenAIRequestPreserveExplicitZeroValues(t *testing.T) {
 		"seed":0,
 		"logprobs":false,
 		"top_logprobs":0,
-		"dimensions":0,
-		"return_images":false,
-		"return_related_questions":false
+		"dimensions":0
 	}`)
 
 	var req GeneralOpenAIRequest
@@ -46,8 +44,6 @@ func TestGeneralOpenAIRequestPreserveExplicitZeroValues(t *testing.T) {
 	require.True(t, gjson.GetBytes(encoded, "logprobs").Exists())
 	require.True(t, gjson.GetBytes(encoded, "top_logprobs").Exists())
 	require.True(t, gjson.GetBytes(encoded, "dimensions").Exists())
-	require.True(t, gjson.GetBytes(encoded, "return_images").Exists())
-	require.True(t, gjson.GetBytes(encoded, "return_related_questions").Exists())
 }
 
 func TestOpenAIResponsesRequestPreserveExplicitZeroValues(t *testing.T) {

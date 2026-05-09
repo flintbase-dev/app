@@ -8,6 +8,7 @@ const (
 	QuotaDisplayTypeCNY    = "CNY"
 	QuotaDisplayTypeTokens = "TOKENS"
 	QuotaDisplayTypeCustom = "CUSTOM"
+	DefaultUSDToCNYRate     = 7.3
 )
 
 type GeneralSetting struct {
@@ -79,7 +80,10 @@ func GetUsdToCurrencyRate(usdToCny float64) float64 {
 	case QuotaDisplayTypeUSD:
 		return 1
 	case QuotaDisplayTypeCNY:
-		return usdToCny
+		if usdToCny > 0 {
+			return usdToCny
+		}
+		return DefaultUSDToCNYRate
 	case QuotaDisplayTypeCustom:
 		if generalSetting.CustomCurrencyExchangeRate > 0 {
 			return generalSetting.CustomCurrencyExchangeRate

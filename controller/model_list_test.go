@@ -12,7 +12,6 @@ import (
 	"github.com/QuantumNous/new-api/internal/testdb"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/config"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
@@ -64,16 +63,6 @@ func withTieredBillingConfig(t *testing.T, modes map[string]string, exprs map[st
 	model.InvalidatePricingCache()
 }
 
-func withSelfUseModeDisabled(t *testing.T) {
-	t.Helper()
-
-	original := operation_setting.SelfUseModeEnabled
-	operation_setting.SelfUseModeEnabled = false
-	t.Cleanup(func() {
-		operation_setting.SelfUseModeEnabled = original
-	})
-}
-
 func decodeListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder) map[string]struct{} {
 	t.Helper()
 
@@ -99,7 +88,6 @@ func pricingByModelName(pricings []model.Pricing) map[string]model.Pricing {
 }
 
 func TestListModelsIncludesTieredBillingModel(t *testing.T) {
-	withSelfUseModeDisabled(t)
 	withTieredBillingConfig(t, map[string]string{
 		"zz-tiered-visible-model":      "tiered_expr",
 		"zz-tiered-empty-expr-model":   "tiered_expr",
@@ -155,7 +143,6 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 }
 
 func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
-	withSelfUseModeDisabled(t)
 	withTieredBillingConfig(t, map[string]string{
 		"zz-token-tiered-visible-model":      "tiered_expr",
 		"zz-token-tiered-empty-expr-model":   "tiered_expr",

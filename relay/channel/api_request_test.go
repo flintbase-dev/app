@@ -145,21 +145,21 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/responses", nil)
-	ctx.Request.Header.Set("Originator", "Codex CLI")
-	ctx.Request.Header.Set("Session_id", "sess-123")
+	ctx.Request.Header.Set("X-Trace-Id", "trace-123")
+	ctx.Request.Header.Set("User-Agent", "client-test")
 
 	info := &relaycommon.RelayInfo{
 		IsChannelTest: false,
 		RequestHeaders: map[string]string{
-			"Originator": "Codex CLI",
-			"Session_id": "sess-123",
+			"X-Trace-Id": "trace-123",
+			"User-Agent": "client-test",
 		},
 		ChannelMeta: &relaycommon.ChannelMeta{
 			ParamOverride: map[string]any{
 				"operations": []any{
 					map[string]any{
 						"mode":  "pass_headers",
-						"value": []any{"Originator", "Session_id", "X-Codex-Beta-Features"},
+						"value": []any{"X-Trace-Id", "User-Agent", "X-Missing-Header"},
 					},
 				},
 			},
@@ -172,22 +172,22 @@ func TestProcessHeaderOverride_PassHeadersTemplateSetsRuntimeHeaders(t *testing.
 	_, err := relaycommon.ApplyParamOverrideWithRelayInfo([]byte(`{"model":"gpt-4.1"}`), info)
 	require.NoError(t, err)
 	require.True(t, info.UseRuntimeHeadersOverride)
-	require.Equal(t, "Codex CLI", info.RuntimeHeadersOverride["originator"])
-	require.Equal(t, "sess-123", info.RuntimeHeadersOverride["session_id"])
-	_, exists := info.RuntimeHeadersOverride["x-codex-beta-features"]
+	require.Equal(t, "trace-123", info.RuntimeHeadersOverride["x-trace-id"])
+	require.Equal(t, "client-test", info.RuntimeHeadersOverride["user-agent"])
+	_, exists := info.RuntimeHeadersOverride["x-missing-header"]
 	require.False(t, exists)
 	require.Equal(t, "static-value", info.RuntimeHeadersOverride["x-static"])
 
 	headers, err := processHeaderOverride(info, ctx)
 	require.NoError(t, err)
-	require.Equal(t, "Codex CLI", headers["originator"])
-	require.Equal(t, "sess-123", headers["session_id"])
-	_, exists = headers["x-codex-beta-features"]
+	require.Equal(t, "trace-123", headers["x-trace-id"])
+	require.Equal(t, "client-test", headers["user-agent"])
+	_, exists = headers["x-missing-header"]
 	require.False(t, exists)
 
 	upstreamReq := httptest.NewRequest(http.MethodPost, "https://example.com/v1/responses", nil)
 	applyHeaderOverrideToRequest(upstreamReq, headers)
-	require.Equal(t, "Codex CLI", upstreamReq.Header.Get("Originator"))
-	require.Equal(t, "sess-123", upstreamReq.Header.Get("Session_id"))
-	require.Empty(t, upstreamReq.Header.Get("X-Codex-Beta-Features"))
+	require.Equal(t, "trace-123", upstreamReq.Header.Get("X-Trace-Id"))
+	require.Equal(t, "client-test", upstreamReq.Header.Get("User-Agent"))
+	require.Empty(t, upstreamReq.Header.Get("X-Missing-Header"))
 }

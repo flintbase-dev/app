@@ -74,8 +74,6 @@ const NotificationSettings = ({
       detail: true,
       token: true,
       log: true,
-      midjourney: true,
-      task: true,
     },
     personal: {
       enabled: true,
@@ -86,7 +84,6 @@ const NotificationSettings = ({
       enabled: true,
       channel: true,
       models: true,
-      deployment: true,
       subscription: true,
       redemption: true,
       user: true,
@@ -162,15 +159,12 @@ const NotificationSettings = ({
         detail: true,
         token: true,
         log: true,
-        midjourney: true,
-        task: true,
       },
       personal: { enabled: true, topup: true, personal: true },
       admin: {
         enabled: true,
         channel: true,
         models: true,
-        deployment: true,
         subscription: true,
         redemption: true,
         user: true,
@@ -265,12 +259,6 @@ const NotificationSettings = ({
         { key: 'detail', title: t('数据看板'), description: t('系统数据统计') },
         { key: 'token', title: t('令牌管理'), description: t('API令牌管理') },
         { key: 'log', title: t('使用日志'), description: t('API使用记录') },
-        {
-          key: 'midjourney',
-          title: t('绘图日志'),
-          description: t('绘图任务记录'),
-        },
-        { key: 'task', title: t('任务日志'), description: t('系统任务记录') },
       ],
     },
     {
@@ -294,11 +282,6 @@ const NotificationSettings = ({
       modules: [
         { key: 'channel', title: t('渠道管理'), description: t('API渠道配置') },
         { key: 'models', title: t('模型管理'), description: t('AI模型配置') },
-        {
-          key: 'deployment',
-          title: t('模型部署'),
-          description: t('模型部署管理'),
-        },
         {
           key: 'subscription',
           title: t('订阅管理'),
