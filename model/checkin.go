@@ -2,9 +2,11 @@ package model
 
 import (
 	"errors"
+	"fmt"
 	"math/rand"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"gorm.io/gorm"
 )
@@ -83,6 +85,7 @@ func UserCheckin(userId int) (*Checkin, error) {
 
 // userCheckinWithTransaction 使用事务执行签到
 func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) (*Checkin, error) {
+	var balanceAfter int
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		// 步骤1: 创建签到记录
 		// 数据库有唯一约束 (user_id, checkin_date)，可以防止并发重复签到
@@ -90,9 +93,20 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 			return errors.New("签到失败，请稍后重试")
 		}
 
-		// 步骤2: 在事务中增加用户额度
-		if err := tx.Model(&User{}).Where("id = ?", userId).
-			Update("quota", gorm.Expr("quota + ?", quotaAwarded)).Error; err != nil {
+		var err error
+		balanceAfter, err = GrantUserCreditsTx(tx, CreditGrantParams{
+			UserId:     userId,
+			Amount:     quotaAwarded,
+			SourceType: "checkin.grant",
+			SourceId:   fmt.Sprintf("checkin:%d:%s", userId, checkin.CheckinDate),
+			RequestId:  common.GetUUID(),
+			Reason:     "daily checkin grant",
+			Metadata: map[string]interface{}{
+				"checkin_date":  checkin.CheckinDate,
+				"quota_awarded": quotaAwarded,
+			},
+		})
+		if err != nil {
 			return errors.New("签到失败：更新额度出错")
 		}
 
@@ -103,10 +117,7 @@ func userCheckinWithTransaction(checkin *Checkin, userId int, quotaAwarded int) 
 		return nil, err
 	}
 
-	// 事务成功后，异步更新缓存
-	go func() {
-		_ = cacheIncrUserQuota(userId, int64(quotaAwarded))
-	}()
+	updateUserQuotaCacheAfterCommit(userId, balanceAfter)
 
 	return checkin, nil
 }

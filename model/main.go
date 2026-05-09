@@ -11,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 
+	"gorm.io/driver/clickhouse"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
@@ -51,7 +52,7 @@ func CheckSetup() {
 	}
 }
 
-func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
+func chooseDB(envName string) (*gorm.DB, error) {
 	defer func() {
 		initCol()
 	}()
@@ -63,10 +64,6 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 		return nil, fmt.Errorf("%s must use postgres:// or postgresql://", envName)
 	}
 	common.SysLog("using PostgreSQL as database")
-	common.UsingPostgreSQL = true
-	if isLog {
-		common.LogSqlType = common.DatabaseTypePostgreSQL
-	}
 	return gorm.Open(postgres.New(postgres.Config{
 		DSN:                  dsn,
 		PreferSimpleProtocol: true, // disables implicit prepared statement usage
@@ -75,8 +72,22 @@ func chooseDB(envName string, isLog bool) (*gorm.DB, error) {
 	})
 }
 
+func chooseClickHouseDB(envName string) (*gorm.DB, error) {
+	dsn := os.Getenv(envName)
+	if dsn == "" {
+		return nil, fmt.Errorf("%s is required and must use a ClickHouse DSN", envName)
+	}
+	if !strings.HasPrefix(dsn, "clickhouse://") {
+		return nil, fmt.Errorf("%s must use clickhouse://", envName)
+	}
+	common.SysLog("using ClickHouse as categorized event log database")
+	return gorm.Open(clickhouse.Open(dsn), &gorm.Config{
+		PrepareStmt: false,
+	})
+}
+
 func InitDB() (err error) {
-	db, err := chooseDB("SQL_DSN", false)
+	db, err := chooseDB("SQL_DSN")
 	if err == nil {
 		if common.DebugEnabled {
 			db = db.Debug()
@@ -97,11 +108,7 @@ func InitDB() (err error) {
 }
 
 func InitLogDB() (err error) {
-	if os.Getenv("LOG_SQL_DSN") == "" {
-		LOG_DB = DB
-		return
-	}
-	db, err := chooseDB("LOG_SQL_DSN", true)
+	db, err := chooseClickHouseDB("LOG_CLICKHOUSE_DSN")
 	if err == nil {
 		if common.DebugEnabled {
 			db = db.Debug()
@@ -111,9 +118,12 @@ func InitLogDB() (err error) {
 		if err != nil {
 			return err
 		}
-		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("SQL_MAX_IDLE_CONNS", 100))
-		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("SQL_MAX_OPEN_CONNS", 1000))
-		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("SQL_MAX_LIFETIME", 60)))
+		sqlDB.SetMaxIdleConns(common.GetEnvOrDefault("LOG_CLICKHOUSE_MAX_IDLE_CONNS", 20))
+		sqlDB.SetMaxOpenConns(common.GetEnvOrDefault("LOG_CLICKHOUSE_MAX_OPEN_CONNS", 200))
+		sqlDB.SetConnMaxLifetime(time.Second * time.Duration(common.GetEnvOrDefault("LOG_CLICKHOUSE_MAX_LIFETIME", 300)))
+		if err := ensureClickHouseLogSchema(); err != nil {
+			return err
+		}
 		return nil
 	} else {
 		common.FatalLog(err)
@@ -131,13 +141,24 @@ func closeDB(db *gorm.DB) error {
 }
 
 func CloseDB() error {
-	if LOG_DB != DB {
+	if LOG_DB != nil && LOG_DB != DB {
 		err := closeDB(LOG_DB)
 		if err != nil {
 			return err
 		}
 	}
 	return closeDB(DB)
+}
+
+func PingLogDB() error {
+	if LOG_DB == nil {
+		return fmt.Errorf("log database is not initialized")
+	}
+	sqlDB, err := LOG_DB.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Ping()
 }
 
 var (

@@ -72,6 +72,7 @@ func authHelper(c *gin.Context, minRole int) {
 					"success": false,
 					"message": common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid),
 				})
+				recordAuthSecurityEvent(c, "auth.access_token.invalid", "invalid management access token")
 			}
 			c.Abort()
 			return
@@ -85,6 +86,7 @@ func authHelper(c *gin.Context, minRole int) {
 				"success": false,
 				"message": common.TranslateMessage(c, i18n.MsgAuthAccessTokenInvalid),
 			})
+			recordAuthSecurityEvent(c, "auth.access_token.invalid", "invalid management access token")
 		} else {
 			c.JSON(http.StatusUnauthorized, gin.H{
 				"success": false,
@@ -99,6 +101,9 @@ func authHelper(c *gin.Context, minRole int) {
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthUserBanned),
 		})
+		c.Set("id", user.Id)
+		c.Set("username", user.Username)
+		recordAuthSecurityEvent(c, "auth.user.disabled", "disabled user attempted access")
 		c.Abort()
 		return
 	}
@@ -107,6 +112,9 @@ func authHelper(c *gin.Context, minRole int) {
 			"success": false,
 			"message": common.TranslateMessage(c, i18n.MsgAuthInsufficientPrivilege),
 		})
+		c.Set("id", user.Id)
+		c.Set("username", user.Username)
+		recordAuthSecurityEvent(c, "auth.privilege.denied", "user attempted access without required role")
 		c.Abort()
 		return
 	}
@@ -157,6 +165,21 @@ func RootAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		authHelper(c, common.RoleRootUser)
 	}
+}
+
+func recordAuthSecurityEvent(c *gin.Context, event string, content string) {
+	model.RecordSecurityEventWithContext(c, model.LogEventParams{
+		Event:        event,
+		Severity:     "warning",
+		Result:       "denied",
+		Content:      content,
+		ResourceType: "http_route",
+		ResourceId:   c.FullPath(),
+		Other: map[string]interface{}{
+			"method": c.Request.Method,
+			"path":   c.Request.URL.Path,
+		},
+	})
 }
 
 func WssAuth(c *gin.Context) {

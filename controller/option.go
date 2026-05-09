@@ -231,6 +231,15 @@ func UpdateOption(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.RecordAuditEventWithContext(c, model.LogEventParams{
+		Event:        "admin.option.update",
+		Content:      "system option updated",
+		ResourceType: "option",
+		ResourceId:   option.Key,
+		Other: map[string]interface{}{
+			"key": option.Key,
+		},
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",

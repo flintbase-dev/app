@@ -419,8 +419,18 @@ func GetChannelKey(c *gin.Context) {
 		return
 	}
 
-	// 记录操作日志
-	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("查看渠道密钥信息 (渠道ID: %d)", channelId))
+	model.RecordSecurityEventWithContext(c, model.LogEventParams{
+		UserId:       userId,
+		ActorUserId:  userId,
+		Event:        "security.channel_secret_viewed",
+		Severity:     "warning",
+		Content:      fmt.Sprintf("查看渠道密钥信息 (渠道ID: %d)", channelId),
+		ResourceType: "channel",
+		ResourceId:   fmt.Sprintf("%d", channelId),
+		Other: map[string]interface{}{
+			"channel_id": channelId,
+		},
+	})
 
 	// 返回渠道密钥
 	c.JSON(http.StatusOK, gin.H{

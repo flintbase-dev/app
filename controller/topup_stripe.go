@@ -149,6 +149,13 @@ func StripeWebhook(c *gin.Context) {
 	ctx := c.Request.Context()
 	if !isStripeWebhookEnabled() {
 		logger.LogWarn(ctx, fmt.Sprintf("Stripe webhook 被拒绝 reason=webhook_disabled path=%q client_ip=%s", c.Request.RequestURI, c.ClientIP()))
+		model.RecordSecurityEventWithContext(c, model.LogEventParams{
+			Event:        "security.stripe_webhook.rejected",
+			Severity:     "warning",
+			Result:       "rejected",
+			Content:      "Stripe webhook disabled",
+			ResourceType: "stripe_webhook",
+		})
 		c.AbortWithStatus(http.StatusForbidden)
 		return
 	}
@@ -161,13 +168,23 @@ func StripeWebhook(c *gin.Context) {
 	}
 
 	signature := c.GetHeader("Stripe-Signature")
-	logger.LogInfo(ctx, fmt.Sprintf("Stripe webhook 收到请求 path=%q client_ip=%s signature=%q body=%q", c.Request.RequestURI, c.ClientIP(), signature, string(payload)))
+	logger.LogInfo(ctx, fmt.Sprintf("Stripe webhook 收到请求 path=%q client_ip=%s body_size=%d", c.Request.RequestURI, c.ClientIP(), len(payload)))
 	event, err := webhook.ConstructEventWithOptions(payload, signature, setting.StripeWebhookSecret, webhook.ConstructEventOptions{
 		IgnoreAPIVersionMismatch: true,
 	})
 
 	if err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("Stripe webhook 验签失败 path=%q client_ip=%s error=%q", c.Request.RequestURI, c.ClientIP(), err.Error()))
+		model.RecordSecurityEventWithContext(c, model.LogEventParams{
+			Event:        "security.stripe_webhook.signature_failed",
+			Severity:     "warning",
+			Result:       "failed",
+			Content:      "Stripe webhook signature verification failed",
+			ResourceType: "stripe_webhook",
+			Other: map[string]interface{}{
+				"body_size": len(payload),
+			},
+		})
 		c.AbortWithStatus(http.StatusBadRequest)
 		return
 	}

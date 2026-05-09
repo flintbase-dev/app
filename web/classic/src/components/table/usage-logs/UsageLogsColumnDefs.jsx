@@ -94,43 +94,53 @@ function buildChannelAffinityTooltip(affinity, t) {
   );
 }
 
+function getLogCategory(record) {
+  return record?.category || '';
+}
+
+function isUsageLog(record) {
+  return getLogCategory(record) === 'usage';
+}
+
+function isErrorLog(record) {
+  return getLogCategory(record) === 'error';
+}
+
+function isRequestLog(record) {
+  return isUsageLog(record) || isErrorLog(record);
+}
+
 // Render functions
-function renderType(type, t) {
-  switch (type) {
-    case 1:
-      return (
-        <Tag color='cyan' shape='circle'>
-          {t('充值')}
-        </Tag>
-      );
-    case 2:
+function renderType(category, t) {
+  switch (category) {
+    case 'usage':
       return (
         <Tag color='lime' shape='circle'>
           {t('消费')}
         </Tag>
       );
-    case 3:
+    case 'audit':
       return (
-        <Tag color='orange' shape='circle'>
-          {t('管理')}
+        <Tag color='cyan' shape='circle'>
+          {t('审计')}
         </Tag>
       );
-    case 4:
-      return (
-        <Tag color='purple' shape='circle'>
-          {t('系统')}
-        </Tag>
-      );
-    case 5:
+    case 'error':
       return (
         <Tag color='red' shape='circle'>
           {t('错误')}
         </Tag>
       );
-    case 6:
+    case 'security':
       return (
-        <Tag color='teal' shape='circle'>
-          {t('退款')}
+        <Tag color='orange' shape='circle'>
+          {t('安全')}
+        </Tag>
+      );
+    case 'activity':
+      return (
+        <Tag color='purple' shape='circle'>
+          {t('活动')}
         </Tag>
       );
     default:
@@ -144,10 +154,7 @@ function renderType(type, t) {
 
 function buildStreamStatusTooltip(ss, t) {
   if (!ss) return null;
-  const lines = [
-    t('流状态') + '：' + t('异常'),
-    (ss.end_reason || 'unknown'),
-  ];
+  const lines = [t('流状态') + '：' + t('异常'), ss.end_reason || 'unknown'];
   if (ss.error_count > 0) {
     lines.push(`${t('软错误')}: ${ss.error_count}`);
   }
@@ -185,11 +192,7 @@ function renderIsStream(bool, t, streamStatus) {
                 userSelect: 'none',
               }}
             >
-              <CircleAlert
-                size={14}
-                strokeWidth={2.5}
-                color='currentColor'
-              />
+              <CircleAlert size={14} strokeWidth={2.5} color='currentColor' />
             </span>
           </Tooltip>
         )}
@@ -427,13 +430,13 @@ function renderCompactDetailSummary(summarySegments) {
 function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
   const other = getLogOther(record.other);
 
-  if (record.type === 6) {
+  if (isErrorLog(record)) {
     return {
-      segments: [{ text: t('异步任务退款'), tone: 'primary' }],
+      segments: [{ text: record.event || t('错误'), tone: 'primary' }],
     };
   }
 
-  if (other == null || record.type !== 2) {
+  if (other == null || !isUsageLog(record)) {
     return null;
   }
 
@@ -461,7 +464,11 @@ function getUsageLogDetailSummary(record, text, billingDisplayMode, t) {
     };
   }
 
-  const summaryOpts = { ...other, displayMode: billingDisplayMode, outputMode: 'segments' };
+  const summaryOpts = {
+    ...other,
+    displayMode: billingDisplayMode,
+    outputMode: 'segments',
+  };
 
   if (other?.billing_mode === 'tiered_expr') {
     return { segments: renderTieredModelPriceSimple(summaryOpts) };
@@ -518,11 +525,7 @@ export const getLogsColumns = ({
           }
         }
 
-        return isAdminUser &&
-          (record.type === 0 ||
-            record.type === 2 ||
-            record.type === 5 ||
-            record.type === 6) ? (
+        return isAdminUser && isRequestLog(record) && record.channel ? (
           <Space>
             <span style={{ position: 'relative', display: 'inline-block' }}>
               <Tooltip content={record.channel_name || t('未知渠道')}>
@@ -613,10 +616,7 @@ export const getLogsColumns = ({
       title: t('令牌'),
       dataIndex: 'token_name',
       render: (text, record, index) => {
-        return record.type === 0 ||
-          record.type === 2 ||
-          record.type === 5 ||
-          record.type === 6 ? (
+        return isRequestLog(record) && text ? (
           <div>
             <Tag
               color='grey'
@@ -639,12 +639,7 @@ export const getLogsColumns = ({
       title: t('分组'),
       dataIndex: 'group',
       render: (text, record, index) => {
-        if (
-          record.type === 0 ||
-          record.type === 2 ||
-          record.type === 5 ||
-          record.type === 6
-        ) {
+        if (isRequestLog(record)) {
           if (record.group) {
             return <>{renderGroup(record.group)}</>;
           } else {
@@ -674,9 +669,9 @@ export const getLogsColumns = ({
     {
       key: COLUMN_KEYS.TYPE,
       title: t('类型'),
-      dataIndex: 'type',
+      dataIndex: 'category',
       render: (text, record, index) => {
-        return <>{renderType(text, t)}</>;
+        return <>{renderType(record.category, t)}</>;
       },
     },
     {
@@ -684,10 +679,7 @@ export const getLogsColumns = ({
       title: t('模型'),
       dataIndex: 'model_name',
       render: (text, record, index) => {
-        return record.type === 0 ||
-          record.type === 2 ||
-          record.type === 5 ||
-          record.type === 6 ? (
+        return isRequestLog(record) ? (
           <>{renderModelName(record, copyText, t)}</>
         ) : (
           <></>
@@ -699,7 +691,7 @@ export const getLogsColumns = ({
       title: t('用时/首字'),
       dataIndex: 'use_time',
       render: (text, record, index) => {
-        if (!(record.type === 2 || record.type === 5)) {
+        if (!isRequestLog(record)) {
           return <></>;
         }
         if (record.is_stream) {
@@ -754,10 +746,7 @@ export const getLogsColumns = ({
           cacheText = `${t('缓存写')} ${formatTokenCount(cacheSummary.cacheWriteTokens)}`;
         }
 
-        return record.type === 0 ||
-          record.type === 2 ||
-          record.type === 5 ||
-          record.type === 6 ? (
+        return isUsageLog(record) ? (
           <div
             style={{
               display: 'inline-flex',
@@ -790,11 +779,7 @@ export const getLogsColumns = ({
       title: t('输出'),
       dataIndex: 'completion_tokens',
       render: (text, record, index) => {
-        return parseInt(text) > 0 &&
-          (record.type === 0 ||
-            record.type === 2 ||
-            record.type === 5 ||
-            record.type === 6) ? (
+        return parseInt(text) > 0 && isUsageLog(record) ? (
           <>{<span> {text} </span>}</>
         ) : (
           <></>
@@ -806,14 +791,7 @@ export const getLogsColumns = ({
       title: t('花费'),
       dataIndex: 'quota',
       render: (text, record, index) => {
-        if (
-          !(
-            record.type === 0 ||
-            record.type === 2 ||
-            record.type === 5 ||
-            record.type === 6
-          )
-        ) {
+        if (!isUsageLog(record)) {
           return <></>;
         }
         const other = getLogOther(record.other);
@@ -846,9 +824,9 @@ export const getLogsColumns = ({
       dataIndex: 'ip',
       render: (text, record, index) => {
         const showIp =
-          (record.type === 2 ||
-            record.type === 5 ||
-            (isAdminUser && record.type === 1)) &&
+          (isRequestLog(record) ||
+            getLogCategory(record) === 'security' ||
+            (isAdminUser && getLogCategory(record) === 'audit')) &&
           text;
         return showIp ? (
           <Tooltip content={text}>
@@ -874,7 +852,7 @@ export const getLogsColumns = ({
       title: t('重试'),
       dataIndex: 'retry',
       render: (text, record, index) => {
-        if (!(record.type === 2 || record.type === 5)) {
+        if (!isRequestLog(record)) {
           return <></>;
         }
         let content = t('渠道') + `：${record.channel}`;

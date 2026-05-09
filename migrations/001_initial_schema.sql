@@ -137,11 +137,16 @@ CREATE INDEX idx_abilities_priority ON abilities (priority);
 CREATE INDEX idx_abilities_weight ON abilities (weight);
 CREATE INDEX idx_abilities_tag ON abilities (tag);
 
-CREATE TABLE logs (
+CREATE TABLE audit_logs (
     id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT,
-    created_at BIGINT,
-    type BIGINT,
+    created_at BIGINT NOT NULL,
+    type BIGINT NOT NULL,
+    category VARCHAR(32) NOT NULL DEFAULT 'audit' CHECK (category = 'audit'),
+    event VARCHAR(128) NOT NULL,
+    severity VARCHAR(32) NOT NULL DEFAULT 'info',
+    result VARCHAR(32) NOT NULL DEFAULT 'success',
+    user_id BIGINT NOT NULL DEFAULT 0,
+    actor_user_id BIGINT NOT NULL DEFAULT 0,
     content TEXT,
     username TEXT DEFAULT '',
     token_name TEXT DEFAULT '',
@@ -151,27 +156,92 @@ CREATE TABLE logs (
     completion_tokens BIGINT DEFAULT 0,
     use_time BIGINT DEFAULT 0,
     is_stream BOOLEAN DEFAULT false,
-    channel_id BIGINT,
+    channel_id BIGINT DEFAULT 0,
     token_id BIGINT DEFAULT 0,
-    "group" TEXT,
+    group_name TEXT DEFAULT '',
     ip TEXT DEFAULT '',
     request_id VARCHAR(64) DEFAULT '',
-    other TEXT
+    resource_type VARCHAR(64) DEFAULT '',
+    resource_id VARCHAR(128) DEFAULT '',
+    node_name VARCHAR(128) DEFAULT '',
+    other TEXT DEFAULT '{}'
 );
 
-CREATE INDEX idx_logs_user_id ON logs (user_id);
-CREATE INDEX idx_logs_username ON logs (username);
-CREATE INDEX idx_logs_token_name ON logs (token_name);
-CREATE INDEX idx_logs_model_name ON logs (model_name);
-CREATE INDEX idx_logs_channel_id ON logs (channel_id);
-CREATE INDEX idx_logs_token_id ON logs (token_id);
-CREATE INDEX idx_logs_group ON logs ("group");
-CREATE INDEX idx_logs_ip ON logs (ip);
-CREATE INDEX idx_logs_request_id ON logs (request_id);
-CREATE INDEX idx_created_at_id ON logs (id, created_at);
-CREATE INDEX idx_user_id_id ON logs (user_id, id);
-CREATE INDEX idx_created_at_type ON logs (created_at, type);
-CREATE INDEX index_username_model_name ON logs (model_name, username);
+CREATE INDEX idx_audit_logs_created_at ON audit_logs (created_at);
+CREATE INDEX idx_audit_logs_user_created_at ON audit_logs (user_id, created_at);
+CREATE INDEX idx_audit_logs_actor_created_at ON audit_logs (actor_user_id, created_at);
+CREATE INDEX idx_audit_logs_event_created_at ON audit_logs (event, created_at);
+CREATE INDEX idx_audit_logs_request_id ON audit_logs (request_id);
+CREATE INDEX idx_audit_logs_resource ON audit_logs (resource_type, resource_id);
+
+CREATE OR REPLACE FUNCTION prevent_append_only_mutation()
+RETURNS trigger AS $$
+BEGIN
+    RAISE EXCEPTION '% is append-only', TG_TABLE_NAME;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER audit_logs_prevent_update
+BEFORE UPDATE ON audit_logs
+FOR EACH ROW EXECUTE FUNCTION prevent_append_only_mutation();
+
+CREATE TRIGGER audit_logs_prevent_delete
+BEFORE DELETE ON audit_logs
+FOR EACH ROW EXECUTE FUNCTION prevent_append_only_mutation();
+
+CREATE TABLE credit_grants (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    source_type VARCHAR(64) NOT NULL,
+    source_id VARCHAR(128) NOT NULL,
+    amount BIGINT NOT NULL CHECK (amount > 0),
+    remaining_amount BIGINT NOT NULL CHECK (remaining_amount >= 0),
+    status VARCHAR(32) NOT NULL DEFAULT 'active',
+    effective_at BIGINT NOT NULL,
+    expires_at BIGINT NOT NULL DEFAULT 0,
+    created_at BIGINT NOT NULL,
+    created_by BIGINT NOT NULL DEFAULT 0,
+    request_id VARCHAR(64) NOT NULL DEFAULT '',
+    metadata TEXT NOT NULL DEFAULT '{}',
+    CHECK (remaining_amount <= amount),
+    CHECK (status IN ('active', 'consumed', 'revoked', 'expired'))
+);
+
+CREATE UNIQUE INDEX idx_credit_grants_source ON credit_grants (source_type, source_id);
+CREATE INDEX idx_credit_grants_user_status ON credit_grants (user_id, status, remaining_amount);
+CREATE INDEX idx_credit_grants_fifo ON credit_grants (user_id, status, expires_at, effective_at, id);
+CREATE INDEX idx_credit_grants_request_id ON credit_grants (request_id);
+
+CREATE TABLE credit_ledger_entries (
+    id BIGSERIAL PRIMARY KEY,
+    user_id BIGINT NOT NULL,
+    grant_id BIGINT REFERENCES credit_grants(id),
+    entry_type VARCHAR(32) NOT NULL CHECK (entry_type IN ('grant', 'consume', 'refund', 'adjustment', 'reversal', 'expire')),
+    amount_delta BIGINT NOT NULL CHECK (amount_delta <> 0),
+    balance_after BIGINT NOT NULL CHECK (balance_after >= 0),
+    request_id VARCHAR(64) NOT NULL DEFAULT '',
+    source_type VARCHAR(64) NOT NULL,
+    source_id VARCHAR(128) NOT NULL,
+    actor_user_id BIGINT NOT NULL DEFAULT 0,
+    reason TEXT,
+    created_at BIGINT NOT NULL,
+    reversal_of_id BIGINT REFERENCES credit_ledger_entries(id),
+    metadata TEXT NOT NULL DEFAULT '{}'
+);
+
+CREATE INDEX idx_credit_ledger_user_created_at ON credit_ledger_entries (user_id, created_at);
+CREATE INDEX idx_credit_ledger_grant_id ON credit_ledger_entries (grant_id);
+CREATE INDEX idx_credit_ledger_request_id ON credit_ledger_entries (request_id);
+CREATE INDEX idx_credit_ledger_source ON credit_ledger_entries (source_type, source_id);
+CREATE INDEX idx_credit_ledger_actor_created_at ON credit_ledger_entries (actor_user_id, created_at);
+
+CREATE TRIGGER credit_ledger_entries_prevent_update
+BEFORE UPDATE ON credit_ledger_entries
+FOR EACH ROW EXECUTE FUNCTION prevent_append_only_mutation();
+
+CREATE TRIGGER credit_ledger_entries_prevent_delete
+BEFORE DELETE ON credit_ledger_entries
+FOR EACH ROW EXECUTE FUNCTION prevent_append_only_mutation();
 
 CREATE TABLE midjourneys (
     id BIGSERIAL PRIMARY KEY,
@@ -222,21 +292,6 @@ CREATE TABLE top_ups (
 
 CREATE UNIQUE INDEX idx_top_ups_trade_no ON top_ups (trade_no);
 CREATE INDEX idx_top_ups_user_id ON top_ups (user_id);
-
-CREATE TABLE quota_data (
-    id BIGSERIAL PRIMARY KEY,
-    user_id BIGINT,
-    username VARCHAR(64) DEFAULT '',
-    model_name VARCHAR(64) DEFAULT '',
-    created_at BIGINT,
-    token_used BIGINT DEFAULT 0,
-    count BIGINT DEFAULT 0,
-    quota BIGINT DEFAULT 0
-);
-
-CREATE INDEX idx_quota_data_user_id ON quota_data (user_id);
-CREATE INDEX idx_qdt_model_user_name ON quota_data (model_name, username);
-CREATE INDEX idx_qdt_created_at ON quota_data (created_at);
 
 CREATE TABLE tasks (
     id BIGSERIAL PRIMARY KEY,

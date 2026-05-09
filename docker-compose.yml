@@ -28,14 +28,13 @@ services:
     image: calciumion/new-api:latest
     container_name: new-api
     restart: always
-    command: --log-dir /app/logs
     ports:
       - "3000:3000"
     volumes:
       - ./data:/data
-      - ./logs:/app/logs
     environment:
       - SQL_DSN=postgresql://root:123456@postgres:5432/new-api # ⚠️ IMPORTANT: Change the password in production!
+      - LOG_CLICKHOUSE_DSN=clickhouse://new_api:123456@clickhouse:9000/new_api_logs # ⚠️ IMPORTANT: Change the password in production!
       - REDIS_CONN_STRING=redis://:123456@redis:6379 # ⚠️ IMPORTANT: Change the password in production!
       - TZ=Asia/Shanghai
       - ERROR_LOG_ENABLED=true # 是否启用错误日志记录 (Whether to enable error log recording)
@@ -58,6 +57,8 @@ services:
       redis:
         condition: service_started
       postgres:
+        condition: service_healthy
+      clickhouse:
         condition: service_healthy
       db-migrate:
         condition: service_completed_successfully
@@ -97,8 +98,31 @@ services:
 #    ports:
 #      - "5432:5432"  # Uncomment if you need to access PostgreSQL from outside Docker
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.3
+    container_name: clickhouse
+    restart: always
+    environment:
+      CLICKHOUSE_DB: new_api_logs
+      CLICKHOUSE_USER: new_api
+      CLICKHOUSE_PASSWORD: 123456  # ⚠️ IMPORTANT: Change this password in production!
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    networks:
+      - new-api-network
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse client --user new_api --password 123456 --query 'SELECT 1'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+#    ports:
+#      - "8123:8123"  # HTTP interface
+#      - "9000:9000"  # Native protocol
+
 volumes:
   pg_data:
+  clickhouse_data:
 
 networks:
   new-api-network:

@@ -223,7 +223,7 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 
 	s.preConsumedQuota = effectiveQuota
 
-	// ---- 同步 RelayInfo 兼容字段 ----
+	// ---- 同步 RelayInfo 计费字段 ----
 	s.syncRelayInfo()
 
 	return nil
@@ -232,7 +232,10 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 func (s *BillingSession) reserveFunding(delta int) error {
 	switch funding := s.funding.(type) {
 	case *WalletFunding:
-		if err := model.DecreaseUserQuota(funding.userId, delta, false); err != nil {
+		if err := model.ConsumeUserCreditsForRequest(funding.userId, delta, "relay.reserve", walletLedgerSourceId(funding.requestId, "reserve"), funding.requestId, map[string]interface{}{
+			"model": funding.modelName,
+			"phase": "reserve",
+		}); err != nil {
 			return types.NewError(err, types.ErrorCodeUpdateDataError, types.ErrOptionWithSkipRetry())
 		}
 		funding.consumed += delta
@@ -256,7 +259,10 @@ func (s *BillingSession) reserveFunding(delta int) error {
 func (s *BillingSession) rollbackFundingReserve(delta int) {
 	switch funding := s.funding.(type) {
 	case *WalletFunding:
-		if err := model.IncreaseUserQuota(funding.userId, delta, false); err != nil {
+		if err := model.RefundUserCreditsForRequest(funding.userId, delta, "relay.refund", walletLedgerSourceId(funding.requestId, "reserve_refund"), funding.requestId, map[string]interface{}{
+			"model": funding.modelName,
+			"phase": "reserve_refund",
+		}); err != nil {
 			common.SysLog("error rolling back wallet funding reserve: " + err.Error())
 		} else {
 			funding.consumed -= delta
@@ -309,7 +315,7 @@ func (s *BillingSession) shouldTrust(c *gin.Context) bool {
 	}
 }
 
-// syncRelayInfo 将 BillingSession 的状态同步到 RelayInfo 的兼容字段上。
+// syncRelayInfo 将 BillingSession 的状态同步到 RelayInfo 的结算字段上。
 func (s *BillingSession) syncRelayInfo() {
 	info := s.relayInfo
 	info.FinalPreConsumedQuota = s.preConsumedQuota
@@ -363,7 +369,11 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 
 		session := &BillingSession{
 			relayInfo: relayInfo,
-			funding:   &WalletFunding{userId: relayInfo.UserId},
+			funding: &WalletFunding{
+				userId:    relayInfo.UserId,
+				requestId: relayInfo.RequestId,
+				modelName: relayInfo.OriginModelName,
+			},
 		}
 		if apiErr := session.preConsume(c, preConsumedQuota); apiErr != nil {
 			return nil, apiErr

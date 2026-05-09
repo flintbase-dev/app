@@ -120,6 +120,7 @@ func Redeem(key string, userId int) (quota int, err error) {
 		return 0, errors.New("无效的 user id")
 	}
 	redemption := &Redemption{}
+	var balanceAfter int
 
 	common.RandomSleep()
 	err = DB.Transaction(func(tx *gorm.DB) error {
@@ -133,7 +134,18 @@ func Redeem(key string, userId int) (quota int, err error) {
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
 			return errors.New("该兑换码已过期")
 		}
-		err = tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error
+		balanceAfter, err = GrantUserCreditsTx(tx, CreditGrantParams{
+			UserId:     userId,
+			Amount:     redemption.Quota,
+			SourceType: "redemption.grant",
+			SourceId:   fmt.Sprintf("redemption:%d", redemption.Id),
+			RequestId:  common.GetUUID(),
+			Reason:     "redemption code redeemed",
+			Metadata: map[string]interface{}{
+				"redemption_id": redemption.Id,
+				"redemption":    redemption.Name,
+			},
+		})
 		if err != nil {
 			return err
 		}
@@ -147,7 +159,15 @@ func Redeem(key string, userId int) (quota int, err error) {
 		common.SysError("redemption failed: " + err.Error())
 		return 0, ErrRedeemFailed
 	}
-	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
+	updateUserQuotaCacheAfterCommit(userId, balanceAfter)
+	RecordAuditEvent(LogEventParams{
+		UserId:       userId,
+		Event:        "billing.redemption.completed",
+		Content:      fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id),
+		ResourceType: "redemption",
+		ResourceId:   fmt.Sprintf("%d", redemption.Id),
+		Quota:        redemption.Quota,
+	})
 	return redemption.Quota, nil
 }
 

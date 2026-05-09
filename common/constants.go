@@ -23,9 +23,7 @@ const SiteCreditsPerPriceUnit = 1_000_000.0
 
 var DisplayTokenStatEnabled = true
 var DrawingEnabled = true
-var DataExportEnabled = true
-var DataExportInterval = 5         // unit: minute
-var DataExportDefaultTime = "hour" // unit: minute
+var DataExportDefaultTime = "hour" // dashboard aggregation bucket
 var DefaultCollapseSidebar = false // default value of collapse sidebar
 
 // Any options with "Secret", "Token" in its key won't be return by GetOptions
@@ -48,8 +46,6 @@ var EmailLoginAuthServerList = []string{
 
 var DebugEnabled bool
 var MemoryCacheEnabled bool
-
-var LogConsumeEnabled = true
 
 var TLSInsecureSkipVerify bool
 var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}

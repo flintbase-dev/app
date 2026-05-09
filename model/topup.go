@@ -99,7 +99,8 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		return errors.New("未提供支付单号")
 	}
 
-	var quota float64
+	var quota int
+	var balanceAfter int
 	topUp := &TopUp{}
 
 	refCol := `"trade_no"`
@@ -125,8 +126,30 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 			return err
 		}
 
-		quota = topUp.Money * common.SiteCreditsPerPriceUnit
-		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Updates(map[string]interface{}{"stripe_customer": customerId, "quota": gorm.Expr("quota + ?", quota)}).Error
+		quota = int(decimal.NewFromFloat(topUp.Money).Mul(decimal.NewFromFloat(common.SiteCreditsPerPriceUnit)).IntPart())
+		if quota <= 0 {
+			return errors.New("无效的充值额度")
+		}
+		err = tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("stripe_customer", customerId).Error
+		if err != nil {
+			return err
+		}
+
+		balanceAfter, err = GrantUserCreditsTx(tx, CreditGrantParams{
+			UserId:     topUp.UserId,
+			Amount:     quota,
+			SourceType: "topup.stripe",
+			SourceId:   topUp.TradeNo,
+			RequestId:  common.GetUUID(),
+			Reason:     "stripe topup completed",
+			Metadata: map[string]interface{}{
+				"trade_no":         topUp.TradeNo,
+				"payment_method":   topUp.PaymentMethod,
+				"payment_provider": topUp.PaymentProvider,
+				"money":            topUp.Money,
+				"customer_id":      customerId,
+			},
+		})
 		if err != nil {
 			return err
 		}
@@ -138,8 +161,9 @@ func Recharge(referenceId string, customerId string, callerIp string) (err error
 		common.SysError("topup failed: " + err.Error())
 		return errors.New("充值失败，请稍后重试")
 	}
+	updateUserQuotaCacheAfterCommit(topUp.UserId, balanceAfter)
 
-	RecordTopupLog(topUp.UserId, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(int(quota)), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
+	RecordTopupLog(topUp.UserId, topUp.TradeNo, fmt.Sprintf("使用在线充值成功，充值金额: %v，支付金额：%d", logger.FormatQuota(quota), topUp.Amount), callerIp, topUp.PaymentMethod, PaymentMethodStripe)
 
 	return nil
 }
@@ -313,6 +337,8 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	var quotaToAdd int
 	var payMoney float64
 	var paymentMethod string
+	var balanceAfter int
+	var alreadyCompleted bool
 
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		topUp := &TopUp{}
@@ -323,6 +349,7 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 
 		// 幂等处理：已成功直接返回
 		if topUp.Status == common.TopUpStatusSuccess {
+			alreadyCompleted = true
 			return nil
 		}
 
@@ -347,8 +374,22 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 			return err
 		}
 
-		// 增加用户额度（立即写库，保持一致性）
-		if err := tx.Model(&User{}).Where("id = ?", topUp.UserId).Update("quota", gorm.Expr("quota + ?", quotaToAdd)).Error; err != nil {
+		var err error
+		balanceAfter, err = GrantUserCreditsTx(tx, CreditGrantParams{
+			UserId:     topUp.UserId,
+			Amount:     quotaToAdd,
+			SourceType: "topup.admin_complete",
+			SourceId:   topUp.TradeNo,
+			RequestId:  common.GetUUID(),
+			Reason:     "admin completed pending topup",
+			Metadata: map[string]interface{}{
+				"trade_no":         topUp.TradeNo,
+				"payment_method":   topUp.PaymentMethod,
+				"payment_provider": topUp.PaymentProvider,
+				"money":            topUp.Money,
+			},
+		})
+		if err != nil {
 			return err
 		}
 
@@ -361,8 +402,12 @@ func ManualCompleteTopUp(tradeNo string, callerIp string) error {
 	if err != nil {
 		return err
 	}
+	if alreadyCompleted {
+		return nil
+	}
+	updateUserQuotaCacheAfterCommit(userId, balanceAfter)
 
 	// 事务外记录日志，避免阻塞
-	RecordTopupLog(userId, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
+	RecordTopupLog(userId, tradeNo, fmt.Sprintf("管理员补单成功，充值金额: %v，支付金额：%f", logger.FormatQuota(quotaToAdd), payMoney), callerIp, paymentMethod, "admin")
 	return nil
 }

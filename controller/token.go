@@ -89,6 +89,17 @@ func GetTokenKey(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.RecordSecurityEventWithContext(c, model.LogEventParams{
+		UserId:       userId,
+		Event:        "token.secret.view",
+		Severity:     "warning",
+		Content:      "API token secret viewed",
+		ResourceType: "token",
+		ResourceId:   fmt.Sprintf("%d", token.Id),
+		Other: map[string]interface{}{
+			"token_name": token.Name,
+		},
+	})
 	common.ApiSuccess(c, gin.H{
 		"key": token.GetFullKey(),
 	})
@@ -227,6 +238,17 @@ func AddToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.RecordAuditEventWithContext(c, model.LogEventParams{
+		UserId:       cleanToken.UserId,
+		Event:        "token.create",
+		Content:      "API token created",
+		ResourceType: "token",
+		ResourceId:   fmt.Sprintf("%d", cleanToken.Id),
+		Other: map[string]interface{}{
+			"token_name":      cleanToken.Name,
+			"unlimited_quota": cleanToken.UnlimitedQuota,
+		},
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -241,6 +263,13 @@ func DeleteToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.RecordAuditEventWithContext(c, model.LogEventParams{
+		UserId:       userId,
+		Event:        "token.delete",
+		Content:      "API token deleted",
+		ResourceType: "token",
+		ResourceId:   fmt.Sprintf("%d", id),
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -305,6 +334,17 @@ func UpdateToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.RecordAuditEventWithContext(c, model.LogEventParams{
+		UserId:       userId,
+		Event:        "token.update",
+		Content:      "API token updated",
+		ResourceType: "token",
+		ResourceId:   fmt.Sprintf("%d", cleanToken.Id),
+		Other: map[string]interface{}{
+			"status_only": statusOnly != "",
+			"token_name":  cleanToken.Name,
+		},
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -328,6 +368,15 @@ func DeleteTokenBatch(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.RecordAuditEventWithContext(c, model.LogEventParams{
+		UserId:       userId,
+		Event:        "token.batch_delete",
+		Content:      "API tokens deleted in batch",
+		ResourceType: "token",
+		Other: map[string]interface{}{
+			"count": count,
+		},
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -351,6 +400,16 @@ func GetTokenKeysBatch(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.RecordSecurityEventWithContext(c, model.LogEventParams{
+		UserId:       userId,
+		Event:        "token.secret.batch_view",
+		Severity:     "warning",
+		Content:      "API token secrets viewed in batch",
+		ResourceType: "token",
+		Other: map[string]interface{}{
+			"count": len(tokens),
+		},
+	})
 	keysMap := make(map[int]string)
 	for _, t := range tokens {
 		keysMap[t.Id] = t.GetFullKey()

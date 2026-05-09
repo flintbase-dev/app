@@ -38,8 +38,6 @@ export default function DataDashboard(props) {
   ];
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
-    DataExportEnabled: false,
-    DataExportInterval: '',
     DataExportDefaultTime: '',
   });
   const refForm = useRef();
@@ -92,7 +90,7 @@ export default function DataDashboard(props) {
     refForm.current.setValues(currentInputs);
     localStorage.setItem(
       'data_export_default_time',
-      String(inputs.DataExportDefaultTime),
+      String(currentInputs.DataExportDefaultTime || 'hour'),
     );
   }, [props.options]);
 
@@ -105,41 +103,7 @@ export default function DataDashboard(props) {
           style={{ marginBottom: 15 }}
         >
           <Form.Section text={t('数据看板设置')}>
-            <Row gutter={16}>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'DataExportEnabled'}
-                  label={t('启用数据看板（实验性）')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) => {
-                    setInputs({
-                      ...inputs,
-                      DataExportEnabled: value,
-                    });
-                  }}
-                />
-              </Col>
-            </Row>
             <Row>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
-                  label={t('数据看板更新间隔')}
-                  step={1}
-                  min={1}
-                  suffix={t('分钟')}
-                  extraText={t('设置过短会影响数据库性能')}
-                  placeholder={t('数据看板更新间隔')}
-                  field={'DataExportInterval'}
-                  onChange={(value) =>
-                    setInputs({
-                      ...inputs,
-                      DataExportInterval: String(value),
-                    })
-                  }
-                />
-              </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Form.Select
                   label={t('数据看板默认时间粒度')}

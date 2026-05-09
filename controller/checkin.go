@@ -61,7 +61,18 @@ func DoCheckin(c *gin.Context) {
 		})
 		return
 	}
-	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("用户签到，获得额度 %s", logger.LogQuota(checkin.QuotaAwarded)))
+	model.RecordAuditEventWithContext(c, model.LogEventParams{
+		UserId:       userId,
+		Event:        "quota.checkin_grant",
+		Content:      fmt.Sprintf("用户签到，获得额度 %s", logger.LogQuota(checkin.QuotaAwarded)),
+		ResourceType: "checkin",
+		ResourceId:   checkin.CheckinDate,
+		Quota:        checkin.QuotaAwarded,
+		Other: map[string]interface{}{
+			"quota_awarded": checkin.QuotaAwarded,
+			"checkin_date":  checkin.CheckinDate,
+		},
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "签到成功",

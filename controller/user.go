@@ -514,31 +514,76 @@ func ManageUser(c *gin.Context) {
 				common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
 				return
 			}
-			if err := model.IncreaseUserQuota(user.Id, req.Value, true); err != nil {
+			if err := model.AdjustUserCredits(model.CreditConsumeParams{
+				UserId:      user.Id,
+				ActorUserId: adminId,
+				SourceType:  "admin.quota_adjustment",
+				SourceId:    fmt.Sprintf("admin:%d:%s", adminId, common.GetUUID()),
+				RequestId:   c.GetString(common.RequestIdKey),
+				Reason:      "admin quota increase",
+				Metadata:    adminInfo,
+			}, req.Value); err != nil {
 				common.ApiError(c, err)
 				return
 			}
-			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员增加用户额度 %s", logger.LogQuota(req.Value)), adminInfo)
+			model.RecordAuditEventWithContext(c, model.LogEventParams{
+				UserId:       user.Id,
+				ActorUserId:  adminId,
+				Event:        "admin.quota.increase",
+				Content:      fmt.Sprintf("管理员增加用户额度 %s", logger.LogQuota(req.Value)),
+				ResourceType: "user",
+				ResourceId:   fmt.Sprintf("%d", user.Id),
+				Quota:        req.Value,
+				Other:        adminInfo,
+			})
 		case "subtract":
 			if req.Value <= 0 {
 				common.ApiErrorI18n(c, i18n.MsgUserQuotaChangeZero)
 				return
 			}
-			if err := model.DecreaseUserQuota(user.Id, req.Value, true); err != nil {
+			if err := model.AdjustUserCredits(model.CreditConsumeParams{
+				UserId:      user.Id,
+				ActorUserId: adminId,
+				SourceType:  "admin.quota_adjustment",
+				SourceId:    fmt.Sprintf("admin:%d:%s", adminId, common.GetUUID()),
+				RequestId:   c.GetString(common.RequestIdKey),
+				Reason:      "admin quota decrease",
+				Metadata:    adminInfo,
+			}, -req.Value); err != nil {
 				common.ApiError(c, err)
 				return
 			}
-			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员减少用户额度 %s", logger.LogQuota(req.Value)), adminInfo)
+			model.RecordAuditEventWithContext(c, model.LogEventParams{
+				UserId:       user.Id,
+				ActorUserId:  adminId,
+				Event:        "admin.quota.decrease",
+				Content:      fmt.Sprintf("管理员减少用户额度 %s", logger.LogQuota(req.Value)),
+				ResourceType: "user",
+				ResourceId:   fmt.Sprintf("%d", user.Id),
+				Quota:        -req.Value,
+				Other:        adminInfo,
+			})
 		case "override":
 			oldQuota := user.Quota
-			if err := model.DB.Model(&model.User{}).Where("id = ?", user.Id).Update("quota", req.Value).Error; err != nil {
+			if err := model.SetUserCreditBalance(user.Id, req.Value, adminId, "admin quota override", map[string]interface{}{
+				"admin_id":       adminId,
+				"admin_username": adminName,
+				"old_quota":      oldQuota,
+				"new_quota":      req.Value,
+			}); err != nil {
 				common.ApiError(c, err)
 				return
 			}
-			model.RecordLogWithAdminInfo(user.Id, model.LogTypeManage,
-				fmt.Sprintf("管理员覆盖用户额度从 %s 为 %s", logger.LogQuota(oldQuota), logger.LogQuota(req.Value)), adminInfo)
+			model.RecordAuditEventWithContext(c, model.LogEventParams{
+				UserId:       user.Id,
+				ActorUserId:  adminId,
+				Event:        "admin.quota.override",
+				Content:      fmt.Sprintf("管理员覆盖用户额度从 %s 为 %s", logger.LogQuota(oldQuota), logger.LogQuota(req.Value)),
+				ResourceType: "user",
+				ResourceId:   fmt.Sprintf("%d", user.Id),
+				Quota:        req.Value - oldQuota,
+				Other:        adminInfo,
+			})
 		default:
 			common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 			return

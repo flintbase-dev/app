@@ -90,9 +90,6 @@ func main() {
 	// 热更新配置
 	go model.SyncOptions(common.SyncFrequency)
 
-	// 数据看板
-	go model.UpdateQuotaData()
-
 	if os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
 		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY"))
 		if err != nil {
@@ -117,7 +114,15 @@ func main() {
 
 	if os.Getenv("ENABLE_PPROF") == "true" {
 		gopool.Go(func() {
-			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))
+			pprofAddr := common.GetEnvOrDefaultString("PPROF_ADDR", "127.0.0.1:8005")
+			pprofServer := &http.Server{
+				Addr:              pprofAddr,
+				Handler:           http.DefaultServeMux,
+				ReadHeaderTimeout: 5 * time.Second,
+				IdleTimeout:       60 * time.Second,
+				MaxHeaderBytes:    1 << 20,
+			}
+			log.Println(pprofServer.ListenAndServe())
 		})
 		go common.Monitor()
 		common.SysLog("pprof enabled")
@@ -172,8 +177,15 @@ func main() {
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)
 
-	err = server.Run(":" + port)
-	if err != nil {
+	httpServer := &http.Server{
+		Addr:              ":" + port,
+		Handler:           server,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+	err = httpServer.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
 		common.FatalLog("failed to start HTTP server: " + err.Error())
 	}
 }

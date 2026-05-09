@@ -29,7 +29,7 @@ const LogsFilters = ({
   refresh,
   setShowColumnSelector,
   formApi,
-  setLogType,
+  setLogCategory,
   loading,
   isAdminUser,
   t,
@@ -129,12 +129,12 @@ const LogsFilters = ({
           {/* 日志类型选择器 */}
           <div className='w-full sm:w-auto'>
             <Form.Select
-              field='logType'
+              field='logCategory'
               placeholder={t('日志类型')}
               className='w-full sm:w-auto min-w-[120px]'
-              showClear
               pure
-              onChange={() => {
+              onChange={(value) => {
+                setLogCategory(value || 'usage');
                 // 延迟执行搜索，让表单值先更新
                 setTimeout(() => {
                   refresh();
@@ -142,13 +142,19 @@ const LogsFilters = ({
               }}
               size='small'
             >
-              <Form.Select.Option value='0'>{t('全部')}</Form.Select.Option>
-              <Form.Select.Option value='1'>{t('充值')}</Form.Select.Option>
-              <Form.Select.Option value='2'>{t('消费')}</Form.Select.Option>
-              <Form.Select.Option value='3'>{t('管理')}</Form.Select.Option>
-              <Form.Select.Option value='4'>{t('系统')}</Form.Select.Option>
-              <Form.Select.Option value='5'>{t('错误')}</Form.Select.Option>
-              <Form.Select.Option value='6'>{t('退款')}</Form.Select.Option>
+              <Form.Select.Option value='usage'>{t('消费')}</Form.Select.Option>
+              {isAdminUser && (
+                <Form.Select.Option value='audit'>
+                  {t('审计')}
+                </Form.Select.Option>
+              )}
+              <Form.Select.Option value='error'>{t('错误')}</Form.Select.Option>
+              <Form.Select.Option value='security'>
+                {t('安全')}
+              </Form.Select.Option>
+              <Form.Select.Option value='activity'>
+                {t('活动')}
+              </Form.Select.Option>
             </Form.Select>
           </div>
 
@@ -166,7 +172,7 @@ const LogsFilters = ({
               onClick={() => {
                 if (formApi) {
                   formApi.reset();
-                  setLogType(0);
+                  setLogCategory('usage');
                   setTimeout(() => {
                     refresh();
                   }, 100);

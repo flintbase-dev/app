@@ -311,6 +311,8 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 		return fmt.Errorf("转移额度最小为%s！", logger.LogQuota(int(common.SiteCreditsPerPriceUnit)))
 	}
 
+	var balanceAfter int
+
 	// 开始数据库事务
 	tx := DB.Begin()
 	if tx.Error != nil {
@@ -329,21 +331,38 @@ func (user *User) TransferAffQuotaToQuota(quota int) error {
 		return errors.New("邀请额度不足！")
 	}
 
-	// 更新用户额度
+	// 更新邀请额度，并用 grant 记录进入可消费余额，保留可追溯来源。
 	user.AffQuota -= quota
-	user.Quota += quota
 
-	// 保存用户状态
-	if err := tx.Save(user).Error; err != nil {
+	if err := tx.Model(&User{}).Where("id = ?", user.Id).Update("aff_quota", user.AffQuota).Error; err != nil {
 		return err
 	}
 
-	// 提交事务
-	return tx.Commit().Error
+	var grantErr error
+	balanceAfter, grantErr = GrantUserCreditsTx(tx, CreditGrantParams{
+		UserId:     user.Id,
+		Amount:     quota,
+		SourceType: "affiliate.transfer",
+		SourceId:   newLedgerSourceId("affiliate.transfer", user.Id),
+		RequestId:  common.GetUUID(),
+		Reason:     "transfer affiliate credits to wallet",
+		Metadata: map[string]interface{}{
+			"affiliate_quota_delta": -quota,
+		},
+	})
+	if grantErr != nil {
+		return grantErr
+	}
+
+	if err := tx.Commit().Error; err != nil {
+		return err
+	}
+	updateUserQuotaCacheAfterCommit(user.Id, balanceAfter)
+	return nil
 }
 
 func (user *User) Insert(inviterId int) error {
-	user.Quota = common.QuotaForNewUser
+	user.Quota = 0
 	//user.SetAccessToken(common.GetUUID())
 	user.AffCode = common.GetRandomString(4)
 
@@ -375,16 +394,64 @@ func (user *User) Insert(inviterId int) error {
 	}
 
 	if common.QuotaForNewUser > 0 {
-		RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)))
+		if err := GrantUserCredits(CreditGrantParams{
+			UserId:     user.Id,
+			Amount:     common.QuotaForNewUser,
+			SourceType: "signup.grant",
+			SourceId:   fmt.Sprintf("signup:%d", user.Id),
+			RequestId:  common.GetUUID(),
+			Reason:     "new user registration grant",
+			Metadata: map[string]interface{}{
+				"quota": common.QuotaForNewUser,
+			},
+		}); err != nil {
+			return err
+		}
+		RecordAuditEvent(LogEventParams{
+			UserId:       user.Id,
+			Event:        "quota.signup_grant",
+			Content:      fmt.Sprintf("新用户注册赠送 %s", logger.LogQuota(common.QuotaForNewUser)),
+			ResourceType: "credit_grant",
+			ResourceId:   fmt.Sprintf("signup:%d", user.Id),
+			Quota:        common.QuotaForNewUser,
+		})
 	}
 	if inviterId != 0 {
 		if common.QuotaForInvitee > 0 {
-			_ = IncreaseUserQuota(user.Id, common.QuotaForInvitee, true)
-			RecordLog(user.Id, LogTypeSystem, fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)))
+			if err := GrantUserCredits(CreditGrantParams{
+				UserId:     user.Id,
+				Amount:     common.QuotaForInvitee,
+				SourceType: "invitee.grant",
+				SourceId:   fmt.Sprintf("invitee:%d:%d", inviterId, user.Id),
+				RequestId:  common.GetUUID(),
+				Reason:     "invitee registration grant",
+				Metadata: map[string]interface{}{
+					"inviter_id": inviterId,
+					"quota":      common.QuotaForInvitee,
+				},
+			}); err != nil {
+				return err
+			}
+			RecordAuditEvent(LogEventParams{
+				UserId:       user.Id,
+				ActorUserId:  inviterId,
+				Event:        "quota.invitee_grant",
+				Content:      fmt.Sprintf("使用邀请码赠送 %s", logger.LogQuota(common.QuotaForInvitee)),
+				ResourceType: "credit_grant",
+				ResourceId:   fmt.Sprintf("invitee:%d:%d", inviterId, user.Id),
+				Quota:        common.QuotaForInvitee,
+			})
 		}
 		if common.QuotaForInviter > 0 {
-			//_ = IncreaseUserQuota(inviterId, common.QuotaForInviter)
-			RecordLog(inviterId, LogTypeSystem, fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)))
+			RecordAuditEvent(LogEventParams{
+				UserId:       inviterId,
+				ActorUserId:  user.Id,
+				Event:        "quota.inviter_affiliate_grant",
+				Content:      fmt.Sprintf("邀请用户赠送 %s", logger.LogQuota(common.QuotaForInviter)),
+				ResourceType: "affiliate_credit",
+				ResourceId:   fmt.Sprintf("invite:%d:%d", inviterId, user.Id),
+				Quota:        common.QuotaForInviter,
+			})
 			_ = inviteUser(inviterId)
 		}
 	}
@@ -621,67 +688,6 @@ func GetUserSetting(id int, fromDB bool) (settingMap dto.UserSetting, err error)
 		Setting: setting,
 	}
 	return userBase.GetSetting(), nil
-}
-
-func IncreaseUserQuota(id int, quota int, db bool) (err error) {
-	if quota < 0 {
-		return errors.New("quota 不能为负数！")
-	}
-	gopool.Go(func() {
-		err := cacheIncrUserQuota(id, int64(quota))
-		if err != nil {
-			common.SysLog("failed to increase user quota: " + err.Error())
-		}
-	})
-	if !db && common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, quota)
-		return nil
-	}
-	return increaseUserQuota(id, quota)
-}
-
-func increaseUserQuota(id int, quota int) (err error) {
-	err = DB.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota + ?", quota)).Error
-	if err != nil {
-		return err
-	}
-	return err
-}
-
-func DecreaseUserQuota(id int, quota int, db bool) (err error) {
-	if quota < 0 {
-		return errors.New("quota 不能为负数！")
-	}
-	gopool.Go(func() {
-		err := cacheDecrUserQuota(id, int64(quota))
-		if err != nil {
-			common.SysLog("failed to decrease user quota: " + err.Error())
-		}
-	})
-	if !db && common.BatchUpdateEnabled {
-		addNewRecord(BatchUpdateTypeUserQuota, id, -quota)
-		return nil
-	}
-	return decreaseUserQuota(id, quota)
-}
-
-func decreaseUserQuota(id int, quota int) (err error) {
-	err = DB.Model(&User{}).Where("id = ?", id).Update("quota", gorm.Expr("quota - ?", quota)).Error
-	if err != nil {
-		return err
-	}
-	return err
-}
-
-func DeltaUpdateUserQuota(id int, delta int) (err error) {
-	if delta == 0 {
-		return nil
-	}
-	if delta > 0 {
-		return IncreaseUserQuota(id, delta, false)
-	} else {
-		return DecreaseUserQuota(id, -delta, false)
-	}
 }
 
 //func GetRootUserEmail() (email string) {

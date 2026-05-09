@@ -159,6 +159,21 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 		Group:          relayInfo.UsingGroup,
 		Other:          other,
 	})
+	model.RecordSecurityEventWithContext(ctx, model.LogEventParams{
+		UserId:       relayInfo.UserId,
+		Event:        "relay.policy.violation_fee",
+		Severity:     "warning",
+		Result:       "charged",
+		Content:      "Policy violation fee charged",
+		ModelName:    relayInfo.OriginModelName,
+		TokenName:    tokenName,
+		Quota:        feeQuota,
+		ChannelId:    relayInfo.ChannelId,
+		TokenId:      relayInfo.TokenId,
+		Group:        relayInfo.UsingGroup,
+		ResourceType: "relay_request",
+		Other:        other,
+	})
 
 	return true
 }

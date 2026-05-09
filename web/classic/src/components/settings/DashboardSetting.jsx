@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useState } from 'react';
 import { Card, Spin } from '@douyinfe/semi-ui';
-import { API, showError, toBoolean } from '../../helpers';
+import { API, showError } from '../../helpers';
 import SettingsAPIInfo from '../../pages/Setting/Dashboard/SettingsAPIInfo';
 import SettingsAnnouncements from '../../pages/Setting/Dashboard/SettingsAnnouncements';
 import SettingsFAQ from '../../pages/Setting/Dashboard/SettingsFAQ';
@@ -38,9 +38,7 @@ const DashboardSetting = () => {
     'console_setting.uptime_kuma_enabled': '',
 
     /* 数据看板 */
-    DataExportEnabled: false,
     DataExportDefaultTime: 'hour',
-    DataExportInterval: 5,
   });
 
   let [loading, setLoading] = useState(false);
@@ -53,9 +51,6 @@ const DashboardSetting = () => {
       data.forEach((item) => {
         if (item.key in inputs) {
           newInputs[item.key] = item.value;
-        }
-        if (item.key.endsWith('Enabled') && item.key === 'DataExportEnabled') {
-          newInputs[item.key] = toBoolean(item.value);
         }
       });
       setInputs(newInputs);

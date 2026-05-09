@@ -25,6 +25,13 @@ func TestStatus(c *gin.Context) {
 		})
 		return
 	}
+	if err := model.PingLogDB(); err != nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{
+			"success": false,
+			"message": "日志数据库连接失败",
+		})
+		return
+	}
 	// 获取HTTP统计信息
 	httpStats := middleware.GetStats()
 	c.JSON(http.StatusOK, gin.H{
@@ -58,7 +65,7 @@ func GetStatus(c *gin.Context) {
 		"currency_symbol":             operation_setting.GetCurrencySymbol(),
 		"enable_batch_update":         common.BatchUpdateEnabled,
 		"enable_drawing":              common.DrawingEnabled,
-		"enable_data_export":          common.DataExportEnabled,
+		"enable_data_export":          true,
 		"data_export_default_time":    common.DataExportDefaultTime,
 		"default_collapse_sidebar":    common.DefaultCollapseSidebar,
 		"chats":                       setting.Chats,

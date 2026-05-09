@@ -55,9 +55,15 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 	} else {
 		// Wallet
 		if quota > 0 {
-			err = model.DecreaseUserQuota(relayInfo.UserId, quota, false)
+			err = model.ConsumeUserCreditsForRequest(relayInfo.UserId, quota, "relay.settle", walletLedgerSourceId(relayInfo.RequestId, "settle"), relayInfo.RequestId, map[string]interface{}{
+				"model": relayInfo.OriginModelName,
+				"phase": "settle",
+			})
 		} else {
-			err = model.IncreaseUserQuota(relayInfo.UserId, -quota, false)
+			err = model.RefundUserCreditsForRequest(relayInfo.UserId, -quota, "relay.refund", walletLedgerSourceId(relayInfo.RequestId, "settle_refund"), relayInfo.RequestId, map[string]interface{}{
+				"model": relayInfo.OriginModelName,
+				"phase": "settle_refund",
+			})
 		}
 		if err != nil {
 			return err

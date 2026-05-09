@@ -57,9 +57,6 @@ const OperationSetting = () => {
     CheckSensitiveOnPromptEnabled: false,
     SensitiveWords: '',
 
-    /* 日志设置 */
-    LogConsumeEnabled: false,
-
     /* 监控设置 */
     ChannelDisableThreshold: 0,
     QuotaRemindThreshold: 0,

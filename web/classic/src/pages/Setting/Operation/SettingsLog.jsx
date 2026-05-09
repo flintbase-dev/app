@@ -30,64 +30,18 @@ import {
 } from '@douyinfe/semi-ui';
 import dayjs from 'dayjs';
 import { useTranslation } from 'react-i18next';
-import {
-  compareObjects,
-  API,
-  showError,
-  showSuccess,
-  showWarning,
-} from '../../../helpers';
+import { API, showError, showSuccess } from '../../../helpers';
 
 const { Text } = Typography;
 
-export default function SettingsLog(props) {
+export default function SettingsLog() {
   const { t } = useTranslation();
-  const [loading, setLoading] = useState(false);
   const [loadingCleanHistoryLog, setLoadingCleanHistoryLog] = useState(false);
   const [inputs, setInputs] = useState({
-    LogConsumeEnabled: false,
     historyTimestamp: dayjs().subtract(1, 'month').toDate(),
+    historyCategory: 'error',
   });
   const refForm = useRef();
-  const [inputsRow, setInputsRow] = useState(inputs);
-
-  function onSubmit() {
-    const updateArray = compareObjects(inputs, inputsRow).filter(
-      (item) => item.key !== 'historyTimestamp',
-    );
-
-    if (!updateArray.length) return showWarning(t('你似乎并没有修改什么'));
-    const requestQueue = updateArray.map((item) => {
-      let value = '';
-      if (typeof inputs[item.key] === 'boolean') {
-        value = String(inputs[item.key]);
-      } else {
-        value = inputs[item.key];
-      }
-      return API.put('/api/option/', {
-        key: item.key,
-        value,
-      });
-    });
-    setLoading(true);
-    Promise.all(requestQueue)
-      .then((res) => {
-        if (requestQueue.length === 1) {
-          if (res.includes(undefined)) return;
-        } else if (requestQueue.length > 1) {
-          if (res.includes(undefined))
-            return showError(t('部分保存失败，请重试'));
-        }
-        showSuccess(t('保存成功'));
-        props.refresh();
-      })
-      .catch(() => {
-        showError(t('保存失败，请重试'));
-      })
-      .finally(() => {
-        setLoading(false);
-      });
-  }
   async function onCleanHistoryLog() {
     if (!inputs.historyTimestamp) {
       showError(t('请选择日志记录时间'));
@@ -145,7 +99,7 @@ export default function SettingsLog(props) {
                 ({t('约')} {daysDiff} {t('天前')})
               </Text>
             )}
-            <Text style={{ color: '#333' }}> {t('之前的所有日志')}</Text>
+            <Text style={{ color: '#333' }}> {t('之前的选定类型日志')}</Text>
           </div>
           <p style={{ marginTop: '12px' }}>
             <Text type='danger'>
@@ -161,7 +115,7 @@ export default function SettingsLog(props) {
         try {
           setLoadingCleanHistoryLog(true);
           const res = await API.delete(
-            `/api/log/?target_timestamp=${Date.parse(inputs.historyTimestamp) / 1000}`,
+            `/api/log/?category=${inputs.historyCategory}&target_timestamp=${Date.parse(inputs.historyTimestamp) / 1000}`,
           );
           const { success, message, data } = res.data;
           if (success) {
@@ -180,20 +134,11 @@ export default function SettingsLog(props) {
   }
 
   useEffect(() => {
-    const currentInputs = {};
-    for (let key in props.options) {
-      if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
-      }
-    }
-    currentInputs['historyTimestamp'] = inputs.historyTimestamp;
-    setInputs(Object.assign(inputs, currentInputs));
-    setInputsRow(structuredClone(currentInputs));
-    refForm.current.setValues(currentInputs);
-  }, [props.options]);
+    refForm.current?.setValues(inputs);
+  }, [inputs]);
   return (
     <>
-      <Spin spinning={loading}>
+      <Spin spinning={false}>
         <Form
           values={inputs}
           getFormApi={(formAPI) => (refForm.current = formAPI)}
@@ -202,22 +147,22 @@ export default function SettingsLog(props) {
           <Form.Section text={t('日志设置')}>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.Switch
-                  field={'LogConsumeEnabled'}
-                  label={t('启用额度消费日志记录')}
-                  size='default'
-                  checkedText='｜'
-                  uncheckedText='〇'
-                  onChange={(value) => {
-                    setInputs({
-                      ...inputs,
-                      LogConsumeEnabled: value,
-                    });
-                  }}
-                />
-              </Col>
-              <Col xs={24} sm={12} md={8} lg={8} xl={8}>
                 <Spin spinning={loadingCleanHistoryLog}>
+                  <Form.Select
+                    label={t('清理日志类型')}
+                    field={'historyCategory'}
+                    optionList={[
+                      { label: t('错误'), value: 'error' },
+                      { label: t('安全'), value: 'security' },
+                      { label: t('活动'), value: 'activity' },
+                    ]}
+                    onChange={(value) => {
+                      setInputs({
+                        ...inputs,
+                        historyCategory: value,
+                      });
+                    }}
+                  />
                   <Form.DatePicker
                     label={t('清除历史日志')}
                     field={'historyTimestamp'}
@@ -235,7 +180,7 @@ export default function SettingsLog(props) {
                     size='small'
                     style={{ display: 'block', marginTop: 4, marginBottom: 8 }}
                   >
-                    {t('将清除选定时间之前的所有日志')}
+                    {t('将清除选定时间之前的错误、安全或活动日志')}
                   </Text>
                   <Button
                     size='default'
@@ -246,12 +191,6 @@ export default function SettingsLog(props) {
                   </Button>
                 </Spin>
               </Col>
-            </Row>
-
-            <Row>
-              <Button size='default' onClick={onSubmit}>
-                {t('保存日志设置')}
-              </Button>
             </Row>
           </Form.Section>
         </Form>

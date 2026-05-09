@@ -1,10 +1,6 @@
 package model
 
-import (
-	"fmt"
-
-	"gorm.io/gorm"
-)
+import "fmt"
 
 type RankingQuotaTotal struct {
 	ModelName   string `json:"model_name"`
@@ -19,14 +15,18 @@ type RankingQuotaBucket struct {
 
 func GetRankingQuotaTotals(startTime int64, endTime int64) ([]RankingQuotaTotal, error) {
 	var rows []RankingQuotaTotal
-	query := DB.Table("quota_data").
-		Select("model_name, sum(token_used) as total_tokens").
+	query, err := usageLogsQuery()
+	if err != nil {
+		return nil, err
+	}
+	query = query.
+		Select("model_name, sum(prompt_tokens + completion_tokens) as total_tokens").
 		Where("model_name <> ''").
 		Group("model_name").
-		Having("sum(token_used) > 0").
+		Having("sum(prompt_tokens + completion_tokens) > 0").
 		Order("total_tokens DESC")
-	query = applyRankingQuotaTimeRange(query, startTime, endTime)
-	err := query.Find(&rows).Error
+	query = applyUsageTimeRange(query, startTime, endTime)
+	err = query.Find(&rows).Error
 	return rows, err
 }
 
@@ -36,27 +36,21 @@ func GetRankingQuotaBuckets(startTime int64, endTime int64, bucketSize int64) ([
 	}
 	bucketExpr := rankingBucketExpr(bucketSize)
 	var rows []RankingQuotaBucket
-	query := DB.Table("quota_data").
-		Select(fmt.Sprintf("model_name, %s as bucket, sum(token_used) as tokens", bucketExpr)).
+	query, err := usageLogsQuery()
+	if err != nil {
+		return nil, err
+	}
+	query = query.
+		Select(fmt.Sprintf("model_name, %s as bucket, sum(prompt_tokens + completion_tokens) as tokens", bucketExpr)).
 		Where("model_name <> ''").
 		Group(fmt.Sprintf("model_name, %s", bucketExpr)).
-		Having("sum(token_used) > 0").
+		Having("sum(prompt_tokens + completion_tokens) > 0").
 		Order("bucket ASC")
-	query = applyRankingQuotaTimeRange(query, startTime, endTime)
-	err := query.Find(&rows).Error
+	query = applyUsageTimeRange(query, startTime, endTime)
+	err = query.Find(&rows).Error
 	return rows, err
 }
 
 func rankingBucketExpr(bucketSize int64) string {
-	return fmt.Sprintf("(created_at / %d) * %d", bucketSize, bucketSize)
-}
-
-func applyRankingQuotaTimeRange(query *gorm.DB, startTime int64, endTime int64) *gorm.DB {
-	if startTime > 0 {
-		query = query.Where("created_at >= ?", startTime)
-	}
-	if endTime > 0 {
-		query = query.Where("created_at <= ?", endTime)
-	}
-	return query
+	return fmt.Sprintf("intDiv(created_at, %d) * %d", bucketSize, bucketSize)
 }
