@@ -23,7 +23,7 @@ import { useTranslation } from 'react-i18next';
 
 import ModelPricingCombined from '../../pages/Setting/Ratio/ModelPricingCombined';
 import GroupRatioSettings from '../../pages/Setting/Ratio/GroupRatioSettings';
-import ModelRatioNotSetEditor from '../../pages/Setting/Ratio/ModelRationNotSetEditor';
+import ModelPriceNotSetEditor from '../../pages/Setting/Ratio/ModelPriceNotSetEditor';
 import UpstreamRatioSync from '../../pages/Setting/Ratio/UpstreamRatioSync';
 import ToolPriceSettings from '../../pages/Setting/Ratio/ToolPriceSettings';
 
@@ -34,10 +34,10 @@ const RatioSetting = () => {
 
   let [inputs, setInputs] = useState({
     ModelPrice: '',
-    ModelRatio: '',
+    CompletionPrice: '',
+    ModelFixedPrice: '',
     CacheRatio: '',
     CreateCacheRatio: '',
-    CompletionRatio: '',
     GroupRatio: '',
     GroupGroupRatio: '',
     ImageRatio: '',
@@ -104,7 +104,7 @@ const RatioSetting = () => {
             <GroupRatioSettings options={inputs} refresh={onRefresh} />
           </Tabs.TabPane>
           <Tabs.TabPane tab={t('未设置价格模型')} itemKey='unset_models'>
-            <ModelRatioNotSetEditor options={inputs} refresh={onRefresh} />
+            <ModelPriceNotSetEditor options={inputs} refresh={onRefresh} />
           </Tabs.TabPane>
           <Tabs.TabPane tab={t('上游价格同步')} itemKey='upstream_sync'>
             <UpstreamRatioSync options={inputs} refresh={onRefresh} />

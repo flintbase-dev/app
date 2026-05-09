@@ -362,7 +362,7 @@ func TestTryTieredSettle_RatioMode_WrongBillingMode(t *testing.T) {
 
 	ok, _, _ := TryTieredSettle(info, billingexpr.TokenParams{P: 1000, C: 500})
 	if ok {
-		t.Fatal("expected TryTieredSettle to return false for ratio billing mode")
+		t.Fatal("expected TryTieredSettle to return false for token quota billing mode")
 	}
 }
 
@@ -412,7 +412,7 @@ func TestTryTieredSettle_ErrorFallbackToEstimatedQuotaAfterGroup(t *testing.T) {
 }
 
 // ---------------------------------------------------------------------------
-// BuildTieredTokenParams: token normalization and ratio parity tests
+// BuildTieredTokenParams: token normalization and direct price parity tests
 // ---------------------------------------------------------------------------
 
 func tieredQuota(exprStr string, usage *dto.Usage, isClaudeSemantic bool, groupRatio float64) float64 {
@@ -422,14 +422,14 @@ func tieredQuota(exprStr string, usage *dto.Usage, isClaudeSemantic bool, groupR
 	return cost / 1_000_000 * testQuotaPerUnit * groupRatio
 }
 
-func ratioQuota(usage *dto.Usage, isClaudeSemantic bool, modelRatio, completionRatio, cacheRatio, imageRatio, groupRatio float64) float64 {
+func directPriceQuota(usage *dto.Usage, isClaudeSemantic bool, modelPrice, completionPrice, cacheRatio, imageRatio, groupRatio float64) float64 {
 	dPromptTokens := decimal.NewFromInt(int64(usage.PromptTokens))
 	dCacheTokens := decimal.NewFromInt(int64(usage.PromptTokensDetails.CachedTokens))
 	dCcTokens := decimal.NewFromInt(int64(usage.PromptTokensDetails.CachedCreationTokens))
 	dImgTokens := decimal.NewFromInt(int64(usage.PromptTokensDetails.ImageTokens))
 	dCompletionTokens := decimal.NewFromInt(int64(usage.CompletionTokens))
-	dModelRatio := decimal.NewFromFloat(modelRatio)
-	dCompletionRatio := decimal.NewFromFloat(completionRatio)
+	dModelPrice := decimal.NewFromFloat(modelPrice)
+	dCompletionPrice := decimal.NewFromFloat(completionPrice)
 	dCacheRatio := decimal.NewFromFloat(cacheRatio)
 	dImageRatio := decimal.NewFromFloat(imageRatio)
 	dGroupRatio := decimal.NewFromFloat(groupRatio)
@@ -441,15 +441,14 @@ func ratioQuota(usage *dto.Usage, isClaudeSemantic bool, modelRatio, completionR
 		baseTokens = baseTokens.Sub(dImgTokens)
 	}
 
-	cachedTokensWithRatio := dCacheTokens.Mul(dCacheRatio)
-	imageTokensWithRatio := dImgTokens.Mul(dImageRatio)
-	promptQuota := baseTokens.Add(cachedTokensWithRatio).Add(imageTokensWithRatio)
-	completionQuota := dCompletionTokens.Mul(dCompletionRatio)
-	ratio := dModelRatio.Mul(dGroupRatio)
+	inputCost := baseTokens.Mul(dModelPrice)
+	cacheCost := dCacheTokens.Mul(dModelPrice).Mul(dCacheRatio)
+	imageCost := dImgTokens.Mul(dModelPrice).Mul(dImageRatio)
+	completionCost := dCompletionTokens.Mul(dCompletionPrice)
 
-	result := promptQuota.Add(completionQuota).Mul(ratio)
+	result := inputCost.Add(cacheCost).Add(imageCost).Add(completionCost).Mul(dGroupRatio)
 	f, _ := result.Float64()
-	return f
+	return f / 1_000_000 * testQuotaPerUnit
 }
 
 func TestBuildTieredTokenParams_GPT_WithCache(t *testing.T) {
@@ -560,9 +559,8 @@ func TestBuildTieredTokenParams_GPT_AudioOutputNoVar(t *testing.T) {
 	}
 }
 
-func TestBuildTieredTokenParams_ParityWithRatio(t *testing.T) {
+func TestBuildTieredTokenParams_ParityWithDirectPrice(t *testing.T) {
 	// GPT-5.4 prices: input=$2.5, output=$15, cacheRead=$0.25
-	// Ratio equivalents: modelRatio=1.25, completionRatio=6, cacheRatio=0.1
 	usage := &dto.Usage{
 		PromptTokens:     10000,
 		CompletionTokens: 2000,
@@ -575,17 +573,16 @@ func TestBuildTieredTokenParams_ParityWithRatio(t *testing.T) {
 
 	for _, gr := range []float64{1.0, 1.5, 2.0, 0.5} {
 		tq := tieredQuota(expr, usage, false, gr)
-		rq := ratioQuota(usage, false, 1.25, 6, 0.1, 0, gr)
+		rq := directPriceQuota(usage, false, 2.5, 15, 0.1, 0, gr)
 
 		if math.Abs(tq-rq) > 0.01 {
-			t.Fatalf("groupRatio=%v: tiered=%f ratio=%f (mismatch)", gr, tq, rq)
+			t.Fatalf("groupRatio=%v: tiered=%f direct=%f (mismatch)", gr, tq, rq)
 		}
 	}
 }
 
-func TestBuildTieredTokenParams_ParityWithRatio_Image(t *testing.T) {
+func TestBuildTieredTokenParams_ParityWithDirectPrice_Image(t *testing.T) {
 	// gpt-image-1-mini prices: input=$2, output=$8, image=$2.5
-	// Ratio equivalents: modelRatio=1, completionRatio=4, imageRatio=1.25
 	usage := &dto.Usage{
 		PromptTokens:     5000,
 		CompletionTokens: 4000,
@@ -597,10 +594,10 @@ func TestBuildTieredTokenParams_ParityWithRatio_Image(t *testing.T) {
 	expr := `tier("base", p * 2 + c * 8 + img * 2.5)`
 
 	tq := tieredQuota(expr, usage, false, 1.0)
-	rq := ratioQuota(usage, false, 1.0, 4, 0, 1.25, 1.0)
+	rq := directPriceQuota(usage, false, 2, 8, 0, 1.25, 1.0)
 
 	if math.Abs(tq-rq) > 0.01 {
-		t.Fatalf("tiered=%f ratio=%f (mismatch)", tq, rq)
+		t.Fatalf("tiered=%f direct=%f (mismatch)", tq, rq)
 	}
 }
 
@@ -792,7 +789,7 @@ func BenchmarkTieredBilling_ComplexExpr(b *testing.B) {
 	}
 }
 
-func BenchmarkRatioBilling_Equivalent(b *testing.B) {
+func BenchmarkDirectPriceBilling_Equivalent(b *testing.B) {
 	rng := rand.New(rand.NewSource(42))
 	usages := make([]*dto.Usage, 1000)
 	for i := range usages {
@@ -802,7 +799,7 @@ func BenchmarkRatioBilling_Equivalent(b *testing.B) {
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		usage := usages[i%len(usages)]
-		ratioQuota(usage, false, 1.5, 5.0, 0.1, 1.0, 1.5)
+		directPriceQuota(usage, false, 3.0, 15.0, 0.1, 1.0, 1.5)
 	}
 }
 
@@ -819,12 +816,12 @@ func BenchmarkTieredBilling_Parallel(b *testing.B) {
 	})
 }
 
-func BenchmarkRatioBilling_Parallel(b *testing.B) {
+func BenchmarkDirectPriceBilling_Parallel(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		rng := rand.New(rand.NewSource(rand.Int63()))
 		for pb.Next() {
 			usage := randomUsage(rng)
-			ratioQuota(usage, false, 1.5, 5.0, 0.1, 1.0, 1.5)
+			directPriceQuota(usage, false, 3.0, 15.0, 0.1, 1.0, 1.5)
 		}
 	})
 }

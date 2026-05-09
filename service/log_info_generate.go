@@ -32,15 +32,15 @@ func appendRequestPath(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, other
 	}
 }
 
-func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelRatio, groupRatio, completionRatio float64,
-	cacheTokens int, cacheRatio float64, modelPrice float64, userGroupRatio float64) map[string]interface{} {
+func GenerateTextOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelPrice, groupRatio, completionPrice float64,
+	cacheTokens int, cacheRatio float64, modelFixedPrice float64, userGroupRatio float64) map[string]interface{} {
 	other := make(map[string]interface{})
-	other["model_ratio"] = modelRatio
+	other["model_price"] = modelPrice
 	other["group_ratio"] = groupRatio
-	other["completion_ratio"] = completionRatio
+	other["completion_price"] = completionPrice
 	other["cache_tokens"] = cacheTokens
 	other["cache_ratio"] = cacheRatio
-	other["model_price"] = modelPrice
+	other["model_fixed_price"] = modelFixedPrice
 	other["user_group_ratio"] = userGroupRatio
 	other["frt"] = float64(relayInfo.FirstResponseTime.UnixMilli() - relayInfo.StartTime.UnixMilli())
 	if relayInfo.ReasoningEffort != "" {
@@ -208,13 +208,13 @@ func appendFinalRequestFormat(relayInfo *relaycommon.RelayInfo, other map[string
 	}
 }
 
-func GenerateClaudeOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelRatio, groupRatio, completionRatio float64,
+func GenerateClaudeOtherInfo(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, modelPrice, groupRatio, completionPrice float64,
 	cacheTokens int, cacheRatio float64,
 	cacheCreationTokens int, cacheCreationRatio float64,
 	cacheCreationTokens5m int, cacheCreationRatio5m float64,
 	cacheCreationTokens1h int, cacheCreationRatio1h float64,
-	modelPrice float64, userGroupRatio float64) map[string]interface{} {
-	info := GenerateTextOtherInfo(ctx, relayInfo, modelRatio, groupRatio, completionRatio, cacheTokens, cacheRatio, modelPrice, userGroupRatio)
+	modelFixedPrice float64, userGroupRatio float64) map[string]interface{} {
+	info := GenerateTextOtherInfo(ctx, relayInfo, modelPrice, groupRatio, completionPrice, cacheTokens, cacheRatio, modelFixedPrice, userGroupRatio)
 	info["claude"] = true
 	info["cache_creation_tokens"] = cacheCreationTokens
 	info["cache_creation_ratio"] = cacheCreationRatio

@@ -37,14 +37,14 @@ import {
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 
-export default function ModelRatioSettings(props) {
+export default function ModelPriceSettings(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     ModelPrice: '',
-    ModelRatio: '',
+    CompletionPrice: '',
+    ModelFixedPrice: '',
     CacheRatio: '',
     CreateCacheRatio: '',
-    CompletionRatio: '',
     ImageRatio: '',
     AudioRatio: '',
     AudioCompletionRatio: '',
@@ -108,9 +108,9 @@ export default function ModelRatioSettings(props) {
     }
   }
 
-  async function resetModelRatio() {
+  async function resetModelPrices() {
     try {
-      let res = await API.post(`/api/option/rest_model_ratio`);
+      let res = await API.post(`/api/option/reset_model_prices`);
       if (res.data.success) {
         showSuccess(res.data.message);
         props.refresh();
@@ -144,10 +144,10 @@ export default function ModelRatioSettings(props) {
         <Row gutter={16}>
           <Col xs={24} sm={16}>
             <Form.TextArea
-              label={t('模型固定价格')}
-              extraText={t('一次调用消耗多少刀，优先级大于模型倍率')}
+              label={t('模型价格（每 Mtk）')}
+              extraText={t('模型输入价格，单位为每 Mtk 的美元价格')}
               placeholder={t(
-                '为一个 JSON 文本，键为模型名称，值为一次调用消耗多少刀，比如 "gpt-4-gizmo-*": 0.1，一次消耗0.1刀',
+                '为一个 JSON 文本，键为模型名称，值为每 Mtk 价格，例如：{"gpt-4o": 2.5}',
               )}
               field={'ModelPrice'}
               autosize={{ minRows: 6, maxRows: 12 }}
@@ -166,9 +166,11 @@ export default function ModelRatioSettings(props) {
         <Row gutter={16}>
           <Col xs={24} sm={16}>
             <Form.TextArea
-              label={t('模型倍率')}
-              placeholder={t('为一个 JSON 文本，键为模型名称，值为倍率')}
-              field={'ModelRatio'}
+              label={t('模型补全价格（每 Mtk）')}
+              placeholder={t(
+                '为一个 JSON 文本，键为模型名称，值为每 Mtk 补全价格，例如：{"gpt-4o": 10}',
+              )}
+              field={'CompletionPrice'}
               autosize={{ minRows: 6, maxRows: 12 }}
               trigger='blur'
               stopValidateWithError
@@ -178,7 +180,33 @@ export default function ModelRatioSettings(props) {
                   message: '不是合法的 JSON 字符串',
                 },
               ]}
-              onChange={(value) => setInputs({ ...inputs, ModelRatio: value })}
+              onChange={(value) =>
+                setInputs({ ...inputs, CompletionPrice: value })
+              }
+            />
+          </Col>
+        </Row>
+        <Row gutter={16}>
+          <Col xs={24} sm={16}>
+            <Form.TextArea
+              label={t('模型按次固定价格')}
+              extraText={t('一次调用消耗多少刀，适合按次收费模型')}
+              placeholder={t(
+                '为一个 JSON 文本，键为模型名称，值为一次调用价格，例如：{"dall-e-3": 0.04}',
+              )}
+              field={'ModelFixedPrice'}
+              autosize={{ minRows: 6, maxRows: 12 }}
+              trigger='blur'
+              stopValidateWithError
+              rules={[
+                {
+                  validator: (rule, value) => verifyJSON(value),
+                  message: '不是合法的 JSON 字符串',
+                },
+              ]}
+              onChange={(value) =>
+                setInputs({ ...inputs, ModelFixedPrice: value })
+              }
             />
           </Col>
         </Row>
@@ -221,28 +249,6 @@ export default function ModelRatioSettings(props) {
               ]}
               onChange={(value) =>
                 setInputs({ ...inputs, CreateCacheRatio: value })
-              }
-            />
-          </Col>
-        </Row>
-        <Row gutter={16}>
-          <Col xs={24} sm={16}>
-            <Form.TextArea
-              label={t('模型补全倍率（仅对自定义模型有效）')}
-              extraText={t('仅对自定义模型有效')}
-              placeholder={t('为一个 JSON 文本，键为模型名称，值为倍率')}
-              field={'CompletionRatio'}
-              autosize={{ minRows: 6, maxRows: 12 }}
-              trigger='blur'
-              stopValidateWithError
-              rules={[
-                {
-                  validator: (rule, value) => verifyJSON(value),
-                  message: '不是合法的 JSON 字符串',
-                },
-              ]}
-              onChange={(value) =>
-                setInputs({ ...inputs, CompletionRatio: value })
               }
             />
           </Col>
@@ -332,15 +338,15 @@ export default function ModelRatioSettings(props) {
         </Row>
       </Form>
       <Space>
-        <Button onClick={onSubmit}>{t('保存模型倍率设置')}</Button>
+        <Button onClick={onSubmit}>{t('保存模型价格设置')}</Button>
         <Popconfirm
-          title={t('确定重置模型倍率吗？')}
+          title={t('确定重置模型价格吗？')}
           content={t('此修改将不可逆')}
           okType={'danger'}
           position={'top'}
-          onConfirm={resetModelRatio}
+          onConfirm={resetModelPrices}
         >
-          <Button type={'danger'}>{t('重置模型倍率')}</Button>
+          <Button type={'danger'}>{t('重置模型价格')}</Button>
         </Popconfirm>
       </Space>
     </Spin>

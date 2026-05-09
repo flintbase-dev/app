@@ -22,10 +22,10 @@ type Pricing struct {
 	Tags                   string                  `json:"tags,omitempty"`
 	VendorID               int                     `json:"vendor_id,omitempty"`
 	QuotaType              int                     `json:"quota_type"`
-	ModelRatio             float64                 `json:"model_ratio"`
 	ModelPrice             float64                 `json:"model_price"`
+	CompletionPrice        float64                 `json:"completion_price"`
+	ModelFixedPrice        float64                 `json:"model_fixed_price"`
 	OwnerBy                string                  `json:"owner_by"`
-	CompletionRatio        float64                 `json:"completion_ratio"`
 	CacheRatio             *float64                `json:"cache_ratio,omitempty"`
 	CreateCacheRatio       *float64                `json:"create_cache_ratio,omitempty"`
 	ImageRatio             *float64                `json:"image_ratio,omitempty"`
@@ -108,7 +108,6 @@ func GetModelSupportEndpointTypes(model string) []constant.EndpointType {
 }
 
 func updatePricing() {
-	//modelRatios := common.GetModelRatios()
 	enableAbilities, err := GetAllEnableAbilityWithChannels()
 	if err != nil {
 		common.SysLog(fmt.Sprintf("GetAllEnableAbilityWithChannels error: %v", err))
@@ -304,14 +303,14 @@ func updatePricing() {
 			pricing.Tags = meta.Tags
 			pricing.VendorID = meta.VendorID
 		}
-		modelPrice, findPrice := ratio_setting.GetModelPrice(model, false)
-		if findPrice {
-			pricing.ModelPrice = modelPrice
+		modelFixedPrice, findFixedPrice := ratio_setting.GetModelFixedPrice(model, false)
+		if findFixedPrice {
+			pricing.ModelFixedPrice = modelFixedPrice
 			pricing.QuotaType = 1
 		} else {
-			modelRatio, _, _ := ratio_setting.GetModelRatio(model)
-			pricing.ModelRatio = modelRatio
-			pricing.CompletionRatio = ratio_setting.GetCompletionRatio(model)
+			modelPrice, _ := ratio_setting.GetModelPrice(model, false)
+			pricing.ModelPrice = modelPrice
+			pricing.CompletionPrice = ratio_setting.GetCompletionPrice(model)
 			pricing.QuotaType = 0
 		}
 		if cacheRatio, ok := ratio_setting.GetCacheRatio(model); ok {

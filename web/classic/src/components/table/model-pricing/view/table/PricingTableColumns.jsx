@@ -18,8 +18,7 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Tag, Space, Tooltip } from '@douyinfe/semi-ui';
-import { IconHelpCircle } from '@douyinfe/semi-icons';
+import { Tag, Space } from '@douyinfe/semi-ui';
 import {
   renderModelTag,
   stringToColor,
@@ -106,8 +105,6 @@ export const getPricingTableColumns = ({
   selectedGroup,
   groupRatio,
   copyText,
-  setModalImageUrl,
-  setIsModalOpenurl,
   currency,
   siteDisplayType,
   tokenUnit,
@@ -192,33 +189,20 @@ export const getPricingTableColumns = ({
   ];
 
   const ratioColumn = {
-    title: () => (
-      <div className='flex items-center space-x-1'>
-        <span>{t('倍率')}</span>
-        <Tooltip content={t('倍率是为了方便换算不同价格的模型')}>
-          <IconHelpCircle
-            className='text-blue-500 cursor-pointer'
-            onClick={() => {
-              setModalImageUrl('/ratio.png');
-              setIsModalOpenurl(true);
-            }}
-          />
-        </Tooltip>
-      </div>
-    ),
-    dataIndex: 'model_ratio',
+    title: t('价格详情'),
+    dataIndex: 'model_price',
     render: (text, record, index) => {
-      const completionRatio = parseFloat(record.completion_ratio.toFixed(3));
       const priceData = getPriceData(record);
 
       return (
         <div className='space-y-1'>
           <div className='text-gray-700'>
-            {t('模型倍率')}：{record.quota_type === 0 ? text : t('无')}
+            {t('模型价格')}：
+            {record.quota_type === 0 ? priceData?.inputPrice : t('无')}
           </div>
           <div className='text-gray-700'>
-            {t('补全倍率')}：
-            {record.quota_type === 0 ? completionRatio : t('无')}
+            {t('模型补全价格')}：
+            {record.quota_type === 0 ? priceData?.completionPrice : t('无')}
           </div>
           <div className='text-gray-700'>
             {t('分组倍率')}：{priceData?.usedGroupRatio ?? '-'}

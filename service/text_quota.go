@@ -34,12 +34,12 @@ type textQuotaSummary struct {
 	ModelName                string
 	TokenName                string
 	UseTimeSeconds           int64
-	CompletionRatio          float64
+	CompletionPrice          float64
 	CacheRatio               float64
 	ImageRatio               float64
-	ModelRatio               float64
-	GroupRatio               float64
 	ModelPrice               float64
+	GroupRatio               float64
+	ModelFixedPrice          float64
 	CacheCreationRatio       float64
 	CacheCreationRatio5m     float64
 	CacheCreationRatio1h     float64
@@ -161,12 +161,12 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		ModelName:            relayInfo.OriginModelName,
 		TokenName:            ctx.GetString("token_name"),
 		UseTimeSeconds:       time.Now().Unix() - relayInfo.StartTime.Unix(),
-		CompletionRatio:      relayInfo.PriceData.CompletionRatio,
+		CompletionPrice:      relayInfo.PriceData.CompletionPrice,
 		CacheRatio:           relayInfo.PriceData.CacheRatio,
 		ImageRatio:           relayInfo.PriceData.ImageRatio,
-		ModelRatio:           relayInfo.PriceData.ModelRatio,
-		GroupRatio:           relayInfo.PriceData.GroupRatioInfo.GroupRatio,
 		ModelPrice:           relayInfo.PriceData.ModelPrice,
+		GroupRatio:           relayInfo.PriceData.GroupRatioInfo.GroupRatio,
+		ModelFixedPrice:      relayInfo.PriceData.ModelFixedPrice,
 		CacheCreationRatio:   relayInfo.PriceData.CacheCreationRatio,
 		CacheCreationRatio5m: relayInfo.PriceData.CacheCreation5mRatio,
 		CacheCreationRatio1h: relayInfo.PriceData.CacheCreation1hRatio,
@@ -199,22 +199,22 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 	dAudioTokens := decimal.NewFromInt(int64(summary.AudioTokens))
 	dCompletionTokens := decimal.NewFromInt(int64(summary.CompletionTokens))
 	dCachedCreationTokens := decimal.NewFromInt(int64(summary.CacheCreationTokens))
-	dCompletionRatio := decimal.NewFromFloat(summary.CompletionRatio)
+	dCompletionPrice := decimal.NewFromFloat(summary.CompletionPrice)
 	dCacheRatio := decimal.NewFromFloat(summary.CacheRatio)
 	dImageRatio := decimal.NewFromFloat(summary.ImageRatio)
-	dModelRatio := decimal.NewFromFloat(summary.ModelRatio)
-	dGroupRatio := decimal.NewFromFloat(summary.GroupRatio)
 	dModelPrice := decimal.NewFromFloat(summary.ModelPrice)
+	dGroupRatio := decimal.NewFromFloat(summary.GroupRatio)
+	dModelFixedPrice := decimal.NewFromFloat(summary.ModelFixedPrice)
 	dCacheCreationRatio := decimal.NewFromFloat(summary.CacheCreationRatio)
 	dCacheCreationRatio5m := decimal.NewFromFloat(summary.CacheCreationRatio5m)
 	dCacheCreationRatio1h := decimal.NewFromFloat(summary.CacheCreationRatio1h)
 	dQuotaPerUnit := decimal.NewFromFloat(common.QuotaPerUnit)
 
-	ratio := dModelRatio.Mul(dGroupRatio)
+	modelGroupPrice := dModelPrice.Mul(dGroupRatio)
 	summary.ToolCallSurchargeQuota = calculateTextToolCallSurcharge(ctx, relayInfo, &summary)
 
 	var audioInputQuota decimal.Decimal
-	if !relayInfo.PriceData.UsePrice {
+	if !relayInfo.PriceData.UseFixedPrice {
 		baseTokens := dPromptTokens
 
 		var cachedTokensWithRatio decimal.Decimal
@@ -257,9 +257,10 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 			}
 		}
 
-		promptQuota := baseTokens.Add(cachedTokensWithRatio).Add(imageTokensWithRatio).Add(cachedCreationTokensWithRatio)
-		completionQuota := dCompletionTokens.Mul(dCompletionRatio)
-		quotaCalculateDecimal := promptQuota.Add(completionQuota).Mul(ratio)
+		promptWeightedTokens := baseTokens.Add(cachedTokensWithRatio).Add(imageTokensWithRatio).Add(cachedCreationTokensWithRatio)
+		promptQuota := promptWeightedTokens.Div(decimal.NewFromInt(1_000_000)).Mul(dModelPrice).Mul(dGroupRatio).Mul(dQuotaPerUnit)
+		completionQuota := dCompletionTokens.Div(decimal.NewFromInt(1_000_000)).Mul(dCompletionPrice).Mul(dGroupRatio).Mul(dQuotaPerUnit)
+		quotaCalculateDecimal := promptQuota.Add(completionQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(summary.ToolCallSurchargeQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 
@@ -269,12 +270,12 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 			}
 		}
 
-		if !ratio.IsZero() && quotaCalculateDecimal.LessThanOrEqual(decimal.Zero) {
+		if !modelGroupPrice.IsZero() && quotaCalculateDecimal.LessThanOrEqual(decimal.Zero) {
 			quotaCalculateDecimal = decimal.NewFromInt(1)
 		}
 		summary.Quota = int(quotaCalculateDecimal.Round(0).IntPart())
 	} else {
-		quotaCalculateDecimal := dModelPrice.Mul(dQuotaPerUnit).Mul(dGroupRatio)
+		quotaCalculateDecimal := dModelFixedPrice.Mul(dQuotaPerUnit).Mul(dGroupRatio)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(summary.ToolCallSurchargeQuota)
 		quotaCalculateDecimal = quotaCalculateDecimal.Add(audioInputQuota)
 		if len(relayInfo.PriceData.OtherRatios) > 0 {
@@ -285,9 +286,14 @@ func calculateTextQuotaSummary(ctx *gin.Context, relayInfo *relaycommon.RelayInf
 		summary.Quota = int(quotaCalculateDecimal.Round(0).IntPart())
 	}
 
+	minChargePrice := modelGroupPrice
+	if relayInfo.PriceData.UseFixedPrice {
+		minChargePrice = dModelFixedPrice.Mul(dGroupRatio)
+	}
+
 	if summary.TotalTokens == 0 {
 		summary.Quota = 0
-	} else if !ratio.IsZero() && summary.Quota == 0 {
+	} else if !minChargePrice.IsZero() && summary.Quota == 0 {
 		summary.Quota = 1
 	}
 
@@ -373,15 +379,15 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	var other map[string]interface{}
 	if summary.IsClaudeUsageSemantic {
 		other = GenerateClaudeOtherInfo(ctx, relayInfo,
-			summary.ModelRatio, summary.GroupRatio, summary.CompletionRatio,
+			summary.ModelPrice, summary.GroupRatio, summary.CompletionPrice,
 			summary.CacheTokens, summary.CacheRatio,
 			summary.CacheCreationTokens, summary.CacheCreationRatio,
 			summary.CacheCreationTokens5m, summary.CacheCreationRatio5m,
 			summary.CacheCreationTokens1h, summary.CacheCreationRatio1h,
-			summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+			summary.ModelFixedPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 		other["usage_semantic"] = "anthropic"
 	} else {
-		other = GenerateTextOtherInfo(ctx, relayInfo, summary.ModelRatio, summary.GroupRatio, summary.CompletionRatio, summary.CacheTokens, summary.CacheRatio, summary.ModelPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
+		other = GenerateTextOtherInfo(ctx, relayInfo, summary.ModelPrice, summary.GroupRatio, summary.CompletionPrice, summary.CacheTokens, summary.CacheRatio, summary.ModelFixedPrice, relayInfo.PriceData.GroupRatioInfo.GroupSpecialRatio)
 	}
 	if adminRejectReason != "" {
 		other["reject_reason"] = adminRejectReason

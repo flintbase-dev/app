@@ -30,8 +30,8 @@ func TestSettleTestQuotaUsesTieredBilling(t *testing.T) {
 	}
 
 	quota, result := settleTestQuota(info, types.PriceData{
-		ModelRatio:      1,
-		CompletionRatio: 2,
+		ModelPrice:      2,
+		CompletionPrice: 4,
 	}, &dto.Usage{
 		PromptTokens: 1000,
 	})

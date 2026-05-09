@@ -31,8 +31,8 @@ func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	}
 
 	priceData := types.PriceData{
-		ModelRatio:           1,
-		CompletionRatio:      2,
+		ModelPrice:           2,
+		CompletionPrice:      4,
 		CacheRatio:           0.1,
 		CacheCreationRatio:   1.25,
 		CacheCreation5mRatio: 1.25,
@@ -77,8 +77,8 @@ func TestCalculateTextQuotaSummaryUsesSplitClaudeCacheCreationRatios(t *testing.
 		FinalRequestRelayFormat: types.RelayFormatClaude,
 		OriginModelName:         "claude-3-7-sonnet",
 		PriceData: types.PriceData{
-			ModelRatio:           1,
-			CompletionRatio:      1,
+			ModelPrice:           2,
+			CompletionPrice:      2,
 			CacheRatio:           0,
 			CacheCreationRatio:   1,
 			CacheCreation5mRatio: 2,
@@ -115,8 +115,8 @@ func TestCalculateTextQuotaSummaryUsesAnthropicUsageSemanticFromUpstreamUsage(t 
 		RelayFormat:     types.RelayFormatOpenAI,
 		OriginModelName: "claude-3-7-sonnet",
 		PriceData: types.PriceData{
-			ModelRatio:           1,
-			CompletionRatio:      2,
+			ModelPrice:           2,
+			CompletionPrice:      4,
 			CacheRatio:           0.1,
 			CacheCreationRatio:   1.25,
 			CacheCreation5mRatio: 1.25,
@@ -180,8 +180,8 @@ func TestCalculateTextQuotaSummaryHandlesLegacyClaudeDerivedOpenAIUsage(t *testi
 		RelayFormat:     types.RelayFormatOpenAI,
 		OriginModelName: "claude-3-7-sonnet",
 		PriceData: types.PriceData{
-			ModelRatio:           1,
-			CompletionRatio:      5,
+			ModelPrice:           2,
+			CompletionPrice:      10,
 			CacheRatio:           0.1,
 			CacheCreationRatio:   1.25,
 			CacheCreation5mRatio: 1.25,
@@ -217,8 +217,8 @@ func TestComposeTieredTextQuotaKeepsToolCallSurcharges(t *testing.T) {
 	relayInfo := &relaycommon.RelayInfo{
 		OriginModelName: "o1",
 		PriceData: types.PriceData{
-			ModelRatio:      1,
-			CompletionRatio: 1,
+			ModelPrice:      2,
+			CompletionPrice: 2,
 			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
 		},
 		ResponsesUsageInfo: &relaycommon.ResponsesUsageInfo{
@@ -264,8 +264,8 @@ func TestComposeTieredTextQuotaFallbackKeepsToolCallSurcharges(t *testing.T) {
 	relayInfo := &relaycommon.RelayInfo{
 		OriginModelName: "claude-3-7-sonnet",
 		PriceData: types.PriceData{
-			ModelRatio:      1,
-			CompletionRatio: 1,
+			ModelPrice:      2,
+			CompletionPrice: 2,
 			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1.25},
 		},
 		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
@@ -298,8 +298,8 @@ func TestComposeTieredTextQuotaErrorFallbackUsesPreConsumedQuota(t *testing.T) {
 	relayInfo := &relaycommon.RelayInfo{
 		OriginModelName: "claude-3-7-sonnet",
 		PriceData: types.PriceData{
-			ModelRatio:      1,
-			CompletionRatio: 1,
+			ModelPrice:      2,
+			CompletionPrice: 2,
 			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1.25},
 		},
 		TieredBillingSnapshot: &billingexpr.BillingSnapshot{

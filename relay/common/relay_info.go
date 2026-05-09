@@ -91,7 +91,7 @@ type RelayInfo struct {
 	IsStream               bool
 	IsGeminiBatchEmbedding bool
 	IsPlayground           bool
-	UsePrice               bool
+	UseFixedPrice          bool
 	RelayMode              int
 	OriginModelName        string
 	RequestURLPath         string
@@ -248,7 +248,7 @@ func (info *RelayInfo) ToString() string {
 	}
 
 	// Price data (non-sensitive)
-	if info.PriceData.UsePrice {
+	if info.PriceData.UseFixedPrice {
 		fmt.Fprintf(b, "PriceData{ %s }, ", info.PriceData.ToSetting())
 	}
 

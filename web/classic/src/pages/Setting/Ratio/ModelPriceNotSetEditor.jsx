@@ -22,7 +22,7 @@ import { API, showError } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import ModelPricingEditor from './components/ModelPricingEditor';
 
-export default function ModelRatioNotSetEditor(props) {
+export default function ModelPriceNotSetEditor(props) {
   const { t } = useTranslation();
   const [enabledModels, setEnabledModels] = useState([]);
 
@@ -55,7 +55,7 @@ export default function ModelRatioNotSetEditor(props) {
       allowDeleteModel={false}
       showConflictFilter={false}
       listDescription={t(
-        '此页面仅显示未设置价格或基础倍率的模型，设置后会自动从列表中移出',
+        '此页面仅显示未设置模型价格的模型，设置后会自动从列表中移出',
       )}
       emptyTitle={t('没有未设置定价的模型')}
       emptyDescription={t('当前没有未设置定价的模型')}

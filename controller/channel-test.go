@@ -451,21 +451,22 @@ func settleTestQuota(info *relaycommon.RelayInfo, priceData types.PriceData, usa
 	}
 
 	quota := 0
-	if !priceData.UsePrice {
-		quota = usage.PromptTokens + int(math.Round(float64(usage.CompletionTokens)*priceData.CompletionRatio))
-		quota = int(math.Round(float64(quota) * priceData.ModelRatio))
-		if priceData.ModelRatio != 0 && quota <= 0 {
+	if !priceData.UseFixedPrice {
+		promptQuota := float64(usage.PromptTokens) / 1_000_000 * priceData.ModelPrice * common.QuotaPerUnit * priceData.GroupRatioInfo.GroupRatio
+		completionQuota := float64(usage.CompletionTokens) / 1_000_000 * priceData.CompletionPrice * common.QuotaPerUnit * priceData.GroupRatioInfo.GroupRatio
+		quota = int(math.Round(promptQuota + completionQuota))
+		if priceData.ModelPrice != 0 && quota <= 0 {
 			quota = 1
 		}
 		return quota, nil
 	}
 
-	return int(priceData.ModelPrice * common.QuotaPerUnit), nil
+	return int(priceData.ModelFixedPrice * common.QuotaPerUnit * priceData.GroupRatioInfo.GroupRatio), nil
 }
 
 func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData types.PriceData, usage *dto.Usage, tieredResult *billingexpr.TieredResult) map[string]interface{} {
-	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
-		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
+	other := service.GenerateTextOtherInfo(c, info, priceData.ModelPrice, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionPrice,
+		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelFixedPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	if tieredResult != nil {
 		service.InjectTieredBillingInfo(other, info, tieredResult)
 	}

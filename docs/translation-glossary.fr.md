@@ -26,8 +26,8 @@ This document provides standard French translations for key project terminology 
 | 补全 | Complétion | Completion | Contenu de sortie du modèle. **Important :** Ne pas utiliser "Achèvement" ou "Finalisation" - uniquement "Complétion" pour correspondre à la terminologie technique |
 | 输入 | Entrée | Input/Prompt | Contenu envoyé au modèle |
 | 输出 | Sortie | Output/Completion | Contenu retourné par le modèle |
-| 模型倍率 | Ratio du modèle | Model Ratio | Ratio de tarification pour différents modèles |
-| 补全倍率 | Ratio de complétion | Completion Ratio | Ratio de tarification supplémentaire pour la sortie |
+| 模型价格（每 Mtk） | Prix du modèle par Mtk | Model Price (per Mtk) | Prix d'entrée par million de jetons |
+| 模型补全价格（每 Mtk） | Prix de complétion par Mtk | Completion Price (per Mtk) | Prix de sortie par million de jetons |
 | 固定价格 | Prix fixe | Price per call | Prix par appel |
 | 按量计费 | Paiement à l'utilisation | Pay-as-you-go | Tarification basée sur l'utilisation |
 | 按次计费 | Paiement par appel | Pay-per-view | Prix fixe par appel |

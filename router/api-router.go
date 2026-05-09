@@ -112,7 +112,7 @@ func SetApiRouter(router *gin.Engine) {
 			optionRoute.PUT("/", controller.UpdateOption)
 			optionRoute.GET("/channel_affinity_cache", controller.GetChannelAffinityCacheStats)
 			optionRoute.DELETE("/channel_affinity_cache", controller.ClearChannelAffinityCache)
-			optionRoute.POST("/rest_model_ratio", controller.ResetModelRatio)
+			optionRoute.POST("/reset_model_prices", controller.ResetModelPrices)
 		}
 
 		performanceRoute := apiRouter.Group("/performance")

@@ -67,12 +67,12 @@ func init() {
 func ListModels(c *gin.Context, modelType int) {
 	userOpenAiModels := make([]dto.OpenAIModels, 0)
 
-	acceptUnsetRatioModel := false
+	acceptUnsetPriceModel := false
 	userId := c.GetInt("id")
 	if userId > 0 {
 		userSettings, _ := model.GetUserSetting(userId, false)
-		if userSettings.AcceptUnsetRatioModel {
-			acceptUnsetRatioModel = true
+		if userSettings.AcceptUnsetPriceModel {
+			acceptUnsetPriceModel = true
 		}
 	}
 
@@ -86,7 +86,7 @@ func ListModels(c *gin.Context, modelType int) {
 			tokenModelLimit = map[string]bool{}
 		}
 		for allowModel, _ := range tokenModelLimit {
-			if !acceptUnsetRatioModel {
+			if !acceptUnsetPriceModel {
 				if !helper.HasModelBillingConfig(allowModel) {
 					continue
 				}
@@ -133,7 +133,7 @@ func ListModels(c *gin.Context, modelType int) {
 			models = model.GetGroupEnabledModels(group)
 		}
 		for _, modelName := range models {
-			if !acceptUnsetRatioModel {
+			if !acceptUnsetPriceModel {
 				if !helper.HasModelBillingConfig(modelName) {
 					continue
 				}

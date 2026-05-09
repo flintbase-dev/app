@@ -28,11 +28,7 @@ import {
 } from '../constants';
 import { visit } from 'unist-util-visit';
 import * as LobeIcons from '@lobehub/icons';
-import {
-  OpenAI,
-  Claude,
-  Gemini,
-} from '@lobehub/icons';
+import { OpenAI, Claude, Gemini } from '@lobehub/icons';
 
 import {
   LayoutDashboard,
@@ -882,7 +878,7 @@ function isPriceDisplayMode(displayMode, modelPrice = -1) {
   return resolveBillingDisplayMode(displayMode, modelPrice) === 'price';
 }
 
-function shouldUseRatioBillingProcess(modelPrice = -1) {
+function shouldUseTokenQuotaDisplay(modelPrice = -1) {
   return modelPrice === -1 && getQuotaDisplayType() === 'TOKENS';
 }
 
@@ -960,8 +956,8 @@ function renderBillingArticle(lines, { showReferenceNote = true } = {}) {
 
 // Shared core for simple price rendering (used by OpenAI-like and Claude-like variants)
 function renderPriceSimpleCore({
-  modelRatio,
-  modelPrice = -1,
+  modelPrice = 0,
+  modelFixedPrice = -1,
   groupRatio,
   user_group_ratio,
   cacheTokens = 0,
@@ -1005,20 +1001,20 @@ function renderPriceSimpleCore({
       },
     ];
 
-    if (modelPrice !== -1) {
+    if (modelFixedPrice !== -1) {
       segments.push({
         tone: 'secondary',
-        text: isPriceDisplayMode(displayMode, modelPrice)
+        text: isPriceDisplayMode(displayMode, modelFixedPrice)
           ? i18next.t('模型价格 {{price}}', {
-              price: formatCompactDisplayPrice(modelPrice),
+              price: formatCompactDisplayPrice(modelFixedPrice),
             })
           : i18next.t('按次'),
       });
-    } else if (isPriceDisplayMode(displayMode, modelPrice)) {
+    } else if (isPriceDisplayMode(displayMode, modelFixedPrice)) {
       segments.push({
         tone: 'secondary',
         text: i18next.t('输入 {{price}} / 1M tokens', {
-          price: formatCompactDisplayPrice(modelRatio * 2.0),
+          price: formatCompactDisplayPrice(modelPrice),
         }),
       });
 
@@ -1026,7 +1022,7 @@ function renderPriceSimpleCore({
         segments.push({
           tone: 'secondary',
           text: i18next.t('缓存读 {{price}} / 1M tokens', {
-            price: formatCompactDisplayPrice(modelRatio * 2.0 * cacheRatio),
+            price: formatCompactDisplayPrice(modelPrice * cacheRatio),
           }),
         });
       }
@@ -1035,9 +1031,7 @@ function renderPriceSimpleCore({
         segments.push({
           tone: 'secondary',
           text: i18next.t('5m缓存创建 {{price}} / 1M tokens', {
-            price: formatCompactDisplayPrice(
-              modelRatio * 2.0 * cacheCreationRatio5m,
-            ),
+            price: formatCompactDisplayPrice(modelPrice * cacheCreationRatio5m),
           }),
         });
       }
@@ -1045,9 +1039,7 @@ function renderPriceSimpleCore({
         segments.push({
           tone: 'secondary',
           text: i18next.t('1h缓存创建 {{price}} / 1M tokens', {
-            price: formatCompactDisplayPrice(
-              modelRatio * 2.0 * cacheCreationRatio1h,
-            ),
+            price: formatCompactDisplayPrice(modelPrice * cacheCreationRatio1h),
           }),
         });
       }
@@ -1055,9 +1047,7 @@ function renderPriceSimpleCore({
         segments.push({
           tone: 'secondary',
           text: i18next.t('缓存创建 {{price}} / 1M tokens', {
-            price: formatCompactDisplayPrice(
-              modelRatio * 2.0 * cacheCreationRatio,
-            ),
+            price: formatCompactDisplayPrice(modelPrice * cacheCreationRatio),
           }),
         });
       }
@@ -1066,15 +1056,15 @@ function renderPriceSimpleCore({
         segments.push({
           tone: 'secondary',
           text: i18next.t('图片输入 {{price}} / 1M tokens', {
-            price: formatCompactDisplayPrice(modelRatio * 2.0 * imageRatio),
+            price: formatCompactDisplayPrice(modelPrice * imageRatio),
           }),
         });
       }
     } else {
       segments.push({
         tone: 'secondary',
-        text: i18next.t('模型: {{ratio}}', {
-          ratio: modelRatio,
+        text: i18next.t('模型价格: {{price}}', {
+          price: renderDisplayAmountFromUsd(modelPrice),
         }),
       });
 
@@ -1143,17 +1133,17 @@ function renderPriceSimpleCore({
     return segments;
   }
 
-  if (modelPrice !== -1) {
-    if (isPriceDisplayMode(displayMode, modelPrice)) {
+  if (modelFixedPrice !== -1) {
+    if (isPriceDisplayMode(displayMode, modelFixedPrice)) {
       return joinBillingSummary([
         i18next.t('模型价格：{{symbol}}{{price}}', {
           symbol: symbol,
-          price: (modelPrice * rate).toFixed(6),
+          price: (modelFixedPrice * rate).toFixed(6),
         }),
         getGroupRatioText(groupRatio, user_group_ratio),
       ]);
     }
-    const displayPrice = (modelPrice * rate).toFixed(6);
+    const displayPrice = (modelFixedPrice * rate).toFixed(6);
     return i18next.t('价格：{{symbol}}{{price}} * {{ratioType}}：{{ratio}}', {
       symbol: symbol,
       price: displayPrice,
@@ -1162,12 +1152,12 @@ function renderPriceSimpleCore({
     });
   }
 
-  if (isPriceDisplayMode(displayMode, modelPrice)) {
+  if (isPriceDisplayMode(displayMode, modelFixedPrice)) {
     const parts = [];
-    if (modelPrice !== -1) {
+    if (modelFixedPrice !== -1) {
       parts.push(
         i18next.t('模型价格 {{price}}', {
-          price: formatCompactDisplayPrice(modelPrice),
+          price: formatCompactDisplayPrice(modelFixedPrice),
         }),
       );
       parts.push(getGroupRatioText(groupRatio, user_group_ratio));
@@ -1176,14 +1166,14 @@ function renderPriceSimpleCore({
 
     parts.push(
       i18next.t('输入 {{price}} / 1M tokens', {
-        price: formatCompactDisplayPrice(modelRatio * 2.0),
+        price: formatCompactDisplayPrice(modelPrice),
       }),
     );
 
     if (shouldShowCache) {
       parts.push(
         i18next.t('缓存读 {{price}} / 1M tokens', {
-          price: formatCompactDisplayPrice(modelRatio * 2.0 * cacheRatio),
+          price: formatCompactDisplayPrice(modelPrice * cacheRatio),
         }),
       );
     }
@@ -1191,27 +1181,21 @@ function renderPriceSimpleCore({
     if (hasSplitCacheCreation && shouldShowCacheCreation5m) {
       parts.push(
         i18next.t('5m缓存创建 {{price}} / 1M tokens', {
-          price: formatCompactDisplayPrice(
-            modelRatio * 2.0 * cacheCreationRatio5m,
-          ),
+          price: formatCompactDisplayPrice(modelPrice * cacheCreationRatio5m),
         }),
       );
     }
     if (hasSplitCacheCreation && shouldShowCacheCreation1h) {
       parts.push(
         i18next.t('1h缓存创建 {{price}} / 1M tokens', {
-          price: formatCompactDisplayPrice(
-            modelRatio * 2.0 * cacheCreationRatio1h,
-          ),
+          price: formatCompactDisplayPrice(modelPrice * cacheCreationRatio1h),
         }),
       );
     }
     if (!hasSplitCacheCreation && shouldShowAggregateCacheCreation) {
       parts.push(
         i18next.t('缓存创建 {{price}} / 1M tokens', {
-          price: formatCompactDisplayPrice(
-            modelRatio * 2.0 * cacheCreationRatio,
-          ),
+          price: formatCompactDisplayPrice(modelPrice * cacheCreationRatio),
         }),
       );
     }
@@ -1219,7 +1203,7 @@ function renderPriceSimpleCore({
     if (image) {
       parts.push(
         i18next.t('图片输入 {{price}} / 1M tokens', {
-          price: formatCompactDisplayPrice(modelRatio * 2.0 * imageRatio),
+          price: formatCompactDisplayPrice(modelPrice * imageRatio),
         }),
       );
     }
@@ -1234,8 +1218,7 @@ function renderPriceSimpleCore({
   }
 
   const parts = [];
-  // base: model ratio
-  parts.push(i18next.t('模型: {{ratio}}'));
+  parts.push(i18next.t('模型价格: {{price}}'));
 
   // cache part (label differs when with image)
   if (shouldShowCache) {
@@ -1266,7 +1249,7 @@ function renderPriceSimpleCore({
   parts.push(`{{ratioType}}: {{groupRatio}}`);
 
   let result = i18next.t(parts.join(' * '), {
-    ratio: modelRatio,
+    price: renderDisplayAmountFromUsd(modelPrice),
     ratioType: ratioLabel,
     groupRatio: finalGroupRatio,
     cacheRatio: cacheRatio,
@@ -1287,9 +1270,9 @@ export function renderModelPrice(opts) {
   const {
     prompt_tokens: inputTokens = 0,
     completion_tokens: completionTokens = 0,
-    model_ratio: modelRatio = 0,
-    model_price: modelPrice = -1,
-    completion_ratio: _completionRatio,
+    model_price: modelPrice = 0,
+    model_fixed_price: modelFixedPrice = -1,
+    completion_price: _completionPrice,
     group_ratio: _groupRatio,
     user_group_ratio,
     cache_tokens: cacheTokens = 0,
@@ -1315,37 +1298,40 @@ export function renderModelPrice(opts) {
     user_group_ratio,
   );
   let groupRatio = effectiveGroupRatio;
-  const completionRatio = _completionRatio ?? 0;
+  const completionPrice = _completionPrice ?? modelPrice;
 
   const { symbol, rate } = getCurrencyConfig();
 
-  if (!shouldUseRatioBillingProcess(modelPrice)) {
-    if (modelPrice !== -1) {
+  if (!shouldUseTokenQuotaDisplay(modelFixedPrice)) {
+    if (modelFixedPrice !== -1) {
       return renderBillingArticle([
         buildBillingPriceText('按次：{{symbol}}{{price}}', {
           symbol,
-          usdAmount: modelPrice,
+          usdAmount: modelFixedPrice,
           rate,
         }),
         buildBillingPriceText(
           '按次 {{symbol}}{{price}} * {{ratioType}} {{ratio}} = {{symbol}}{{total}}',
           {
             symbol,
-            usdAmount: modelPrice,
+            usdAmount: modelFixedPrice,
             rate,
             ratioType: ratioLabel,
             ratio: groupRatio,
             amountKey: 'price',
-            total: formatBillingDisplayPrice(modelPrice * groupRatio, rate),
+            total: formatBillingDisplayPrice(
+              modelFixedPrice * groupRatio,
+              rate,
+            ),
           },
         ),
       ]);
     }
 
-    const inputRatioPrice = modelRatio * 2.0;
-    const completionRatioPrice = modelRatio * 2.0 * completionRatio;
-    const cacheRatioPrice = modelRatio * 2.0 * cacheRatio;
-    const imageRatioPrice = modelRatio * 2.0 * imageRatio;
+    const inputTokenPrice = modelPrice;
+    const completionTokenPrice = completionPrice;
+    const cacheRatioPrice = modelPrice * cacheRatio;
+    const imageRatioPrice = modelPrice * imageRatio;
     let effectiveInputTokens =
       inputTokens - cacheTokens + cacheTokens * cacheRatio;
     if (image && imageOutputTokens > 0) {
@@ -1356,9 +1342,9 @@ export function renderModelPrice(opts) {
       effectiveInputTokens -= audioInputTokens;
     }
     const price =
-      (effectiveInputTokens / 1000000) * inputRatioPrice * groupRatio +
+      (effectiveInputTokens / 1000000) * inputTokenPrice * groupRatio +
       (audioInputTokens / 1000000) * audioInputPrice * groupRatio +
-      (completionTokens / 1000000) * completionRatioPrice * groupRatio +
+      (completionTokens / 1000000) * completionTokenPrice * groupRatio +
       (webSearchCallCount / 1000) * webSearchPrice * groupRatio +
       (fileSearchCallCount / 1000) * fileSearchPrice * groupRatio +
       imageGenerationCallPrice * groupRatio;
@@ -1371,7 +1357,7 @@ export function renderModelPrice(opts) {
           nonImageInput: inputTokens - imageOutputTokens,
           imageInput: imageOutputTokens,
           symbol,
-          usdAmount: inputRatioPrice,
+          usdAmount: inputTokenPrice,
           rate,
         },
       );
@@ -1382,7 +1368,7 @@ export function renderModelPrice(opts) {
           nonCacheInput: inputTokens - cacheTokens,
           cacheInput: cacheTokens,
           symbol,
-          price: formatBillingDisplayPrice(inputRatioPrice, rate),
+          price: formatBillingDisplayPrice(inputTokenPrice, rate),
           cachePrice: formatBillingDisplayPrice(cacheRatioPrice, rate),
         },
       );
@@ -1393,7 +1379,7 @@ export function renderModelPrice(opts) {
           nonAudioInput: inputTokens - audioInputTokens,
           audioInput: audioInputTokens,
           symbol,
-          price: formatBillingDisplayPrice(inputRatioPrice, rate),
+          price: formatBillingDisplayPrice(inputTokenPrice, rate),
           audioPrice: formatBillingDisplayPrice(audioInputPrice, rate),
         },
       );
@@ -1403,7 +1389,7 @@ export function renderModelPrice(opts) {
         {
           input: inputTokens,
           symbol,
-          usdAmount: inputRatioPrice,
+          usdAmount: inputTokenPrice,
           rate,
         },
       );
@@ -1414,7 +1400,7 @@ export function renderModelPrice(opts) {
       {
         completion: completionTokens,
         symbol,
-        compPrice: formatBillingDisplayPrice(completionRatioPrice, rate),
+        compPrice: formatBillingDisplayPrice(completionTokenPrice, rate),
         ratio: groupRatio,
         ratioType: ratioLabel,
       },
@@ -1466,7 +1452,7 @@ export function renderModelPrice(opts) {
         '输入价格：{{symbol}}{{price}} / 1M tokens{{audioPrice}}',
         {
           symbol,
-          usdAmount: inputRatioPrice,
+          usdAmount: inputTokenPrice,
           rate,
           audioPrice: audioInputSeperatePrice
             ? `，${i18next.t('音频输入价格')} ${symbol}${formatBillingDisplayPrice(audioInputPrice, rate)} / 1M tokens`
@@ -1475,7 +1461,7 @@ export function renderModelPrice(opts) {
       ),
       buildBillingPriceText('输出价格：{{symbol}}{{total}} / 1M tokens', {
         symbol,
-        usdAmount: completionRatioPrice,
+        usdAmount: completionTokenPrice,
         rate,
         amountKey: 'total',
       }),
@@ -1484,7 +1470,7 @@ export function renderModelPrice(opts) {
             '缓存读取价格：{{symbol}}{{total}} / 1M tokens',
             {
               symbol,
-              usdAmount: inputRatioPrice * cacheRatio,
+              usdAmount: inputTokenPrice * cacheRatio,
               rate,
               amountKey: 'total',
             },
@@ -1537,9 +1523,9 @@ export function renderModelPrice(opts) {
     return renderBillingArticle(billingLines);
   }
 
-  if (modelPrice !== -1) {
-    const displayPrice = (modelPrice * rate).toFixed(6);
-    const displayTotal = (modelPrice * groupRatio * rate).toFixed(6);
+  if (modelFixedPrice !== -1) {
+    const displayPrice = (modelFixedPrice * rate).toFixed(6);
+    const displayTotal = (modelFixedPrice * groupRatio * rate).toFixed(6);
     return i18next.t(
       '按次：{{symbol}}{{price}} * {{ratioType}}：{{ratio}} = {{symbol}}{{total}}',
       {
@@ -1552,15 +1538,14 @@ export function renderModelPrice(opts) {
     );
   }
 
-  const modelRatioValue = formatRatioValue(modelRatio);
-  const completionRatioValue = formatRatioValue(completionRatio);
+  const modelPriceValue = formatRatioValue(modelPrice);
   const cacheRatioValue = formatRatioValue(cacheRatio);
   const imageRatioValue = formatRatioValue(imageRatio);
-  const inputRatioPrice = modelRatio * 2.0;
-  const completionRatioPrice = modelRatio * 2.0 * completionRatioValue;
+  const inputTokenPrice = modelPrice;
+  const completionTokenPrice = completionPrice;
   const audioRatioValue =
     audioInputSeperatePrice && audioInputPrice > 0
-      ? formatRatioValue(audioInputPrice / inputRatioPrice)
+      ? formatRatioValue(audioInputPrice / inputTokenPrice)
       : null;
 
   const textInputTokens = Math.max(
@@ -1572,21 +1557,21 @@ export function renderModelPrice(opts) {
   const cacheInputTokens = cacheTokens;
 
   const textInputAmount =
-    (textInputTokens / 1000000) * inputRatioPrice * groupRatio;
+    (textInputTokens / 1000000) * inputTokenPrice * groupRatio;
   const cacheInputAmount =
     (cacheInputTokens / 1000000) *
-    inputRatioPrice *
+    inputTokenPrice *
     cacheRatioValue *
     groupRatio;
   const imageInputAmount =
     (imageInputTokens / 1000000) *
-    inputRatioPrice *
+    inputTokenPrice *
     imageRatioValue *
     groupRatio;
   const audioInputAmount =
     (audioInputTokens / 1000000) * audioInputPrice * groupRatio;
   const completionAmount =
-    (completionTokens / 1000000) * completionRatioPrice * groupRatio;
+    (completionTokens / 1000000) * completionTokenPrice * groupRatio;
   const webSearchAmount =
     (webSearchCallCount / 1000) * webSearchPrice * groupRatio;
   const fileSearchAmount =
@@ -1605,11 +1590,11 @@ export function renderModelPrice(opts) {
 
   return renderBillingArticle([
     [
-      buildBillingText('模型倍率 {{modelRatio}}', {
-        modelRatio: modelRatioValue,
+      buildBillingText('模型价格 {{modelPrice}} / 1M tokens', {
+        modelPrice: renderDisplayAmountFromUsd(modelPrice),
       }),
-      buildBillingText('补全倍率 {{completionRatio}}', {
-        completionRatio: completionRatioValue,
+      buildBillingText('模型补全价格 {{completionPrice}} / 1M tokens', {
+        completionPrice: renderDisplayAmountFromUsd(completionPrice),
       }),
       cacheInputTokens > 0
         ? buildBillingText('缓存倍率 {{cacheRatio}}', {
@@ -1635,10 +1620,10 @@ export function renderModelPrice(opts) {
       .join('，'),
     textInputTokens > 0
       ? buildBillingText(
-          '普通输入：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+          '普通输入：{{tokens}} / 1M * 模型价格 {{modelPrice}} * {{ratioType}} {{ratio}} = {{amount}}',
           {
             tokens: textInputTokens,
-            modelRatio: modelRatioValue,
+            modelPrice: renderDisplayAmountFromUsd(modelPrice),
             ratioType: ratioLabel,
             ratio: groupRatio,
             amount: renderDisplayAmountFromUsd(textInputAmount),
@@ -1647,10 +1632,10 @@ export function renderModelPrice(opts) {
       : null,
     cacheInputTokens > 0
       ? buildBillingText(
-          '缓存输入：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 缓存倍率 {{cacheRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+          '缓存输入：{{tokens}} / 1M * 模型价格 {{modelPrice}} * 缓存倍率 {{cacheRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
           {
             tokens: cacheInputTokens,
-            modelRatio: modelRatioValue,
+            modelPrice: renderDisplayAmountFromUsd(modelPrice),
             cacheRatio: cacheRatioValue,
             ratioType: ratioLabel,
             ratio: groupRatio,
@@ -1660,10 +1645,10 @@ export function renderModelPrice(opts) {
       : null,
     imageInputTokens > 0
       ? buildBillingText(
-          '图片输入：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 图片倍率 {{imageRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+          '图片输入：{{tokens}} / 1M * 模型价格 {{modelPrice}} * 图片倍率 {{imageRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
           {
             tokens: imageInputTokens,
-            modelRatio: modelRatioValue,
+            modelPrice: renderDisplayAmountFromUsd(modelPrice),
             imageRatio: imageRatioValue,
             ratioType: ratioLabel,
             ratio: groupRatio,
@@ -1673,10 +1658,10 @@ export function renderModelPrice(opts) {
       : null,
     audioInputTokens > 0 && audioRatioValue !== null
       ? buildBillingText(
-          '音频输入：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 音频倍率 {{audioRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+          '音频输入：{{tokens}} / 1M * 模型价格 {{modelPrice}} * 音频倍率 {{audioRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
           {
             tokens: audioInputTokens,
-            modelRatio: modelRatioValue,
+            modelPrice: renderDisplayAmountFromUsd(modelPrice),
             audioRatio: audioRatioValue,
             ratioType: ratioLabel,
             ratio: groupRatio,
@@ -1685,11 +1670,10 @@ export function renderModelPrice(opts) {
         )
       : null,
     buildBillingText(
-      '输出：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 补全倍率 {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+      '输出：{{tokens}} / 1M * 模型补全价格 {{completionPrice}} * {{ratioType}} {{ratio}} = {{amount}}',
       {
         tokens: completionTokens,
-        modelRatio: modelRatioValue,
-        completionRatio: completionRatioValue,
+        completionPrice: renderDisplayAmountFromUsd(completionPrice),
         ratioType: ratioLabel,
         ratio: groupRatio,
         amount: renderDisplayAmountFromUsd(completionAmount),
@@ -1738,9 +1722,9 @@ export function renderModelPrice(opts) {
 
 export function renderLogContent(opts) {
   const {
-    model_ratio: modelRatio,
-    completion_ratio: completionRatio,
-    model_price: modelPrice = -1,
+    model_price: modelPrice = 0,
+    completion_price: completionPrice = modelPrice,
+    model_fixed_price: modelFixedPrice = -1,
     group_ratio: groupRatio,
     user_group_ratio,
     cache_ratio: cacheRatio = 1.0,
@@ -1761,12 +1745,12 @@ export function renderLogContent(opts) {
   // 获取货币配置
   const { symbol, rate } = getCurrencyConfig();
 
-  if (isPriceDisplayMode(displayMode, modelPrice)) {
-    if (modelPrice !== -1) {
+  if (isPriceDisplayMode(displayMode, modelFixedPrice)) {
+    if (modelFixedPrice !== -1) {
       return joinBillingSummary([
         i18next.t('模型价格 {{symbol}}{{price}} / 次', {
           symbol,
-          price: (modelPrice * rate).toFixed(6),
+          price: (modelFixedPrice * rate).toFixed(6),
         }),
         getGroupRatioText(groupRatio, user_group_ratio),
       ]);
@@ -1775,11 +1759,11 @@ export function renderLogContent(opts) {
     const parts = [
       i18next.t('输入价格 {{symbol}}{{price}} / 1M tokens', {
         symbol,
-        price: (modelRatio * 2.0 * rate).toFixed(6),
+        price: (modelPrice * rate).toFixed(6),
       }),
       i18next.t('输出价格 {{symbol}}{{price}} / 1M tokens', {
         symbol,
-        price: (modelRatio * 2.0 * completionRatio * rate).toFixed(6),
+        price: (completionPrice * rate).toFixed(6),
       }),
     ];
     appendPricePart(
@@ -1788,7 +1772,7 @@ export function renderLogContent(opts) {
       '缓存读取价格 {{symbol}}{{price}} / 1M tokens',
       {
         symbol,
-        price: (modelRatio * 2.0 * cacheRatio * rate).toFixed(6),
+        price: (modelPrice * cacheRatio * rate).toFixed(6),
       },
     );
     appendPricePart(
@@ -1797,7 +1781,7 @@ export function renderLogContent(opts) {
       '图片输入价格 {{symbol}}{{price}} / 1M tokens',
       {
         symbol,
-        price: (modelRatio * 2.0 * imageRatio * rate).toFixed(6),
+        price: (modelPrice * imageRatio * rate).toFixed(6),
       },
     );
     appendPricePart(
@@ -1820,21 +1804,21 @@ export function renderLogContent(opts) {
     return joinBillingSummary(parts);
   }
 
-  if (modelPrice !== -1) {
+  if (modelFixedPrice !== -1) {
     return i18next.t('模型价格 {{symbol}}{{price}}，{{ratioType}} {{ratio}}', {
       symbol: symbol,
-      price: (modelPrice * rate).toFixed(6),
+      price: (modelFixedPrice * rate).toFixed(6),
       ratioType: ratioLabel,
       ratio,
     });
   } else {
     if (image) {
       return i18next.t(
-        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，图片输入倍率 {{imageRatio}}，{{ratioType}} {{ratio}}',
+        '模型价格 {{modelPrice}}，缓存倍率 {{cacheRatio}}，模型补全价格 {{completionPrice}}，图片输入倍率 {{imageRatio}}，{{ratioType}} {{ratio}}',
         {
-          modelRatio: modelRatio,
+          modelPrice: renderDisplayAmountFromUsd(modelPrice),
           cacheRatio: cacheRatio,
-          completionRatio: completionRatio,
+          completionPrice: renderDisplayAmountFromUsd(completionPrice),
           imageRatio: imageRatio,
           ratioType: ratioLabel,
           ratio,
@@ -1842,11 +1826,11 @@ export function renderLogContent(opts) {
       );
     } else if (webSearch) {
       return i18next.t(
-        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}，Web 搜索调用 {{webSearchCallCount}} 次',
+        '模型价格 {{modelPrice}}，缓存倍率 {{cacheRatio}}，模型补全价格 {{completionPrice}}，{{ratioType}} {{ratio}}，Web 搜索调用 {{webSearchCallCount}} 次',
         {
-          modelRatio: modelRatio,
+          modelPrice: renderDisplayAmountFromUsd(modelPrice),
           cacheRatio: cacheRatio,
-          completionRatio: completionRatio,
+          completionPrice: renderDisplayAmountFromUsd(completionPrice),
           ratioType: ratioLabel,
           ratio,
           webSearchCallCount,
@@ -1854,11 +1838,11 @@ export function renderLogContent(opts) {
       );
     } else {
       return i18next.t(
-        '模型倍率 {{modelRatio}}，缓存倍率 {{cacheRatio}}，输出倍率 {{completionRatio}}，{{ratioType}} {{ratio}}',
+        '模型价格 {{modelPrice}}，缓存倍率 {{cacheRatio}}，模型补全价格 {{completionPrice}}，{{ratioType}} {{ratio}}',
         {
-          modelRatio: modelRatio,
+          modelPrice: renderDisplayAmountFromUsd(modelPrice),
           cacheRatio: cacheRatio,
-          completionRatio: completionRatio,
+          completionPrice: renderDisplayAmountFromUsd(completionPrice),
           ratioType: ratioLabel,
           ratio,
         },
@@ -2086,8 +2070,8 @@ export function renderTieredModelPriceSimple(opts) {
 
 export function renderModelPriceSimple(opts) {
   const {
-    model_ratio: modelRatio,
-    model_price: modelPrice = -1,
+    model_price: modelPrice = 0,
+    model_fixed_price: modelFixedPrice = -1,
     group_ratio: groupRatio,
     user_group_ratio,
     cache_tokens: cacheTokens = 0,
@@ -2106,8 +2090,8 @@ export function renderModelPriceSimple(opts) {
     outputMode = 'text',
   } = opts;
   return renderPriceSimpleCore({
-    modelRatio,
     modelPrice,
+    modelFixedPrice,
     groupRatio,
     user_group_ratio,
     cacheTokens,
@@ -2130,9 +2114,9 @@ export function renderAudioModelPrice(opts) {
   const {
     prompt_tokens: inputTokens = 0,
     completion_tokens: completionTokens = 0,
-    model_ratio: modelRatio = 0,
-    model_price: modelPrice = -1,
-    completion_ratio: _completionRatio,
+    model_price: modelPrice = 0,
+    model_fixed_price: modelFixedPrice = -1,
+    completion_price: _completionPrice,
     audio_input: audioInputTokens = 0,
     audio_output: audioCompletionTokens = 0,
     audio_ratio: _audioRatio,
@@ -2148,46 +2132,49 @@ export function renderAudioModelPrice(opts) {
     user_group_ratio,
   );
   let groupRatio = effectiveGroupRatio;
-  const completionRatio = _completionRatio ?? 0;
+  const completionPrice = _completionPrice ?? modelPrice;
   const audioRatio = parseFloat(_audioRatio ?? 0).toFixed(6);
   const audioCompletionRatio = _audioCompletionRatio ?? 0;
 
   // 获取货币配置
   const { symbol, rate } = getCurrencyConfig();
 
-  if (!shouldUseRatioBillingProcess(modelPrice)) {
-    if (modelPrice !== -1) {
+  if (!shouldUseTokenQuotaDisplay(modelFixedPrice)) {
+    if (modelFixedPrice !== -1) {
       return renderBillingArticle([
         buildBillingPriceText('模型价格：{{symbol}}{{price}} / 次', {
           symbol,
-          usdAmount: modelPrice,
+          usdAmount: modelFixedPrice,
           rate,
         }),
         buildBillingPriceText(
           '模型价格 {{symbol}}{{price}} / 次 * {{ratioType}} {{ratio}} = {{symbol}}{{total}}',
           {
             symbol,
-            usdAmount: modelPrice,
+            usdAmount: modelFixedPrice,
             rate,
             ratioType: ratioLabel,
             ratio: groupRatio,
-            total: formatBillingDisplayPrice(modelPrice * groupRatio, rate),
+            total: formatBillingDisplayPrice(
+              modelFixedPrice * groupRatio,
+              rate,
+            ),
           },
         ),
       ]);
     }
 
-    const inputRatioPrice = modelRatio * 2.0;
-    const completionRatioPrice = modelRatio * 2.0 * completionRatio;
+    const inputTokenPrice = modelPrice;
+    const completionTokenPrice = completionPrice;
     const textPrice =
       ((inputTokens - cacheTokens + cacheTokens * cacheRatio) / 1000000) *
-        inputRatioPrice *
+        inputTokenPrice *
         groupRatio +
-      (completionTokens / 1000000) * completionRatioPrice * groupRatio;
+      (completionTokens / 1000000) * completionTokenPrice * groupRatio;
     const audioPrice =
-      (audioInputTokens / 1000000) * inputRatioPrice * audioRatio * groupRatio +
+      (audioInputTokens / 1000000) * inputTokenPrice * audioRatio * groupRatio +
       (audioCompletionTokens / 1000000) *
-        inputRatioPrice *
+        inputTokenPrice *
         audioRatio *
         audioCompletionRatio *
         groupRatio;
@@ -2196,12 +2183,12 @@ export function renderAudioModelPrice(opts) {
     return renderBillingArticle([
       buildBillingPriceText('输入价格：{{symbol}}{{price}} / 1M tokens', {
         symbol,
-        usdAmount: inputRatioPrice,
+        usdAmount: inputTokenPrice,
         rate,
       }),
       buildBillingPriceText('输出价格：{{symbol}}{{price}} / 1M tokens', {
         symbol,
-        usdAmount: completionRatioPrice,
+        usdAmount: completionTokenPrice,
         rate,
       }),
       cacheTokens > 0
@@ -2209,19 +2196,19 @@ export function renderAudioModelPrice(opts) {
             '缓存读取价格：{{symbol}}{{price}} / 1M tokens',
             {
               symbol,
-              usdAmount: inputRatioPrice * cacheRatio,
+              usdAmount: inputTokenPrice * cacheRatio,
               rate,
             },
           )
         : null,
       buildBillingPriceText('音频输入价格：{{symbol}}{{price}} / 1M tokens', {
         symbol,
-        usdAmount: inputRatioPrice * audioRatio,
+        usdAmount: inputTokenPrice * audioRatio,
         rate,
       }),
       buildBillingPriceText('音频补全价格：{{symbol}}{{price}} / 1M tokens', {
         symbol,
-        usdAmount: inputRatioPrice * audioRatio * audioCompletionRatio,
+        usdAmount: inputTokenPrice * audioRatio * audioCompletionRatio,
         rate,
       }),
       buildBillingText(
@@ -2231,14 +2218,14 @@ export function renderAudioModelPrice(opts) {
           completion: completionTokens,
           audioInput: audioInputTokens,
           audioCompletion: audioCompletionTokens,
-          textInputPrice: formatBillingDisplayPrice(inputRatioPrice, rate),
-          textCompPrice: formatBillingDisplayPrice(completionRatioPrice, rate),
+          textInputPrice: formatBillingDisplayPrice(inputTokenPrice, rate),
+          textCompPrice: formatBillingDisplayPrice(completionTokenPrice, rate),
           audioInputPrice: formatBillingDisplayPrice(
-            audioRatio * inputRatioPrice,
+            audioRatio * inputTokenPrice,
             rate,
           ),
           audioCompPrice: formatBillingDisplayPrice(
-            audioRatio * audioCompletionRatio * inputRatioPrice,
+            audioRatio * audioCompletionRatio * inputTokenPrice,
             rate,
           ),
           ratioType: ratioLabel,
@@ -2264,28 +2251,28 @@ export function renderAudioModelPrice(opts) {
     );
   }
 
-  const modelRatioValue = formatRatioValue(modelRatio);
-  const completionRatioValue = formatRatioValue(completionRatio);
+  const modelPriceValue = renderDisplayAmountFromUsd(modelPrice);
+  const completionPriceValue = renderDisplayAmountFromUsd(completionPrice);
   const cacheRatioValue = formatRatioValue(cacheRatio);
   const audioRatioValue = formatRatioValue(audioRatio);
   const audioCompletionRatioValue = formatRatioValue(audioCompletionRatio);
 
-  const inputRatioPrice = modelRatio * 2.0;
-  const completionRatioPrice = modelRatio * 2.0 * completionRatioValue;
+  const inputTokenPrice = modelPrice;
+  const completionTokenPrice = completionPrice;
 
   const effectiveInputTokens =
     inputTokens - cacheTokens + cacheTokens * cacheRatioValue;
 
   const textPrice =
-    (effectiveInputTokens / 1000000) * inputRatioPrice * groupRatio +
-    (completionTokens / 1000000) * completionRatioPrice * groupRatio;
+    (effectiveInputTokens / 1000000) * inputTokenPrice * groupRatio +
+    (completionTokens / 1000000) * completionTokenPrice * groupRatio;
   const audioPrice =
     (audioInputTokens / 1000000) *
-      inputRatioPrice *
+      inputTokenPrice *
       audioRatioValue *
       groupRatio +
     (audioCompletionTokens / 1000000) *
-      inputRatioPrice *
+      inputTokenPrice *
       audioRatioValue *
       audioCompletionRatioValue *
       groupRatio;
@@ -2293,10 +2280,10 @@ export function renderAudioModelPrice(opts) {
 
   return renderBillingArticle([
     buildBillingText(
-      '模型倍率 {{modelRatio}}，补全倍率 {{completionRatio}}，音频倍率 {{audioRatio}}，音频补全倍率 {{audioCompletionRatio}}，{{cachePart}}{{ratioType}} {{ratio}}',
+      '模型价格 {{modelPrice}}，模型补全价格 {{completionPrice}}，音频倍率 {{audioRatio}}，音频补全倍率 {{audioCompletionRatio}}，{{cachePart}}{{ratioType}} {{ratio}}',
       {
-        modelRatio: modelRatioValue,
-        completionRatio: completionRatioValue,
+        modelPrice: modelPriceValue,
+        completionPrice: completionPriceValue,
         audioRatio: audioRatioValue,
         audioCompletionRatio: audioCompletionRatioValue,
         cachePart:
@@ -2308,31 +2295,31 @@ export function renderAudioModelPrice(opts) {
       },
     ),
     buildBillingText(
-      '普通输入：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+      '普通输入：{{tokens}} / 1M * 模型价格 {{modelPrice}} * {{ratioType}} {{ratio}} = {{amount}}',
       {
         tokens: Math.max(inputTokens - cacheTokens, 0),
-        modelRatio: modelRatioValue,
+        modelPrice: modelPriceValue,
         ratioType: ratioLabel,
         ratio: groupRatio,
         amount: renderDisplayAmountFromUsd(
           (Math.max(inputTokens - cacheTokens, 0) / 1000000) *
-            inputRatioPrice *
+            inputTokenPrice *
             groupRatio,
         ),
       },
     ),
     cacheTokens > 0
       ? buildBillingText(
-          '缓存输入：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 缓存倍率 {{cacheRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+          '缓存输入：{{tokens}} / 1M * 模型价格 {{modelPrice}} * 缓存倍率 {{cacheRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
           {
             tokens: cacheTokens,
-            modelRatio: modelRatioValue,
+            modelPrice: modelPriceValue,
             cacheRatio: cacheRatioValue,
             ratioType: ratioLabel,
             ratio: groupRatio,
             amount: renderDisplayAmountFromUsd(
               (cacheTokens / 1000000) *
-                inputRatioPrice *
+                inputTokenPrice *
                 cacheRatioValue *
                 groupRatio,
             ),
@@ -2340,49 +2327,45 @@ export function renderAudioModelPrice(opts) {
         )
       : null,
     buildBillingText(
-      '文字输出：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 补全倍率 {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+      '文字输出：{{tokens}} / 1M * 模型补全价格 {{completionPrice}} * {{ratioType}} {{ratio}} = {{amount}}',
       {
         tokens: completionTokens,
-        modelRatio: modelRatioValue,
-        completionRatio: completionRatioValue,
+        completionPrice: completionPriceValue,
         ratioType: ratioLabel,
         ratio: groupRatio,
         amount: renderDisplayAmountFromUsd(
-          (completionTokens / 1000000) *
-            inputRatioPrice *
-            completionRatioValue *
-            groupRatio,
+          (completionTokens / 1000000) * completionTokenPrice * groupRatio,
         ),
       },
     ),
     buildBillingText(
-      '音频输入：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 音频倍率 {{audioRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+      '音频输入：{{tokens}} / 1M * 模型价格 {{modelPrice}} * 音频倍率 {{audioRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
       {
         tokens: audioInputTokens,
-        modelRatio: modelRatioValue,
+        modelPrice: modelPriceValue,
         audioRatio: audioRatioValue,
         ratioType: ratioLabel,
         ratio: groupRatio,
         amount: renderDisplayAmountFromUsd(
           (audioInputTokens / 1000000) *
-            inputRatioPrice *
+            inputTokenPrice *
             audioRatioValue *
             groupRatio,
         ),
       },
     ),
     buildBillingText(
-      '音频输出：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 音频倍率 {{audioRatio}} * 音频补全倍率 {{audioCompletionRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+      '音频输出：{{tokens}} / 1M * 模型价格 {{modelPrice}} * 音频倍率 {{audioRatio}} * 音频补全倍率 {{audioCompletionRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
       {
         tokens: audioCompletionTokens,
-        modelRatio: modelRatioValue,
+        modelPrice: modelPriceValue,
         audioRatio: audioRatioValue,
         audioCompletionRatio: audioCompletionRatioValue,
         ratioType: ratioLabel,
         ratio: groupRatio,
         amount: renderDisplayAmountFromUsd(
           (audioCompletionTokens / 1000000) *
-            inputRatioPrice *
+            inputTokenPrice *
             audioRatioValue *
             audioCompletionRatioValue *
             groupRatio,
@@ -2412,9 +2395,9 @@ export function renderClaudeModelPrice(opts) {
   const {
     prompt_tokens: inputTokens = 0,
     completion_tokens: completionTokens = 0,
-    model_ratio: modelRatio = 0,
-    model_price: modelPrice = -1,
-    completion_ratio: _completionRatio,
+    model_price: modelPrice = 0,
+    model_fixed_price: modelFixedPrice = -1,
+    completion_price: _completionPrice,
     group_ratio: _groupRatio,
     user_group_ratio,
     cache_tokens: cacheTokens = 0,
@@ -2432,39 +2415,42 @@ export function renderClaudeModelPrice(opts) {
     user_group_ratio,
   );
   let groupRatio = effectiveGroupRatio;
-  const completionRatio = _completionRatio ?? 0;
+  const completionPrice = _completionPrice ?? modelPrice;
 
   // 获取货币配置
   const { symbol, rate } = getCurrencyConfig();
 
-  if (!shouldUseRatioBillingProcess(modelPrice)) {
-    if (modelPrice !== -1) {
+  if (!shouldUseTokenQuotaDisplay(modelFixedPrice)) {
+    if (modelFixedPrice !== -1) {
       return renderBillingArticle([
         buildBillingPriceText('模型价格：{{symbol}}{{price}} / 次', {
           symbol,
-          usdAmount: modelPrice,
+          usdAmount: modelFixedPrice,
           rate,
         }),
         buildBillingPriceText(
           '模型价格 {{symbol}}{{price}} / 次 * {{ratioType}} {{ratio}} = {{symbol}}{{total}}',
           {
             symbol,
-            usdAmount: modelPrice,
+            usdAmount: modelFixedPrice,
             rate,
             ratioType: ratioLabel,
             ratio: groupRatio,
-            total: formatBillingDisplayPrice(modelPrice * groupRatio, rate),
+            total: formatBillingDisplayPrice(
+              modelFixedPrice * groupRatio,
+              rate,
+            ),
           },
         ),
       ]);
     }
 
-    const inputRatioPrice = modelRatio * 2.0;
-    const completionRatioPrice = modelRatio * 2.0 * completionRatio;
-    const cacheRatioPrice = modelRatio * 2.0 * cacheRatio;
-    const cacheCreationRatioPrice = modelRatio * 2.0 * cacheCreationRatio;
-    const cacheCreationRatioPrice5m = modelRatio * 2.0 * cacheCreationRatio5m;
-    const cacheCreationRatioPrice1h = modelRatio * 2.0 * cacheCreationRatio1h;
+    const inputTokenPrice = modelPrice;
+    const completionTokenPrice = completionPrice;
+    const cacheRatioPrice = modelPrice * cacheRatio;
+    const cacheCreationRatioPrice = modelPrice * cacheCreationRatio;
+    const cacheCreationRatioPrice5m = modelPrice * cacheCreationRatio5m;
+    const cacheCreationRatioPrice1h = modelPrice * cacheCreationRatio1h;
     const hasSplitCacheCreation =
       cacheCreationTokens5m > 0 || cacheCreationTokens1h > 0;
     const aggregateCacheCreationTokens = hasSplitCacheCreation
@@ -2477,10 +2463,10 @@ export function renderClaudeModelPrice(opts) {
       cacheCreationTokens5m * cacheCreationRatio5m +
       cacheCreationTokens1h * cacheCreationRatio1h;
     const price =
-      (effectiveInputTokens / 1000000) * inputRatioPrice * groupRatio +
-      (completionTokens / 1000000) * completionRatioPrice * groupRatio;
-    const inputUnitPrice = inputRatioPrice * rate;
-    const completionUnitPrice = completionRatioPrice * rate;
+      (effectiveInputTokens / 1000000) * inputTokenPrice * groupRatio +
+      (completionTokens / 1000000) * completionTokenPrice * groupRatio;
+    const inputUnitPrice = inputTokenPrice * rate;
+    const completionUnitPrice = completionTokenPrice * rate;
     const cacheUnitPrice = cacheRatioPrice * rate;
     const cacheCreationUnitPrice = cacheCreationRatioPrice * rate;
     const cacheCreationUnitPrice5m = cacheCreationRatioPrice5m * rate;
@@ -2568,12 +2554,12 @@ export function renderClaudeModelPrice(opts) {
     return renderBillingArticle([
       buildBillingPriceText('输入价格：{{symbol}}{{price}} / 1M tokens', {
         symbol,
-        usdAmount: inputRatioPrice,
+        usdAmount: inputTokenPrice,
         rate,
       }),
       buildBillingPriceText('输出价格：{{symbol}}{{price}} / 1M tokens', {
         symbol,
-        usdAmount: completionRatioPrice,
+        usdAmount: completionTokenPrice,
         rate,
       }),
       cacheTokens > 0
@@ -2642,15 +2628,15 @@ export function renderClaudeModelPrice(opts) {
     );
   }
 
-  const modelRatioValue = formatRatioValue(modelRatio);
-  const completionRatioValue = formatRatioValue(completionRatio);
+  const modelPriceValue = renderDisplayAmountFromUsd(modelPrice);
+  const completionPriceValue = renderDisplayAmountFromUsd(completionPrice);
   const cacheRatioValue = formatRatioValue(cacheRatio);
   const cacheCreationRatioValue = formatRatioValue(cacheCreationRatio);
   const cacheCreationRatio5mValue = formatRatioValue(cacheCreationRatio5m);
   const cacheCreationRatio1hValue = formatRatioValue(cacheCreationRatio1h);
 
-  const inputRatioPrice = modelRatio * 2.0;
-  const completionRatioPrice = modelRatio * 2.0 * completionRatioValue;
+  const inputTokenPrice = modelPrice;
+  const completionTokenPrice = completionPrice;
 
   const hasSplitCacheCreation =
     cacheCreationTokens5m > 0 || cacheCreationTokens1h > 0;
@@ -2673,15 +2659,15 @@ export function renderClaudeModelPrice(opts) {
     cacheCreationTokens1h * cacheCreationRatio1hValue;
 
   const totalAmount =
-    (effectiveInputTokens / 1000000) * inputRatioPrice * groupRatio +
-    (completionTokens / 1000000) * completionRatioPrice * groupRatio;
+    (effectiveInputTokens / 1000000) * inputTokenPrice * groupRatio +
+    (completionTokens / 1000000) * completionTokenPrice * groupRatio;
 
   return renderBillingArticle([
     buildBillingText(
-      '模型倍率 {{modelRatio}}，输出倍率 {{completionRatio}}，缓存倍率 {{cacheRatio}}，{{ratioType}} {{ratio}}',
+      '模型价格 {{modelPrice}}，模型补全价格 {{completionPrice}}，缓存倍率 {{cacheRatio}}，{{ratioType}} {{ratio}}',
       {
-        modelRatio: modelRatioValue,
-        completionRatio: completionRatioValue,
+        modelPrice: modelPriceValue,
+        completionPrice: completionPriceValue,
         cacheRatio: cacheRatioValue,
         ratioType: ratioLabel,
         ratio: groupRatio,
@@ -2699,29 +2685,29 @@ export function renderClaudeModelPrice(opts) {
           cacheCreationRatio: cacheCreationRatioValue,
         }),
     buildBillingText(
-      '普通输入：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+      '普通输入：{{tokens}} / 1M * 模型价格 {{modelPrice}} * {{ratioType}} {{ratio}} = {{amount}}',
       {
         tokens: inputTokens,
-        modelRatio: modelRatioValue,
+        modelPrice: modelPriceValue,
         ratioType: ratioLabel,
         ratio: groupRatio,
         amount: renderDisplayAmountFromUsd(
-          (inputTokens / 1000000) * inputRatioPrice * groupRatio,
+          (inputTokens / 1000000) * inputTokenPrice * groupRatio,
         ),
       },
     ),
     shouldShowCache
       ? buildBillingText(
-          '缓存读取：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 缓存倍率 {{cacheRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+          '缓存读取：{{tokens}} / 1M * 模型价格 {{modelPrice}} * 缓存倍率 {{cacheRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
           {
             tokens: cacheTokens,
-            modelRatio: modelRatioValue,
+            modelPrice: modelPriceValue,
             cacheRatio: cacheRatioValue,
             ratioType: ratioLabel,
             ratio: groupRatio,
             amount: renderDisplayAmountFromUsd(
               (cacheTokens / 1000000) *
-                inputRatioPrice *
+                inputTokenPrice *
                 cacheRatioValue *
                 groupRatio,
             ),
@@ -2730,16 +2716,16 @@ export function renderClaudeModelPrice(opts) {
       : null,
     shouldShowAggregateCacheCreation
       ? buildBillingText(
-          '缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 缓存创建倍率 {{cacheCreationRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+          '缓存创建：{{tokens}} / 1M * 模型价格 {{modelPrice}} * 缓存创建倍率 {{cacheCreationRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
           {
             tokens: cacheCreationTokens,
-            modelRatio: modelRatioValue,
+            modelPrice: modelPriceValue,
             cacheCreationRatio: cacheCreationRatioValue,
             ratioType: ratioLabel,
             ratio: groupRatio,
             amount: renderDisplayAmountFromUsd(
               (cacheCreationTokens / 1000000) *
-                inputRatioPrice *
+                inputTokenPrice *
                 cacheCreationRatioValue *
                 groupRatio,
             ),
@@ -2748,16 +2734,16 @@ export function renderClaudeModelPrice(opts) {
       : null,
     shouldShowCacheCreation5m
       ? buildBillingText(
-          '5m缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 5m缓存创建倍率 {{cacheCreationRatio5m}} * {{ratioType}} {{ratio}} = {{amount}}',
+          '5m缓存创建：{{tokens}} / 1M * 模型价格 {{modelPrice}} * 5m缓存创建倍率 {{cacheCreationRatio5m}} * {{ratioType}} {{ratio}} = {{amount}}',
           {
             tokens: cacheCreationTokens5m,
-            modelRatio: modelRatioValue,
+            modelPrice: modelPriceValue,
             cacheCreationRatio5m: cacheCreationRatio5mValue,
             ratioType: ratioLabel,
             ratio: groupRatio,
             amount: renderDisplayAmountFromUsd(
               (cacheCreationTokens5m / 1000000) *
-                inputRatioPrice *
+                inputTokenPrice *
                 cacheCreationRatio5mValue *
                 groupRatio,
             ),
@@ -2766,16 +2752,16 @@ export function renderClaudeModelPrice(opts) {
       : null,
     shouldShowCacheCreation1h
       ? buildBillingText(
-          '1h缓存创建：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 1h缓存创建倍率 {{cacheCreationRatio1h}} * {{ratioType}} {{ratio}} = {{amount}}',
+          '1h缓存创建：{{tokens}} / 1M * 模型价格 {{modelPrice}} * 1h缓存创建倍率 {{cacheCreationRatio1h}} * {{ratioType}} {{ratio}} = {{amount}}',
           {
             tokens: cacheCreationTokens1h,
-            modelRatio: modelRatioValue,
+            modelPrice: modelPriceValue,
             cacheCreationRatio1h: cacheCreationRatio1hValue,
             ratioType: ratioLabel,
             ratio: groupRatio,
             amount: renderDisplayAmountFromUsd(
               (cacheCreationTokens1h / 1000000) *
-                inputRatioPrice *
+                inputTokenPrice *
                 cacheCreationRatio1hValue *
                 groupRatio,
             ),
@@ -2783,25 +2769,21 @@ export function renderClaudeModelPrice(opts) {
         )
       : null,
     buildBillingText(
-      '补全 {{completion}} tokens * 输出倍率 {{completionRatio}}',
+      '补全 {{completion}} tokens * 模型补全价格 {{completionPrice}}',
       {
         completion: completionTokens,
-        completionRatio: completionRatioValue,
+        completionPrice: completionPriceValue,
       },
     ),
     buildBillingText(
-      '输出：{{tokens}} / 1M * 模型倍率 {{modelRatio}} * 输出倍率 {{completionRatio}} * {{ratioType}} {{ratio}} = {{amount}}',
+      '输出：{{tokens}} / 1M * 模型补全价格 {{completionPrice}} * {{ratioType}} {{ratio}} = {{amount}}',
       {
         tokens: completionTokens,
-        modelRatio: modelRatioValue,
-        completionRatio: completionRatioValue,
+        completionPrice: completionPriceValue,
         ratioType: ratioLabel,
         ratio: groupRatio,
         amount: renderDisplayAmountFromUsd(
-          (completionTokens / 1000000) *
-            inputRatioPrice *
-            completionRatioValue *
-            groupRatio,
+          (completionTokens / 1000000) * completionTokenPrice * groupRatio,
         ),
       },
     ),
@@ -2813,9 +2795,9 @@ export function renderClaudeModelPrice(opts) {
 
 export function renderClaudeLogContent(opts) {
   const {
-    model_ratio: modelRatio,
-    completion_ratio: completionRatio,
-    model_price: modelPrice = -1,
+    model_price: modelPrice = 0,
+    completion_price: completionPrice = modelPrice,
+    model_fixed_price: modelFixedPrice = -1,
     group_ratio: _groupRatio,
     user_group_ratio,
     cache_ratio: cacheRatio = 1.0,
@@ -2835,12 +2817,12 @@ export function renderClaudeLogContent(opts) {
   // 获取货币配置
   const { symbol, rate } = getCurrencyConfig();
 
-  if (isPriceDisplayMode(displayMode, modelPrice)) {
-    if (modelPrice !== -1) {
+  if (isPriceDisplayMode(displayMode, modelFixedPrice)) {
+    if (modelFixedPrice !== -1) {
       return joinBillingSummary([
         i18next.t('模型价格 {{symbol}}{{price}} / 次', {
           symbol,
-          price: (modelPrice * rate).toFixed(6),
+          price: (modelFixedPrice * rate).toFixed(6),
         }),
         getGroupRatioText(groupRatio, user_group_ratio),
       ]);
@@ -2849,15 +2831,15 @@ export function renderClaudeLogContent(opts) {
     const parts = [
       i18next.t('输入价格 {{symbol}}{{price}} / 1M tokens', {
         symbol,
-        price: (modelRatio * 2.0 * rate).toFixed(6),
+        price: (modelPrice * rate).toFixed(6),
       }),
       i18next.t('输出价格 {{symbol}}{{price}} / 1M tokens', {
         symbol,
-        price: (modelRatio * 2.0 * completionRatio * rate).toFixed(6),
+        price: (completionPrice * rate).toFixed(6),
       }),
       i18next.t('缓存读取价格 {{symbol}}{{price}} / 1M tokens', {
         symbol,
-        price: (modelRatio * 2.0 * cacheRatio * rate).toFixed(6),
+        price: (modelPrice * cacheRatio * rate).toFixed(6),
       }),
     ];
     const hasSplitCacheCreation =
@@ -2868,7 +2850,7 @@ export function renderClaudeLogContent(opts) {
       '5m缓存创建价格 {{symbol}}{{price}} / 1M tokens',
       {
         symbol,
-        price: (modelRatio * 2.0 * cacheCreationRatio5m * rate).toFixed(6),
+        price: (modelPrice * cacheCreationRatio5m * rate).toFixed(6),
       },
     );
     appendPricePart(
@@ -2877,7 +2859,7 @@ export function renderClaudeLogContent(opts) {
       '1h缓存创建价格 {{symbol}}{{price}} / 1M tokens',
       {
         symbol,
-        price: (modelRatio * 2.0 * cacheCreationRatio1h * rate).toFixed(6),
+        price: (modelPrice * cacheCreationRatio1h * rate).toFixed(6),
       },
     );
     appendPricePart(
@@ -2886,17 +2868,17 @@ export function renderClaudeLogContent(opts) {
       '缓存创建价格 {{symbol}}{{price}} / 1M tokens',
       {
         symbol,
-        price: (modelRatio * 2.0 * cacheCreationRatio * rate).toFixed(6),
+        price: (modelPrice * cacheCreationRatio * rate).toFixed(6),
       },
     );
     parts.push(getGroupRatioText(groupRatio, user_group_ratio));
     return joinBillingSummary(parts);
   }
 
-  if (modelPrice !== -1) {
+  if (modelFixedPrice !== -1) {
     return i18next.t('模型价格 {{symbol}}{{price}}，{{ratioType}} {{ratio}}', {
       symbol: symbol,
-      price: (modelPrice * rate).toFixed(6),
+      price: (modelFixedPrice * rate).toFixed(6),
       ratioType: ratioLabel,
       ratio: groupRatio,
     });
@@ -2942,8 +2924,12 @@ export function renderClaudeLogContent(opts) {
     }
 
     const parts = [
-      i18next.t('模型倍率 {{modelRatio}}', { modelRatio }),
-      i18next.t('输出倍率 {{completionRatio}}', { completionRatio }),
+      i18next.t('模型价格 {{modelPrice}}', {
+        modelPrice: renderDisplayAmountFromUsd(modelPrice),
+      }),
+      i18next.t('模型补全价格 {{completionPrice}}', {
+        completionPrice: renderDisplayAmountFromUsd(completionPrice),
+      }),
       i18next.t('缓存倍率 {{cacheRatio}}', { cacheRatio }),
       cacheCreationPart,
       i18next.t('{{ratioType}} {{ratio}}', {

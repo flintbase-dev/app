@@ -15,57 +15,12 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-var completionRatioMetaOptionKeys = []string{
-	"ModelPrice",
-	"ModelRatio",
-	"CompletionRatio",
-	"CacheRatio",
-	"CreateCacheRatio",
-	"ImageRatio",
-	"AudioRatio",
-	"AudioCompletionRatio",
-}
-
 func isVisiblePublicKeyOption(key string) bool {
 	return false
 }
 
-func collectModelNamesFromOptionValue(raw string, modelNames map[string]struct{}) {
-	if strings.TrimSpace(raw) == "" {
-		return
-	}
-
-	var parsed map[string]any
-	if err := common.UnmarshalJsonStr(raw, &parsed); err != nil {
-		return
-	}
-
-	for modelName := range parsed {
-		modelNames[modelName] = struct{}{}
-	}
-}
-
-func buildCompletionRatioMetaValue(optionValues map[string]string) string {
-	modelNames := make(map[string]struct{})
-	for _, key := range completionRatioMetaOptionKeys {
-		collectModelNamesFromOptionValue(optionValues[key], modelNames)
-	}
-
-	meta := make(map[string]ratio_setting.CompletionRatioInfo, len(modelNames))
-	for modelName := range modelNames {
-		meta[modelName] = ratio_setting.GetCompletionRatioInfo(modelName)
-	}
-
-	jsonBytes, err := common.Marshal(meta)
-	if err != nil {
-		return "{}"
-	}
-	return string(jsonBytes)
-}
-
 func GetOptions(c *gin.Context) {
 	var options []*model.Option
-	optionValues := make(map[string]string)
 	common.OptionMapRWMutex.Lock()
 	for k, v := range common.OptionMap {
 		value := common.Interface2String(v)
@@ -81,18 +36,8 @@ func GetOptions(c *gin.Context) {
 			Key:   k,
 			Value: value,
 		})
-		for _, optionKey := range completionRatioMetaOptionKeys {
-			if optionKey == k {
-				optionValues[k] = value
-				break
-			}
-		}
 	}
 	common.OptionMapRWMutex.Unlock()
-	options = append(options, &model.Option{
-		Key:   "CompletionRatioMeta",
-		Value: buildCompletionRatioMetaValue(optionValues),
-	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -160,6 +105,33 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "音频倍率设置失败: " + err.Error(),
+			})
+			return
+		}
+	case "ModelPrice":
+		err = ratio_setting.UpdateModelPriceByJSONString(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型价格设置失败: " + err.Error(),
+			})
+			return
+		}
+	case "CompletionPrice":
+		err = ratio_setting.UpdateCompletionPriceByJSONString(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型补全价格设置失败: " + err.Error(),
+			})
+			return
+		}
+	case "ModelFixedPrice":
+		err = ratio_setting.UpdateModelFixedPriceByJSONString(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型按次价格设置失败: " + err.Error(),
 			})
 			return
 		}

@@ -14,15 +14,10 @@ const (
 	RMB     = USD / USD2RMB
 )
 
-// modelRatio
-// https://platform.openai.com/docs/models/model-endpoint-compatibility
-// https://cloud.baidu.com/doc/WENXINWORKSHOP/s/Blfmc9dlf
-// https://openai.com/pricing
-// TODO: when a new api is enabled, check the pricing here
-// 1 === $0.002 / 1K tokens
-// 1 === ￥0.014 / 1k tokens
-
-var defaultModelRatio = map[string]float64{
+// Default model input price units.
+// Values here use the app's historical billing unit, where 1 unit equals
+// $2 / 1M tokens. buildDefaultModelPrice converts them to direct USD/Mtk.
+var defaultModelPriceUnits = map[string]float64{
 	"gpt-4-gizmo-*":                           15,
 	"gpt-4o-gizmo-*":                          2.5,
 	"gpt-4-all":                               15,
@@ -179,8 +174,8 @@ var defaultModelRatio = map[string]float64{
 	"gemini-2.5-flash-preview-05-20":            0.075,
 	"gemini-2.5-flash-preview-05-20-thinking":   0.075,
 	"gemini-2.5-flash-preview-05-20-nothinking": 0.075,
-	"gemini-2.5-flash-thinking-*":               0.075, // 用于为后续所有2.5 flash thinking budget 模型设置默认倍率
-	"gemini-2.5-pro-thinking-*":                 0.625, // 用于为后续所有2.5 pro thinking budget 模型设置默认倍率
+	"gemini-2.5-flash-thinking-*":               0.075, // 用于为后续所有2.5 flash thinking budget 模型设置默认输入价格
+	"gemini-2.5-pro-thinking-*":                 0.625, // 用于为后续所有2.5 pro thinking budget 模型设置默认输入价格
 	"gemini-2.5-flash-lite-preview-thinking-*":  0.05,
 	"gemini-2.5-flash-lite-preview-06-17":       0.05,
 	"gemini-2.5-flash":                          0.15,
@@ -271,7 +266,7 @@ var defaultModelRatio = map[string]float64{
 	"deepseek-ai/DeepSeek-V3.1":               0.8,
 }
 
-var defaultModelPrice = map[string]float64{
+var defaultModelFixedPrice = map[string]float64{
 	"dall-e-3":        0.04,
 	"gpt-4-gizmo-*":   0.1,
 	"gpt-4o-mini-tts": 0.3,
@@ -296,21 +291,46 @@ var defaultAudioCompletionRatio = map[string]float64{
 }
 
 var modelPriceMap = types.NewRWMap[string, float64]()
-var modelRatioMap = types.NewRWMap[string, float64]()
-var completionRatioMap = types.NewRWMap[string, float64]()
+var modelFixedPriceMap = types.NewRWMap[string, float64]()
+var completionPriceMap = types.NewRWMap[string, float64]()
 
-var defaultCompletionRatio = map[string]float64{
+var defaultCompletionPriceFactor = map[string]float64{
 	"gpt-4-gizmo-*":  2,
 	"gpt-4o-gizmo-*": 3,
 	"gpt-4-all":      2,
 	"gpt-image-1":    8,
 }
 
+func buildDefaultModelPrice() map[string]float64 {
+	prices := make(map[string]float64, len(defaultModelPriceUnits))
+	for name, unitPrice := range defaultModelPriceUnits {
+		prices[name] = unitPrice * 2
+	}
+	return prices
+}
+
+func buildDefaultCompletionPrice(modelPrices map[string]float64) map[string]float64 {
+	prices := make(map[string]float64, len(modelPrices))
+	for name, inputPrice := range modelPrices {
+		completionMultiplier, _ := getDefaultCompletionPriceFactor(name)
+		prices[name] = inputPrice * completionMultiplier
+	}
+	for name, completionMultiplier := range defaultCompletionPriceFactor {
+		if inputPrice, ok := modelPrices[name]; ok {
+			prices[name] = inputPrice * completionMultiplier
+		}
+	}
+	return prices
+}
+
+var defaultModelPrice = buildDefaultModelPrice()
+var defaultCompletionPrice = buildDefaultCompletionPrice(defaultModelPrice)
+
 // InitRatioSettings initializes all model related settings maps
 func InitRatioSettings() {
 	modelPriceMap.AddAll(defaultModelPrice)
-	modelRatioMap.AddAll(defaultModelRatio)
-	completionRatioMap.AddAll(defaultCompletionRatio)
+	modelFixedPriceMap.AddAll(defaultModelFixedPrice)
+	completionPriceMap.AddAll(defaultCompletionPrice)
 	cacheRatioMap.AddAll(defaultCacheRatio)
 	createCacheRatioMap.AddAll(defaultCreateCacheRatio)
 	imageRatioMap.AddAll(defaultImageRatio)
@@ -330,7 +350,7 @@ func UpdateModelPriceByJSONString(jsonStr string) error {
 	return types.LoadFromJsonStringWithCallback(modelPriceMap, jsonStr, InvalidateExposedDataCache)
 }
 
-// GetModelPrice 返回模型的价格，如果模型不存在则返回-1，false
+// GetModelPrice returns the input token price in USD per 1M tokens.
 func GetModelPrice(name string, printErr bool) (float64, bool) {
 	name = FormatMatchingModelName(name)
 
@@ -355,8 +375,40 @@ func GetModelPrice(name string, printErr bool) (float64, bool) {
 	return -1, false
 }
 
-func UpdateModelRatioByJSONString(jsonStr string) error {
-	return types.LoadFromJsonStringWithCallback(modelRatioMap, jsonStr, InvalidateExposedDataCache)
+func GetModelFixedPriceMap() map[string]float64 {
+	return modelFixedPriceMap.ReadAll()
+}
+
+func ModelFixedPrice2JSONString() string {
+	return modelFixedPriceMap.MarshalJSONString()
+}
+
+func UpdateModelFixedPriceByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(modelFixedPriceMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func GetModelFixedPrice(name string, printErr bool) (float64, bool) {
+	name = FormatMatchingModelName(name)
+
+	if price, ok := modelFixedPriceMap.Get(name); ok {
+		return price, true
+	}
+
+	if strings.HasSuffix(name, CompactModelSuffix) {
+		price, ok := modelFixedPriceMap.Get(CompactWildcardModelKey)
+		if !ok {
+			if printErr {
+				common.SysError("model fixed price not found: " + name)
+			}
+			return -1, false
+		}
+		return price, true
+	}
+
+	if printErr {
+		common.SysError("model fixed price not found: " + name)
+	}
+	return -1, false
 }
 
 // 处理带有思考预算的模型名称，方便统一定价
@@ -367,103 +419,46 @@ func handleThinkingBudgetModel(name, prefix, wildcard string) string {
 	return name
 }
 
-func GetModelRatio(name string) (float64, bool, string) {
-	name = FormatMatchingModelName(name)
-
-	ratio, ok := modelRatioMap.Get(name)
-	if !ok {
-		if strings.HasSuffix(name, CompactModelSuffix) {
-			if wildcardRatio, ok := modelRatioMap.Get(CompactWildcardModelKey); ok {
-				return wildcardRatio, true, name
-			}
-			//return 0, true, name
-		}
-		return 0, false, name
-	}
-	return ratio, true, name
-}
-
-func DefaultModelRatio2JSONString() string {
-	jsonBytes, err := common.Marshal(defaultModelRatio)
-	if err != nil {
-		common.SysError("error marshalling model ratio: " + err.Error())
-	}
-	return string(jsonBytes)
-}
-
-func GetDefaultModelRatioMap() map[string]float64 {
-	return defaultModelRatio
-}
-
 func GetDefaultModelPriceMap() map[string]float64 {
 	return defaultModelPrice
 }
 
-func CompletionRatio2JSONString() string {
-	return completionRatioMap.MarshalJSONString()
+func DefaultModelPrice2JSONString() string {
+	jsonBytes, err := common.Marshal(defaultModelPrice)
+	if err != nil {
+		common.SysError("error marshalling model price: " + err.Error())
+	}
+	return string(jsonBytes)
 }
 
-func UpdateCompletionRatioByJSONString(jsonStr string) error {
-	return types.LoadFromJsonStringWithCallback(completionRatioMap, jsonStr, InvalidateExposedDataCache)
+func CompletionPrice2JSONString() string {
+	return completionPriceMap.MarshalJSONString()
 }
 
-func GetCompletionRatio(name string) float64 {
+func DefaultCompletionPrice2JSONString() string {
+	jsonBytes, err := common.Marshal(defaultCompletionPrice)
+	if err != nil {
+		common.SysError("error marshalling completion price: " + err.Error())
+	}
+	return string(jsonBytes)
+}
+
+func UpdateCompletionPriceByJSONString(jsonStr string) error {
+	return types.LoadFromJsonStringWithCallback(completionPriceMap, jsonStr, InvalidateExposedDataCache)
+}
+
+func GetCompletionPrice(name string) float64 {
 	name = FormatMatchingModelName(name)
-
-	if strings.Contains(name, "/") {
-		if ratio, ok := completionRatioMap.Get(name); ok {
-			return ratio
-		}
+	if price, ok := completionPriceMap.Get(name); ok {
+		return price
 	}
-	hardCodedRatio, contain := getHardcodedCompletionModelRatio(name)
-	if contain {
-		return hardCodedRatio
+	if inputPrice, ok := GetModelPrice(name, false); ok {
+		return inputPrice
 	}
-	if ratio, ok := completionRatioMap.Get(name); ok {
-		return ratio
-	}
-	return hardCodedRatio
+	return 0
 }
 
-type CompletionRatioInfo struct {
-	Ratio  float64 `json:"ratio"`
-	Locked bool    `json:"locked"`
-}
-
-func GetCompletionRatioInfo(name string) CompletionRatioInfo {
-	name = FormatMatchingModelName(name)
-
-	if strings.Contains(name, "/") {
-		if ratio, ok := completionRatioMap.Get(name); ok {
-			return CompletionRatioInfo{
-				Ratio:  ratio,
-				Locked: false,
-			}
-		}
-	}
-
-	hardCodedRatio, locked := getHardcodedCompletionModelRatio(name)
-	if locked {
-		return CompletionRatioInfo{
-			Ratio:  hardCodedRatio,
-			Locked: true,
-		}
-	}
-
-	if ratio, ok := completionRatioMap.Get(name); ok {
-		return CompletionRatioInfo{
-			Ratio:  ratio,
-			Locked: false,
-		}
-	}
-
-	return CompletionRatioInfo{
-		Ratio:  hardCodedRatio,
-		Locked: false,
-	}
-}
-
-func getHardcodedCompletionModelRatio(name string) (float64, bool) {
+func getDefaultCompletionPriceFactor(name string) (float64, bool) {
 
 	isReservedModel := strings.HasSuffix(name, "-all") || strings.HasSuffix(name, "-gizmo-*")
 	if isReservedModel {
@@ -480,7 +475,7 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			}
 			return 4, false
 		}
-		// gpt-5 匹配
+		// gpt-5 输出价格匹配
 		if strings.HasPrefix(name, "gpt-5") {
 			if strings.HasPrefix(name, "gpt-5.5") {
 				return 6, true
@@ -493,14 +488,14 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			}
 			return 8, true
 		}
-		// gpt-4.5-preview匹配
+		// gpt-4.5-preview 输出价格匹配
 		if strings.HasPrefix(name, "gpt-4.5-preview") {
 			return 2, true
 		}
 		if strings.HasPrefix(name, "gpt-4-turbo") || strings.HasSuffix(name, "gpt-4-1106") || strings.HasSuffix(name, "gpt-4-1105") {
 			return 3, true
 		}
-		// 没有特殊标记的 gpt-4 模型默认倍率为 2
+		// 没有特殊标记的 gpt-4 模型默认输出价格系数为 2
 		return 2, false
 	}
 	if strings.HasPrefix(name, "o1") || strings.HasPrefix(name, "o3") {
@@ -535,9 +530,9 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			return 4, true
 		} else if strings.HasPrefix(name, "gemini-2.0") {
 			return 4, true
-		} else if strings.HasPrefix(name, "gemini-2.5-pro") { // 移除preview来增加兼容性，这里假设正式版的倍率和preview一致
+		} else if strings.HasPrefix(name, "gemini-2.5-pro") { // 移除preview来增加兼容性，这里假设正式版的输出价格系数和preview一致
 			return 8, false
-		} else if strings.HasPrefix(name, "gemini-2.5-flash") { // 处理不同的flash模型倍率
+		} else if strings.HasPrefix(name, "gemini-2.5-flash") { // 处理不同的flash模型输出价格
 			if strings.HasPrefix(name, "gemini-2.5-flash-preview") {
 				if strings.HasSuffix(name, "-nothinking") {
 					return 4, false
@@ -572,7 +567,7 @@ func getHardcodedCompletionModelRatio(name string) (float64, bool) {
 			return 4, false
 		}
 	}
-	// hint 只给官方上4倍率，由于开源模型供应商自行定价，不对其进行补全倍率进行强制对齐
+	// hint 只给官方模型设置默认输出价格系数，由于开源模型供应商自行定价，不做强制对齐
 	if strings.HasPrefix(name, "ERNIE-Speed-") {
 		return 2, true
 	} else if strings.HasPrefix(name, "ERNIE-Lite-") {
@@ -621,10 +616,6 @@ func ContainsAudioCompletionRatio(name string) bool {
 	return ok
 }
 
-func ModelRatio2JSONString() string {
-	return modelRatioMap.MarshalJSONString()
-}
-
 var defaultImageRatio = map[string]float64{
 	"gpt-image-1": 2,
 }
@@ -664,16 +655,16 @@ func UpdateAudioCompletionRatioByJSONString(jsonStr string) error {
 	return types.LoadFromJsonStringWithCallback(audioCompletionRatioMap, jsonStr, InvalidateExposedDataCache)
 }
 
-func GetModelRatioCopy() map[string]float64 {
-	return modelRatioMap.ReadAll()
-}
-
 func GetModelPriceCopy() map[string]float64 {
 	return modelPriceMap.ReadAll()
 }
 
-func GetCompletionRatioCopy() map[string]float64 {
-	return completionRatioMap.ReadAll()
+func GetModelFixedPriceCopy() map[string]float64 {
+	return modelFixedPriceMap.ReadAll()
+}
+
+func GetCompletionPriceCopy() map[string]float64 {
+	return completionPriceMap.ReadAll()
 }
 
 func GetImageRatioCopy() map[string]float64 {
@@ -706,17 +697,4 @@ func FormatMatchingModelName(name string) string {
 		name = "gpt-4o-gizmo-*"
 	}
 	return name
-}
-
-// result: 倍率or价格， usePrice， exist
-func GetModelRatioOrPrice(model string) (float64, bool, bool) { // price or ratio
-	price, usePrice := GetModelPrice(model, false)
-	if usePrice {
-		return price, true, true
-	}
-	modelRatio, success, _ := GetModelRatio(model)
-	if success {
-		return modelRatio, false, true
-	}
-	return 37.5, false, false
 }

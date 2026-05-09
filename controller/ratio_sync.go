@@ -28,20 +28,20 @@ import (
 )
 
 const (
-	defaultTimeoutSeconds       = 10
-	defaultEndpoint             = "/api/pricing"
-	maxConcurrentFetches        = 8
-	maxRatioConfigBytes         = 10 << 20 // 10MB
-	floatEpsilon                = 1e-9
-	officialRatioPresetID       = -100
-	officialRatioPresetName     = "官方倍率预设"
-	officialRatioPresetBaseURL  = "https://basellm.github.io"
-	modelsDevPresetID           = -101
-	modelsDevPresetName         = "models.dev 价格预设"
-	modelsDevPresetBaseURL      = "https://models.dev"
-	modelsDevHost               = "models.dev"
-	modelsDevPath               = "/api.json"
-	modelsDevInputCostRatioBase = 1000.0
+	defaultTimeoutSeconds        = 10
+	defaultEndpoint              = "/api/pricing"
+	maxConcurrentFetches         = 8
+	maxPricingConfigBytes        = 10 << 20 // 10MB
+	floatEpsilon                 = 1e-9
+	officialPricingPresetID      = -100
+	officialPricingPresetName    = "官方价格预设"
+	officialPricingPresetBaseURL = "https://basellm.github.io"
+	modelsDevPresetID            = -101
+	modelsDevPresetName          = "models.dev 价格预设"
+	modelsDevPresetBaseURL       = "https://models.dev"
+	modelsDevHost                = "models.dev"
+	modelsDevPath                = "/api.json"
+	modelsDevInputCostBase       = 1000.0
 )
 
 func nearlyEqual(a, b float64) bool {
@@ -61,27 +61,27 @@ func valuesEqual(a, b interface{}) bool {
 }
 
 var pricingSyncFields = []string{
-	"model_ratio",
-	"completion_ratio",
+	"model_price",
+	"completion_price",
 	"cache_ratio",
 	"create_cache_ratio",
 	"image_ratio",
 	"audio_ratio",
 	"audio_completion_ratio",
-	"model_price",
+	"model_fixed_price",
 	billing_setting.BillingModeField,
 	billing_setting.BillingExprField,
 }
 
 var numericPricingSyncFields = map[string]bool{
-	"model_ratio":            true,
-	"completion_ratio":       true,
+	"model_price":            true,
+	"completion_price":       true,
 	"cache_ratio":            true,
 	"create_cache_ratio":     true,
 	"image_ratio":            true,
 	"audio_ratio":            true,
 	"audio_completion_ratio": true,
-	"model_price":            true,
+	"model_fixed_price":      true,
 }
 
 type upstreamResult struct {
@@ -279,7 +279,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			if ct := resp.Header.Get("Content-Type"); ct != "" && !strings.Contains(strings.ToLower(ct), "application/json") {
 				logger.LogWarn(c.Request.Context(), "unexpected content-type from "+chItem.Name+": "+ct)
 			}
-			limited := io.LimitReader(resp.Body, maxRatioConfigBytes)
+			limited := io.LimitReader(resp.Body, maxPricingConfigBytes)
 			bodyBytes, err := io.ReadAll(limited)
 			if err != nil {
 				logger.LogWarn(c.Request.Context(), "read response failed from "+chItem.Name+": "+err.Error())
@@ -287,9 +287,9 @@ func FetchUpstreamRatios(c *gin.Context) {
 				return
 			}
 
-			// type4: models.dev /api.json -> convert provider model pricing to ratios
+			// type4: models.dev /api.json -> convert provider model pricing to local pricing fields
 			if isModelsDev {
-				converted, err := convertModelsDevToRatioData(bytes.NewReader(bodyBytes))
+				converted, err := convertModelsDevToPricingData(bytes.NewReader(bodyBytes))
 				if err != nil {
 					logger.LogWarn(c.Request.Context(), "models.dev parse failed from "+chItem.Name+": "+err.Error())
 					ch <- upstreamResult{Name: uniqueName, Err: err.Error()}
@@ -299,8 +299,8 @@ func FetchUpstreamRatios(c *gin.Context) {
 				return
 			}
 
-			// 兼容两种上游接口格式：
-			//  type1: /api/ratio_config -> data 为 map[string]any，包含 model_ratio/completion_ratio/cache_ratio/model_price
+			// 支持两种上游接口格式：
+			//  type1: /api/ratio_config -> data 为 map[string]any，包含 model_price/completion_price/cache_ratio/model_fixed_price
 			//  type2: /api/pricing      -> data 为 []Pricing 列表，需要转换为与 type1 相同的 map 格式
 			var body struct {
 				Success bool            `json:"success"`
@@ -324,7 +324,7 @@ func FetchUpstreamRatios(c *gin.Context) {
 			// 尝试按 type1 解析
 			var type1Data map[string]any
 			if err := common.Unmarshal(body.Data, &type1Data); err == nil {
-				// 如果包含至少一个 ratioTypes 字段，则认为是 type1
+				// 如果包含至少一个价格同步字段，则认为是 type1
 				isType1 := false
 				for _, rt := range pricingSyncFields {
 					if _, ok := type1Data[rt]; ok {
@@ -342,9 +342,9 @@ func FetchUpstreamRatios(c *gin.Context) {
 			var pricingItems []struct {
 				ModelName            string   `json:"model_name"`
 				QuotaType            int      `json:"quota_type"`
-				ModelRatio           float64  `json:"model_ratio"`
 				ModelPrice           float64  `json:"model_price"`
-				CompletionRatio      float64  `json:"completion_ratio"`
+				CompletionPrice      float64  `json:"completion_price"`
+				ModelFixedPrice      float64  `json:"model_fixed_price"`
 				CacheRatio           *float64 `json:"cache_ratio"`
 				CreateCacheRatio     *float64 `json:"create_cache_ratio"`
 				ImageRatio           *float64 `json:"image_ratio"`
@@ -359,14 +359,14 @@ func FetchUpstreamRatios(c *gin.Context) {
 				return
 			}
 
-			modelRatioMap := make(map[string]float64)
-			completionRatioMap := make(map[string]float64)
+			modelPriceMap := make(map[string]float64)
+			completionPriceMap := make(map[string]float64)
 			cacheRatioMap := make(map[string]float64)
 			createCacheRatioMap := make(map[string]float64)
 			imageRatioMap := make(map[string]float64)
 			audioRatioMap := make(map[string]float64)
 			audioCompletionRatioMap := make(map[string]float64)
-			modelPriceMap := make(map[string]float64)
+			modelFixedPriceMap := make(map[string]float64)
 			billingModeMap := make(map[string]string)
 			billingExprMap := make(map[string]string)
 
@@ -379,11 +379,10 @@ func FetchUpstreamRatios(c *gin.Context) {
 					billingExprMap[item.ModelName] = item.BillingExpr
 				}
 				if item.QuotaType == 1 {
-					modelPriceMap[item.ModelName] = item.ModelPrice
+					modelFixedPriceMap[item.ModelName] = item.ModelFixedPrice
 				} else {
-					modelRatioMap[item.ModelName] = item.ModelRatio
-					// completionRatio 可能为 0，此时也直接赋值，保持与上游一致
-					completionRatioMap[item.ModelName] = item.CompletionRatio
+					modelPriceMap[item.ModelName] = item.ModelPrice
+					completionPriceMap[item.ModelName] = item.CompletionPrice
 				}
 				if item.CacheRatio != nil {
 					cacheRatioMap[item.ModelName] = *item.CacheRatio
@@ -404,20 +403,20 @@ func FetchUpstreamRatios(c *gin.Context) {
 
 			converted := make(map[string]any)
 
-			if len(modelRatioMap) > 0 {
-				ratioAny := make(map[string]any, len(modelRatioMap))
-				for k, v := range modelRatioMap {
-					ratioAny[k] = v
+			if len(modelPriceMap) > 0 {
+				priceAny := make(map[string]any, len(modelPriceMap))
+				for k, v := range modelPriceMap {
+					priceAny[k] = v
 				}
-				converted["model_ratio"] = ratioAny
+				converted["model_price"] = priceAny
 			}
 
-			if len(completionRatioMap) > 0 {
-				compAny := make(map[string]any, len(completionRatioMap))
-				for k, v := range completionRatioMap {
+			if len(completionPriceMap) > 0 {
+				compAny := make(map[string]any, len(completionPriceMap))
+				for k, v := range completionPriceMap {
 					compAny[k] = v
 				}
-				converted["completion_ratio"] = compAny
+				converted["completion_price"] = compAny
 			}
 			if len(cacheRatioMap) > 0 {
 				converted["cache_ratio"] = valueMap(cacheRatioMap)
@@ -435,12 +434,12 @@ func FetchUpstreamRatios(c *gin.Context) {
 				converted["audio_completion_ratio"] = valueMap(audioCompletionRatioMap)
 			}
 
-			if len(modelPriceMap) > 0 {
-				priceAny := make(map[string]any, len(modelPriceMap))
-				for k, v := range modelPriceMap {
+			if len(modelFixedPriceMap) > 0 {
+				priceAny := make(map[string]any, len(modelFixedPriceMap))
+				for k, v := range modelFixedPriceMap {
 					priceAny[k] = v
 				}
-				converted["model_price"] = priceAny
+				converted["model_fixed_price"] = priceAny
 			}
 			if len(billingModeMap) > 0 {
 				converted[billing_setting.BillingModeField] = valueMap(billingModeMap)
@@ -516,41 +515,6 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
 		}
 	}
 
-	confidenceMap := make(map[string]map[string]bool)
-
-	// 预处理阶段：检查pricing接口的可信度
-	for _, channel := range successfulChannels {
-		confidenceMap[channel.name] = make(map[string]bool)
-
-		modelRatios := valueMap(channel.data["model_ratio"])
-		completionRatios := valueMap(channel.data["completion_ratio"])
-
-		if len(modelRatios) > 0 && len(completionRatios) > 0 {
-			// 遍历所有模型，检查是否满足不可信条件
-			for modelName := range allModels {
-				// 默认为可信
-				confidenceMap[channel.name][modelName] = true
-
-				// 检查是否满足不可信条件：model_ratio为37.5且completion_ratio为1
-				if modelRatioVal, ok := modelRatios[modelName]; ok {
-					if completionRatioVal, ok := completionRatios[modelName]; ok {
-						// 转换为float64进行比较
-						modelRatioFloat, modelRatioOK := asFloat64(modelRatioVal)
-						completionRatioFloat, completionRatioOK := asFloat64(completionRatioVal)
-						if modelRatioOK && completionRatioOK && nearlyEqual(modelRatioFloat, 37.5) && nearlyEqual(completionRatioFloat, 1.0) {
-							confidenceMap[channel.name][modelName] = false
-						}
-					}
-				}
-			}
-		} else {
-			// 如果不是从pricing接口获取的数据，则全部标记为可信
-			for modelName := range allModels {
-				confidenceMap[channel.name][modelName] = true
-			}
-		}
-	}
-
 	for modelName := range allModels {
 		for _, ratioType := range pricingSyncFields {
 			var localValue interface{} = nil
@@ -586,7 +550,7 @@ func buildDifferences(localData map[string]any, successfulChannels []struct {
 
 				upstreamValues[channel.name] = upstreamValue
 
-				confidenceValues[channel.name] = confidenceMap[channel.name][modelName]
+				confidenceValues[channel.name] = true
 			}
 
 			shouldInclude := false
@@ -761,18 +725,18 @@ func shouldReplaceModelsDevCandidate(current, next modelsDevCandidate) bool {
 	return next.Provider < current.Provider
 }
 
-// convertModelsDevToRatioData parses models.dev /api.json and converts
-// provider pricing metadata into local ratio format.
+// convertModelsDevToPricingData parses models.dev /api.json and converts
+// provider pricing metadata into local pricing format.
 // models.dev costs are USD per 1M tokens:
 //
-//	model_ratio = input_cost_per_1M / 2
-//	completion_ratio = output_cost / input_cost
+//	model_price = input_cost_per_1M
+//	completion_price = output_cost_per_1M
 //	cache_ratio = cache_read_cost / input_cost
 //
 // Duplicate model keys across providers are resolved by selecting the
 // cheapest non-zero input cost. If only zero-priced candidates exist,
-// a zero ratio is kept.
-func convertModelsDevToRatioData(reader io.Reader) (map[string]any, error) {
+// a zero price is kept.
+func convertModelsDevToPricingData(reader io.Reader) (map[string]any, error) {
 	var upstreamData map[string]modelsDevProvider
 	if err := common.DecodeJson(reader, &upstreamData); err != nil {
 		return nil, fmt.Errorf("failed to decode models.dev response: %w", err)
@@ -816,22 +780,22 @@ func convertModelsDevToRatioData(reader io.Reader) (map[string]any, error) {
 		return nil, fmt.Errorf("no valid models.dev pricing entries found")
 	}
 
-	modelRatioMap := make(map[string]any)
-	completionRatioMap := make(map[string]any)
+	modelPriceMap := make(map[string]any)
+	completionPriceMap := make(map[string]any)
 	cacheRatioMap := make(map[string]any)
 
 	for modelName, candidate := range selectedCandidates {
 		if candidate.Input == 0 {
-			modelRatioMap[modelName] = 0.0
+			modelPriceMap[modelName] = 0.0
 			continue
 		}
 
-		modelRatio := candidate.Input * float64(ratio_setting.USD) / modelsDevInputCostRatioBase
-		modelRatioMap[modelName] = roundRatioValue(modelRatio)
+		modelPrice := candidate.Input * float64(ratio_setting.USD) / modelsDevInputCostBase * 2
+		modelPriceMap[modelName] = roundRatioValue(modelPrice)
 
 		if candidate.Output != nil {
-			completionRatio := *candidate.Output / candidate.Input
-			completionRatioMap[modelName] = roundRatioValue(completionRatio)
+			completionPrice := *candidate.Output * float64(ratio_setting.USD) / modelsDevInputCostBase * 2
+			completionPriceMap[modelName] = roundRatioValue(completionPrice)
 		}
 
 		if candidate.CacheRead != nil {
@@ -841,11 +805,11 @@ func convertModelsDevToRatioData(reader io.Reader) (map[string]any, error) {
 	}
 
 	converted := make(map[string]any)
-	if len(modelRatioMap) > 0 {
-		converted["model_ratio"] = modelRatioMap
+	if len(modelPriceMap) > 0 {
+		converted["model_price"] = modelPriceMap
 	}
-	if len(completionRatioMap) > 0 {
-		converted["completion_ratio"] = completionRatioMap
+	if len(completionPriceMap) > 0 {
+		converted["completion_price"] = completionPriceMap
 	}
 	if len(cacheRatioMap) > 0 {
 		converted["cache_ratio"] = cacheRatioMap
@@ -877,9 +841,9 @@ func GetSyncableChannels(c *gin.Context) {
 	}
 
 	syncableChannels = append(syncableChannels, dto.SyncableChannel{
-		ID:      officialRatioPresetID,
-		Name:    officialRatioPresetName,
-		BaseURL: officialRatioPresetBaseURL,
+		ID:      officialPricingPresetID,
+		Name:    officialPricingPresetName,
+		BaseURL: officialPricingPresetBaseURL,
 		Status:  1,
 	})
 

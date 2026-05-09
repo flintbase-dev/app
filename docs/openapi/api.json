@@ -4578,9 +4578,9 @@
         ]
       }
     },
-    "/api/option/rest_model_ratio": {
+    "/api/option/reset_model_prices": {
       "post": {
-        "summary": "重置模型倍率",
+        "summary": "重置模型价格",
         "deprecated": false,
         "description": "👑 需要超级管理员权限（Root）",
         "tags": [

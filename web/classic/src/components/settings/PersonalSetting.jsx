@@ -51,7 +51,7 @@ const PersonalSetting = () => {
     gotifyToken: '',
     gotifyPriority: 5,
     upstreamModelUpdateNotifyEnabled: false,
-    acceptUnsetModelRatioModel: false,
+    acceptUnsetModelPriceModel: false,
     recordIpLog: false,
   });
 
@@ -96,8 +96,8 @@ const PersonalSetting = () => {
               : 5,
           upstreamModelUpdateNotifyEnabled:
             settings.upstream_model_update_notify_enabled === true,
-          acceptUnsetModelRatioModel:
-            settings.accept_unset_model_ratio_model || false,
+          acceptUnsetModelPriceModel:
+            settings.accept_unset_model_price_model || false,
           recordIpLog: settings.record_ip_log || false,
         });
       } catch (e) {
@@ -154,8 +154,8 @@ const PersonalSetting = () => {
       gotify_priority: notificationSettings.gotifyPriority,
       upstream_model_update_notify_enabled:
         notificationSettings.upstreamModelUpdateNotifyEnabled,
-      accept_unset_model_ratio_model:
-        notificationSettings.acceptUnsetModelRatioModel,
+      accept_unset_model_price_model:
+        notificationSettings.acceptUnsetModelPriceModel,
       record_ip_log: notificationSettings.recordIpLog,
     });
     if (res.data.success) {
