@@ -47,6 +47,8 @@
     "dev": "vite",
     "build": "vite build",
     "test:api": "node ./scripts/test-graphql-api.mjs",
+    "docs:graphql-api": "node ./scripts/generate-graphql-api-doc.mjs",
+    "docs:graphql-api:check": "node ./scripts/generate-graphql-api-doc.mjs --check",
     "lint": "prettier . --check",
     "lint:fix": "prettier . --write",
     "eslint": "bunx eslint \"**/*.{js,jsx}\" --cache",
