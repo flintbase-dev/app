@@ -23,6 +23,12 @@ CREATE TABLE IF NOT EXISTS schema_migrations (
     applied_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 )`
 
+const setupBootstrapSQL = `
+INSERT INTO setups (id, version, initialized_at)
+SELECT $1, $2, $3
+WHERE NOT EXISTS (SELECT 1 FROM setups)
+`
+
 type migration struct {
 	version string
 	path    string
@@ -174,6 +180,10 @@ func applyMigration(ctx context.Context, db *sql.DB, version string, sqlText str
 }
 
 func bootstrap(ctx context.Context, db *sql.DB) error {
+	setupID, err := common.NewTypedID("set", 12)
+	if err != nil {
+		return fmt.Errorf("create setup id: %w", err)
+	}
 	now := time.Now().Unix()
 
 	tx, err := db.BeginTx(ctx, nil)
@@ -182,11 +192,7 @@ func bootstrap(ctx context.Context, db *sql.DB) error {
 	}
 	defer tx.Rollback()
 
-	if _, err := tx.ExecContext(ctx, `
-INSERT INTO setups (version, initialized_at)
-SELECT $1, $2
-WHERE NOT EXISTS (SELECT 1 FROM setups)
-`, common.Version, now); err != nil {
+	if _, err := tx.ExecContext(ctx, setupBootstrapSQL, setupID, common.Version, now); err != nil {
 		return fmt.Errorf("create setup record: %w", err)
 	}
 

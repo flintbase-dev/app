@@ -193,6 +193,8 @@ const EditChannelModal = (props) => {
   const [fetchedModels, setFetchedModels] = useState([]);
   const [modelMappingValueModalVisible, setModelMappingValueModalVisible] =
     useState(false);
+  const [paramOverrideEditorVisible, setParamOverrideEditorVisible] =
+    useState(false);
   const [modelMappingValueModalModels, setModelMappingValueModalModels] =
     useState([]);
   const [modelMappingValueKey, setModelMappingValueKey] = useState('');
@@ -353,6 +355,10 @@ const EditChannelModal = (props) => {
   const initialModelsRef = useRef([]);
   const initialModelMappingRef = useRef('');
   const initialStatusCodeMappingRef = useRef('');
+  const [keyDisplayState, setKeyDisplayState] = useState({
+    showModal: false,
+    keyData: '',
+  });
 
   // 重置密钥显示状态
   const resetKeyDisplayState = () => {

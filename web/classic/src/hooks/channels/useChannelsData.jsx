@@ -428,15 +428,19 @@ export const useChannelsData = () => {
 
   // Refresh
   const refresh = async (page = activePage) => {
+    const normalizedPage =
+      Number.isInteger(Number(page)) && Number(page) > 0
+        ? Number(page)
+        : activePage;
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
     if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-      await loadChannels(page, pageSize, idSort, enableTagMode);
+      await loadChannels(normalizedPage, pageSize, idSort, enableTagMode);
     } else {
       await searchChannels(
         enableTagMode,
         activeTypeKey,
         statusFilter,
-        page,
+        normalizedPage,
         pageSize,
         idSort,
       );

@@ -58,7 +58,7 @@ const ChannelsFilters = ({
           size='small'
           type='tertiary'
           className='w-full md:w-auto'
-          onClick={refresh}
+          onClick={() => refresh()}
         >
           {t('刷新')}
         </Button>

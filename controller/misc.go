@@ -18,12 +18,16 @@ import (
 func GetAdminStatus(c *gin.Context) {
 	dbErr := model.PingDB()
 	logDBErr := model.PingLogDB()
+	setupInitialized := constant.Setup
+	if dbErr == nil {
+		setupInitialized = model.RefreshSetupStatus()
+	}
 
 	data := gin.H{
 		"status_contract_version": 1,
 		"version":                 common.Version,
 		"start_time":              common.StartTime,
-		"setup":                   constant.Setup,
+		"setup":                   setupInitialized,
 		"http_stats":              middleware.GetStats(),
 		"database": gin.H{
 			"ok": dbErr == nil,
@@ -57,6 +61,7 @@ func GetAdminStatus(c *gin.Context) {
 }
 
 func GetStatus(c *gin.Context) {
+	setupInitialized := model.RefreshSetupStatus()
 
 	cs := console_setting.GetConsoleSetting()
 	common.OptionMapRWMutex.RLock()
@@ -96,7 +101,7 @@ func GetStatus(c *gin.Context) {
 		"HeaderNavModules":    common.OptionMap["HeaderNavModules"],
 		"SidebarModulesAdmin": common.OptionMap["SidebarModulesAdmin"],
 
-		"setup":                  constant.Setup,
+		"setup":                  setupInitialized,
 		"user_agreement_enabled": legalSetting.UserAgreement != "",
 		"privacy_policy_enabled": legalSetting.PrivacyPolicy != "",
 		"checkin_enabled":        operation_setting.GetCheckinSetting().Enabled,

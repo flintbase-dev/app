@@ -770,6 +770,9 @@ func GetUsernameById(id string, fromDB bool) (username string, err error) {
 }
 
 func RootUserExists() bool {
+	if DB == nil {
+		return false
+	}
 	var user User
 	err := DB.Where("role = ?", common.RoleRootUser).First(&user).Error
 	if err != nil {

@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/gin-gonic/gin"
 )
@@ -13,13 +12,11 @@ type Setup struct {
 }
 
 func GetSetup(c *gin.Context) {
+	setupInitialized := model.RefreshSetupStatus()
 	setup := Setup{
-		Status:       constant.Setup,
-		RootInit:     constant.Setup,
+		Status:       setupInitialized,
+		RootInit:     model.RootUserExists(),
 		DatabaseType: "postgres",
-	}
-	if !constant.Setup {
-		setup.RootInit = model.RootUserExists()
 	}
 	c.JSON(200, gin.H{
 		"success": true,
