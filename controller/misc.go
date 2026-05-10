@@ -74,10 +74,9 @@ func GetStatus(c *gin.Context) {
 		"stripe_unit_price": setting.StripeUnitPrice,
 
 		// 面板启用开关
-		"api_info_enabled":      cs.ApiInfoEnabled,
-		"uptime_kuma_enabled":   cs.UptimeKumaEnabled,
-		"announcements_enabled": cs.AnnouncementsEnabled,
-		"faq_enabled":           cs.FAQEnabled,
+		"api_info_enabled":    cs.ApiInfoEnabled,
+		"uptime_kuma_enabled": cs.UptimeKumaEnabled,
+		"faq_enabled":         cs.FAQEnabled,
 
 		// 模块管理配置
 		"HeaderNavModules":    common.OptionMap["HeaderNavModules"],
@@ -93,9 +92,6 @@ func GetStatus(c *gin.Context) {
 	if cs.ApiInfoEnabled {
 		data["api_info"] = console_setting.GetApiInfo()
 	}
-	if cs.AnnouncementsEnabled {
-		data["announcements"] = console_setting.GetAnnouncements()
-	}
 	if cs.FAQEnabled {
 		data["faq"] = console_setting.GetFAQ()
 	}
@@ -104,17 +100,6 @@ func GetStatus(c *gin.Context) {
 		"success": true,
 		"message": "",
 		"data":    data,
-	})
-	return
-}
-
-func GetNotice(c *gin.Context) {
-	common.OptionMapRWMutex.RLock()
-	defer common.OptionMapRWMutex.RUnlock()
-	c.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "",
-		"data":    common.OptionMap["Notice"],
 	})
 	return
 }

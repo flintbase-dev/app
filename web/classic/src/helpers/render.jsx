@@ -44,6 +44,8 @@ import {
   CircleUser,
   Package,
   CalendarClock,
+  Inbox,
+  Megaphone,
 } from 'lucide-react';
 
 // 获取侧边栏Lucide图标组件
@@ -70,6 +72,8 @@ export function getLucideIcon(key, selected = false) {
       return <Key {...commonProps} color={iconColor} />;
     case 'log':
       return <BarChart3 {...commonProps} color={iconColor} />;
+    case 'messages':
+      return <Inbox {...commonProps} color={iconColor} />;
     case 'topup':
       return <CreditCard {...commonProps} color={iconColor} />;
     case 'channel':
@@ -83,6 +87,8 @@ export function getLucideIcon(key, selected = false) {
       return <Package {...commonProps} color={iconColor} />;
     case 'subscription':
       return <CalendarClock {...commonProps} color={iconColor} />;
+    case 'messageManagement':
+      return <Megaphone {...commonProps} color={iconColor} />;
     case 'setting':
       return <Settings {...commonProps} color={iconColor} />;
     default:

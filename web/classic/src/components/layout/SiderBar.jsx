@@ -34,10 +34,12 @@ const routerMap = {
   home: '/',
   channel: '/console/channel',
   token: '/console/token',
+  messages: '/console/messages',
   redemption: '/console/redemption',
   topup: '/console/topup',
   user: '/console/user',
   subscription: '/console/subscription',
+  messageManagement: '/console/message-management',
   log: '/console/log',
   setting: '/console/setting',
   about: '/about',
@@ -85,6 +87,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('使用日志'),
         itemKey: 'log',
         to: '/log',
+      },
+      {
+        text: t('我的消息'),
+        itemKey: 'messages',
+        to: '/messages',
       },
     ];
 
@@ -150,6 +157,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('用户管理'),
         itemKey: 'user',
         to: '/user',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('消息管理'),
+        itemKey: 'messageManagement',
+        to: '/message-management',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

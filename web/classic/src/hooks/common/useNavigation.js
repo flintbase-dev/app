@@ -26,6 +26,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
       home: true,
       console: true,
       pricing: true,
+      broadcasts: true,
       docs: true,
       about: true,
     };
@@ -48,6 +49,11 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         text: t('模型广场'),
         itemKey: 'pricing',
         to: '/pricing',
+      },
+      {
+        text: t('公开广播'),
+        itemKey: 'broadcasts',
+        to: '/broadcasts',
       },
       ...(docsLink
         ? [
@@ -72,10 +78,7 @@ export const useNavigation = (t, docsLink, headerNavModules) => {
         return docsLink && modules.docs;
       }
       if (link.itemKey === 'pricing') {
-        // 支持新的pricing配置格式
-        return typeof modules.pricing === 'object'
-          ? modules.pricing.enabled
-          : modules.pricing;
+        return modules.pricing?.enabled === true;
       }
       return modules[link.itemKey] === true;
     });

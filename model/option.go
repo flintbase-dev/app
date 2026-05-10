@@ -45,7 +45,6 @@ func InitOptionMap() {
 	common.OptionMap["PostmarkFrom"] = ""
 	common.OptionMap["PostmarkServerToken"] = ""
 	common.OptionMap["PostmarkMessageStream"] = common.PostmarkMessageStream
-	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
 	common.OptionMap["Footer"] = common.Footer

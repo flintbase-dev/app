@@ -21,7 +21,6 @@ import React, { useEffect, useState } from 'react';
 import { Card, Spin } from '@douyinfe/semi-ui';
 import { API, showError } from '../../helpers';
 import SettingsAPIInfo from '../../pages/Setting/Dashboard/SettingsAPIInfo';
-import SettingsAnnouncements from '../../pages/Setting/Dashboard/SettingsAnnouncements';
 import SettingsFAQ from '../../pages/Setting/Dashboard/SettingsFAQ';
 import SettingsUptimeKuma from '../../pages/Setting/Dashboard/SettingsUptimeKuma';
 import SettingsDataDashboard from '../../pages/Setting/Dashboard/SettingsDataDashboard';
@@ -29,11 +28,9 @@ import SettingsDataDashboard from '../../pages/Setting/Dashboard/SettingsDataDas
 const DashboardSetting = () => {
   let [inputs, setInputs] = useState({
     'console_setting.api_info': '',
-    'console_setting.announcements': '',
     'console_setting.faq': '',
     'console_setting.uptime_kuma_groups': '',
     'console_setting.api_info_enabled': '',
-    'console_setting.announcements_enabled': '',
     'console_setting.faq_enabled': '',
     'console_setting.uptime_kuma_enabled': '',
 
@@ -80,10 +77,6 @@ const DashboardSetting = () => {
       <Spin spinning={loading} size='large'>
         <Card style={{ marginTop: '10px' }}>
           <SettingsDataDashboard options={inputs} refresh={onRefresh} />
-        </Card>
-
-        <Card style={{ marginTop: '10px' }}>
-          <SettingsAnnouncements options={inputs} refresh={onRefresh} />
         </Card>
 
         <Card style={{ marginTop: '10px' }}>

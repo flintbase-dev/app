@@ -74,6 +74,7 @@ const NotificationSettings = ({
       detail: true,
       token: true,
       log: true,
+      messages: true,
     },
     personal: {
       enabled: true,
@@ -87,6 +88,7 @@ const NotificationSettings = ({
       subscription: true,
       redemption: true,
       user: true,
+      messageManagement: true,
       setting: true,
     },
   });
@@ -159,6 +161,7 @@ const NotificationSettings = ({
         detail: true,
         token: true,
         log: true,
+        messages: true,
       },
       personal: { enabled: true, topup: true, personal: true },
       admin: {
@@ -168,6 +171,7 @@ const NotificationSettings = ({
         subscription: true,
         redemption: true,
         user: true,
+        messageManagement: true,
         setting: true,
       },
     };
@@ -259,6 +263,7 @@ const NotificationSettings = ({
         { key: 'detail', title: t('数据看板'), description: t('系统数据统计') },
         { key: 'token', title: t('令牌管理'), description: t('API令牌管理') },
         { key: 'log', title: t('使用日志'), description: t('API使用记录') },
+        { key: 'messages', title: t('我的消息'), description: t('站内消息') },
       ],
     },
     {
@@ -293,6 +298,11 @@ const NotificationSettings = ({
           description: t('兑换码生成管理'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
+        {
+          key: 'messageManagement',
+          title: t('消息管理'),
+          description: t('Broadcast 发送管理'),
+        },
         {
           key: 'setting',
           title: t('系统设置'),

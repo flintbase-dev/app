@@ -61,14 +61,6 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
       try {
         const modules = JSON.parse(headerNavModulesConfig);
 
-        // 处理向后兼容性：如果pricing是boolean，转换为对象格式
-        if (typeof modules.pricing === 'boolean') {
-          modules.pricing = {
-            enabled: modules.pricing,
-            requireAuth: false, // 默认不需要登录鉴权
-          };
-        }
-
         return modules;
       } catch (error) {
         console.error('解析顶栏模块配置失败:', error);
@@ -81,11 +73,9 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   // 获取模型广场权限配置
   const pricingRequireAuth = useMemo(() => {
     if (headerNavModules?.pricing) {
-      return typeof headerNavModules.pricing === 'object'
-        ? headerNavModules.pricing.requireAuth
-        : false; // 默认不需要登录
+      return headerNavModules.pricing.requireAuth === true;
     }
-    return false; // 默认不需要登录
+    return false;
   }, [headerNavModules]);
 
   const isConsoleRoute = location.pathname.startsWith('/console');

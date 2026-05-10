@@ -87,13 +87,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   // ========== Panel enable flags ==========
   const apiInfoEnabled = statusState?.status?.api_info_enabled ?? true;
-  const announcementsEnabled =
-    statusState?.status?.announcements_enabled ?? true;
   const faqEnabled = statusState?.status?.faq_enabled ?? true;
   const uptimeEnabled = statusState?.status?.uptime_kuma_enabled ?? true;
 
   const hasApiInfoPanel = apiInfoEnabled;
-  const hasInfoPanels = announcementsEnabled || faqEnabled || uptimeEnabled;
+  const hasInfoPanels = faqEnabled || uptimeEnabled;
 
   // ========== Memoized Values ==========
   const timeOptions = useMemo(
@@ -325,7 +323,6 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     hasApiInfoPanel,
     hasInfoPanels,
     apiInfoEnabled,
-    announcementsEnabled,
     faqEnabled,
     uptimeEnabled,
 

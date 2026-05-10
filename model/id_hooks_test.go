@@ -17,6 +17,21 @@ func TestBeforeCreateHooksGenerateTypedIDs(t *testing.T) {
 			err := item.BeforeCreate(nil)
 			return item.Id, err
 		}},
+		{name: "message", prefix: "msg", create: func() (string, error) {
+			item := &UserMessage{}
+			err := item.BeforeCreate(nil)
+			return item.Id, err
+		}},
+		{name: "broadcast", prefix: "brd", create: func() (string, error) {
+			item := &Broadcast{}
+			err := item.BeforeCreate(nil)
+			return item.Id, err
+		}},
+		{name: "broadcast read receipt", prefix: "brr", create: func() (string, error) {
+			item := &BroadcastReadReceipt{}
+			err := item.BeforeCreate(nil)
+			return item.Id, err
+		}},
 		{name: "token", prefix: "tok", create: func() (string, error) {
 			item := &Token{}
 			err := item.BeforeCreate(nil)

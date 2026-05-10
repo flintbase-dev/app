@@ -84,6 +84,7 @@ export default function SettingsSidebarModulesUser() {
         detail: isSidebarModuleAllowed('console', 'detail'),
         token: isSidebarModuleAllowed('console', 'token'),
         log: isSidebarModuleAllowed('console', 'log'),
+        messages: isSidebarModuleAllowed('console', 'messages'),
       };
     }
 
@@ -104,6 +105,7 @@ export default function SettingsSidebarModulesUser() {
         models: isSidebarModuleAllowed('admin', 'models'),
         redemption: isSidebarModuleAllowed('admin', 'redemption'),
         user: isSidebarModuleAllowed('admin', 'user'),
+        messageManagement: isSidebarModuleAllowed('admin', 'messageManagement'),
         setting: isSidebarModuleAllowed('admin', 'setting'),
       };
     }
@@ -308,6 +310,7 @@ export default function SettingsSidebarModulesUser() {
         { key: 'detail', title: t('数据看板'), description: t('系统数据统计') },
         { key: 'token', title: t('令牌管理'), description: t('API令牌管理') },
         { key: 'log', title: t('使用日志'), description: t('API使用记录') },
+        { key: 'messages', title: t('我的消息'), description: t('站内消息') },
       ],
     },
     {
@@ -336,6 +339,11 @@ export default function SettingsSidebarModulesUser() {
           description: t('兑换码生成管理'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
+        {
+          key: 'messageManagement',
+          title: t('消息管理'),
+          description: t('Broadcast 发送管理'),
+        },
         {
           key: 'setting',
           title: t('系统设置'),

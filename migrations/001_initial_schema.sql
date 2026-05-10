@@ -98,6 +98,58 @@ CREATE INDEX idx_users_inviter_id ON users (inviter_id);
 CREATE INDEX idx_users_deleted_at ON users (deleted_at);
 CREATE INDEX idx_users_stripe_customer ON users (stripe_customer);
 
+CREATE TABLE messages (
+    id VARCHAR(32) PRIMARY KEY,
+    user_id VARCHAR(32) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    notification_type VARCHAR(64) DEFAULT '',
+    source_type VARCHAR(64) DEFAULT '',
+    source_id VARCHAR(128) DEFAULT '',
+    delivery_channel VARCHAR(32) DEFAULT '',
+    delivery_status VARCHAR(32) DEFAULT 'pending',
+    email_to VARCHAR(255) DEFAULT '',
+    metadata TEXT DEFAULT '{}',
+    created_at BIGINT NOT NULL,
+    read_at BIGINT DEFAULT 0
+);
+
+CREATE INDEX idx_messages_user_created_at ON messages (user_id, created_at);
+CREATE INDEX idx_messages_user_read_at ON messages (user_id, read_at);
+CREATE INDEX idx_messages_notification_type ON messages (notification_type);
+
+CREATE TABLE broadcasts (
+    id VARCHAR(32) PRIMARY KEY,
+    title VARCHAR(255) NOT NULL,
+    content TEXT NOT NULL,
+    audience_type VARCHAR(32) NOT NULL CHECK (audience_type IN ('selected', 'all_users', 'users_and_guests')),
+    audience TEXT NOT NULL DEFAULT '{}',
+    email_enabled BOOLEAN DEFAULT false,
+    status VARCHAR(32) NOT NULL DEFAULT 'sent' CHECK (status IN ('sent')),
+    created_by VARCHAR(32) NOT NULL REFERENCES users(id),
+    recipient_count INT DEFAULT 0,
+    email_sent_count INT DEFAULT 0,
+    email_failed_count INT DEFAULT 0,
+    created_at BIGINT NOT NULL,
+    sent_at BIGINT NOT NULL,
+    deleted_at TIMESTAMPTZ
+);
+
+CREATE INDEX idx_broadcasts_sent_at ON broadcasts (sent_at);
+CREATE INDEX idx_broadcasts_audience_status ON broadcasts (audience_type, status);
+CREATE INDEX idx_broadcasts_created_by ON broadcasts (created_by);
+CREATE INDEX idx_broadcasts_deleted_at ON broadcasts (deleted_at);
+
+CREATE TABLE broadcast_read_receipts (
+    id VARCHAR(32) PRIMARY KEY,
+    broadcast_id VARCHAR(32) NOT NULL REFERENCES broadcasts(id) ON DELETE CASCADE,
+    user_id VARCHAR(32) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    read_at BIGINT NOT NULL,
+    UNIQUE (broadcast_id, user_id)
+);
+
+CREATE INDEX idx_broadcast_read_receipts_user ON broadcast_read_receipts (user_id, read_at);
+
 CREATE TABLE options (
     "key" VARCHAR(191) PRIMARY KEY,
     value TEXT

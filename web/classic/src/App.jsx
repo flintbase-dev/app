@@ -40,6 +40,9 @@ import Pricing from './pages/Pricing';
 import ModelPage from './pages/Model';
 import Playground from './pages/Playground';
 import Subscription from './pages/Subscription';
+import Messages from './pages/Messages';
+import Broadcasts from './pages/Broadcasts';
+import MessageManagement from './pages/MessageManagement';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
@@ -61,19 +64,13 @@ function App() {
       try {
         const modules = JSON.parse(headerNavModulesConfig);
 
-        // 处理向后兼容性：如果pricing是boolean，默认不需要登录
-        if (typeof modules.pricing === 'boolean') {
-          return false; // 默认不需要登录鉴权
-        }
-
-        // 如果是对象格式，使用requireAuth配置
         return modules.pricing?.requireAuth === true;
       } catch (error) {
         console.error('解析顶栏模块配置失败:', error);
-        return false; // 默认不需要登录
+        return false;
       }
     }
-    return false; // 默认不需要登录
+    return false;
   }, [statusState?.status?.HeaderNavModules]);
 
   return (
@@ -113,6 +110,14 @@ function App() {
           }
         />
         <Route
+          path='/console/message-management'
+          element={
+            <AdminRoute>
+              <MessageManagement />
+            </AdminRoute>
+          }
+        />
+        <Route
           path='/console/channel'
           element={
             <AdminRoute>
@@ -125,6 +130,14 @@ function App() {
           element={
             <PrivateRoute>
               <Token />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/messages'
+          element={
+            <PrivateRoute>
+              <Messages />
             </PrivateRoute>
           }
         />
@@ -233,6 +246,14 @@ function App() {
                 <Pricing />
               </Suspense>
             )
+          }
+        />
+        <Route
+          path='/broadcasts'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <Broadcasts />
+            </Suspense>
           }
         />
         <Route

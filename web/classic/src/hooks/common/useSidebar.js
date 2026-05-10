@@ -36,6 +36,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     detail: true,
     token: true,
     log: true,
+    messages: true,
   },
   personal: {
     enabled: true,
@@ -49,6 +50,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     redemption: true,
     user: true,
     subscription: true,
+    messageManagement: true,
     setting: true,
   },
 };

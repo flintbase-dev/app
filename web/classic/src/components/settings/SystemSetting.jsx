@@ -43,7 +43,6 @@ import { useTranslation } from 'react-i18next';
 const SystemSetting = () => {
   const { t } = useTranslation();
   let [inputs, setInputs] = useState({
-    Notice: '',
     PostmarkAPIBaseURL: '',
     PostmarkFrom: '',
     PostmarkServerToken: '',

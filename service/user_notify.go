@@ -64,6 +64,32 @@ func NotifyUser(userId string, userEmail string, userSetting dto.UserSetting, da
 		return fmt.Errorf("notification limit exceeded for user %s with type %s", userId, notifyType)
 	}
 
+	renderedContent := renderNotifyContent(data)
+	messageID := ""
+	if !data.Sensitive {
+		emailToUse := userSetting.NotificationEmail
+		if emailToUse == "" {
+			emailToUse = userEmail
+		}
+		message := &model.UserMessage{
+			UserId:           userId,
+			Title:            data.Title,
+			Content:          renderedContent,
+			NotificationType: data.Type,
+			SourceType:       "notification",
+			DeliveryChannel:  notifyType,
+			DeliveryStatus:   model.UserMessageDeliveryPending,
+			EmailTo:          emailToUse,
+		}
+		if err := model.CreateUserMessage(message); err != nil {
+			common.SysLog(fmt.Sprintf("failed to create message for user %s: %s", userId, err.Error()))
+		} else {
+			messageID = message.Id
+		}
+	}
+
+	var notifyErr error
+	deliveryStatus := model.UserMessageDeliverySent
 	switch notifyType {
 	case dto.NotifyTypeEmail:
 		// 优先使用设置中的通知邮箱，如果为空则使用用户的默认邮箱
@@ -73,46 +99,57 @@ func NotifyUser(userId string, userEmail string, userSetting dto.UserSetting, da
 		}
 		if emailToUse == "" {
 			common.SysLog(fmt.Sprintf("user %s has no email, skip sending email", userId))
-			return nil
+			deliveryStatus = model.UserMessageDeliverySkipped
+			break
 		}
-		return sendEmailNotify(emailToUse, data)
+		notifyErr = common.SendEmail(data.Title, emailToUse, renderedContent)
 	case dto.NotifyTypeWebhook:
 		webhookURLStr := userSetting.WebhookUrl
 		if webhookURLStr == "" {
 			common.SysLog(fmt.Sprintf("user %s has no webhook url, skip sending webhook", userId))
-			return nil
+			deliveryStatus = model.UserMessageDeliverySkipped
+			break
 		}
 
 		// 获取 webhook secret
 		webhookSecret := userSetting.WebhookSecret
-		return SendWebhookNotify(webhookURLStr, webhookSecret, data)
+		notifyErr = SendWebhookNotify(webhookURLStr, webhookSecret, data)
 	case dto.NotifyTypeBark:
 		barkURL := userSetting.BarkUrl
 		if barkURL == "" {
 			common.SysLog(fmt.Sprintf("user %s has no bark url, skip sending bark", userId))
-			return nil
+			deliveryStatus = model.UserMessageDeliverySkipped
+			break
 		}
-		return sendBarkNotify(barkURL, data)
+		notifyErr = sendBarkNotify(barkURL, data)
 	case dto.NotifyTypeGotify:
 		gotifyUrl := userSetting.GotifyUrl
 		gotifyToken := userSetting.GotifyToken
 		if gotifyUrl == "" || gotifyToken == "" {
 			common.SysLog(fmt.Sprintf("user %s has no gotify url or token, skip sending gotify", userId))
-			return nil
+			deliveryStatus = model.UserMessageDeliverySkipped
+			break
 		}
-		return sendGotifyNotify(gotifyUrl, gotifyToken, userSetting.GotifyPriority, data)
+		notifyErr = sendGotifyNotify(gotifyUrl, gotifyToken, userSetting.GotifyPriority, data)
 	}
-	return nil
+
+	if notifyErr != nil {
+		deliveryStatus = model.UserMessageDeliveryFailed
+	}
+	if messageID != "" {
+		if err := model.UpdateUserMessageDeliveryStatus(messageID, deliveryStatus); err != nil {
+			common.SysLog(fmt.Sprintf("failed to update message %s delivery status: %s", messageID, err.Error()))
+		}
+	}
+	return notifyErr
 }
 
-func sendEmailNotify(userEmail string, data dto.Notify) error {
-	// make email content
+func renderNotifyContent(data dto.Notify) string {
 	content := data.Content
-	// 处理占位符
 	for _, value := range data.Values {
 		content = strings.Replace(content, dto.ContentValueParam, fmt.Sprintf("%v", value), 1)
 	}
-	return common.SendEmail(data.Title, userEmail, content)
+	return content
 }
 
 func sendBarkNotify(barkURL string, data dto.Notify) error {
