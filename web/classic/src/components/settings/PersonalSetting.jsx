@@ -41,15 +41,7 @@ const PersonalSetting = () => {
   const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
   const [, setSystemToken] = useState('');
   const [notificationSettings, setNotificationSettings] = useState({
-    warningType: 'email',
     warningThreshold: 100000,
-    webhookUrl: '',
-    webhookSecret: '',
-    notificationEmail: '',
-    barkUrl: '',
-    gotifyUrl: '',
-    gotifyToken: '',
-    gotifyPriority: 5,
     upstreamModelUpdateNotifyEnabled: false,
     acceptUnsetModelPriceModel: false,
     recordIpLog: false,
@@ -82,18 +74,7 @@ const PersonalSetting = () => {
       try {
         const settings = JSON.parse(userState.user.setting);
         setNotificationSettings({
-          warningType: settings.notify_type || 'email',
           warningThreshold: settings.quota_warning_threshold || 1000000,
-          webhookUrl: settings.webhook_url || '',
-          webhookSecret: settings.webhook_secret || '',
-          notificationEmail: settings.notification_email || '',
-          barkUrl: settings.bark_url || '',
-          gotifyUrl: settings.gotify_url || '',
-          gotifyToken: settings.gotify_token || '',
-          gotifyPriority:
-            settings.gotify_priority !== undefined
-              ? settings.gotify_priority
-              : 5,
           upstreamModelUpdateNotifyEnabled:
             settings.upstream_model_update_notify_enabled === true,
           acceptUnsetModelPriceModel:
@@ -143,15 +124,7 @@ const PersonalSetting = () => {
 
   const saveNotificationSettings = async () => {
     const res = await API.mutation('updateUserSetting', {
-      notify_type: notificationSettings.warningType,
       quota_warning_threshold: notificationSettings.warningThreshold,
-      webhook_url: notificationSettings.webhookUrl,
-      webhook_secret: notificationSettings.webhookSecret,
-      notification_email: notificationSettings.notificationEmail,
-      bark_url: notificationSettings.barkUrl,
-      gotify_url: notificationSettings.gotifyUrl,
-      gotify_token: notificationSettings.gotifyToken,
-      gotify_priority: notificationSettings.gotifyPriority,
       upstream_model_update_notify_enabled:
         notificationSettings.upstreamModelUpdateNotifyEnabled,
       accept_unset_model_price_model:

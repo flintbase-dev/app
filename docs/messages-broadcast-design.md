@@ -21,7 +21,7 @@
 - `user_id`：接收用户。
 - `title` / `content`：消息标题和正文。
 - `notification_type`：来源通知类型，例如 `quota_exceed`、`channel_update`。
-- `delivery_channel`：用户配置的通知通道，例如 `email`、`webhook`、`bark`、`gotify`。
+- `delivery_channel`：固定为 `email`。所有通知邮件都发送到用户账户邮箱。
 - `delivery_status`：`pending`、`sent`、`skipped`、`failed`。
 - `read_at`：0 表示未读。
 

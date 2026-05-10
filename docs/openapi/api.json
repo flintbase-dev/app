@@ -1297,17 +1297,8 @@
               "schema": {
                 "type": "object",
                 "properties": {
-                  "notify_type": {
-                    "type": "string"
-                  },
                   "quota_warning_threshold": {
                     "type": "number"
-                  },
-                  "webhook_url": {
-                    "type": "string"
-                  },
-                  "notification_email": {
-                    "type": "string"
                   }
                 }
               }

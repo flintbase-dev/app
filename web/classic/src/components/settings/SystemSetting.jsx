@@ -380,7 +380,7 @@ const SystemSetting = () => {
                   <Banner
                     type='info'
                     description={t(
-                      '此代理仅用于图片请求转发，Webhook通知发送等，AI API请求仍然由服务器直接发出，可在渠道设置中单独配置代理',
+                      '此代理仅用于图片请求转发等，AI API请求仍然由服务器直接发出，可在渠道设置中单独配置代理',
                     )}
                     style={{ marginBottom: 20, marginTop: 16 }}
                   />
