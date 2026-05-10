@@ -21,15 +21,10 @@ func isVisiblePublicKeyOption(key string) bool {
 
 func GetOptions(c *gin.Context) {
 	var options []*model.Option
-	common.OptionMapRWMutex.Lock()
+	common.OptionMapRWMutex.RLock()
 	for k, v := range common.OptionMap {
 		value := common.Interface2String(v)
-		isSensitiveKey := strings.HasSuffix(k, "Token") ||
-			strings.HasSuffix(k, "Secret") ||
-			strings.HasSuffix(k, "Key") ||
-			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "api_key")
-		if isSensitiveKey && !isVisiblePublicKeyOption(k) {
+		if model.IsSensitiveOptionKey(k) && !isVisiblePublicKeyOption(k) {
 			continue
 		}
 		options = append(options, &model.Option{
@@ -37,7 +32,7 @@ func GetOptions(c *gin.Context) {
 			Value: value,
 		})
 	}
-	common.OptionMapRWMutex.Unlock()
+	common.OptionMapRWMutex.RUnlock()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -47,8 +42,10 @@ func GetOptions(c *gin.Context) {
 }
 
 type OptionUpdateRequest struct {
-	Key   string `json:"key"`
-	Value any    `json:"value"`
+	Key                  string `json:"key"`
+	Value                any    `json:"value"`
+	Reason               string `json:"reason"`
+	RollbackOfRevisionId string `json:"rollback_of_revision_id"`
 }
 
 func UpdateOption(c *gin.Context) {
@@ -61,6 +58,14 @@ func UpdateOption(c *gin.Context) {
 		})
 		return
 	}
+	option.Key = strings.TrimSpace(option.Key)
+	if option.Key == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "option key is required",
+		})
+		return
+	}
 	switch option.Value.(type) {
 	case bool:
 		option.Value = common.Interface2String(option.Value.(bool))
@@ -68,6 +73,8 @@ func UpdateOption(c *gin.Context) {
 		option.Value = common.Interface2String(option.Value.(float64))
 	case int:
 		option.Value = common.Interface2String(option.Value.(int))
+	case nil:
+		option.Value = ""
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
@@ -217,23 +224,58 @@ func UpdateOption(c *gin.Context) {
 			return
 		}
 	}
-	err = model.UpdateOption(option.Key, option.Value.(string))
+	result, err := model.UpdateOptionWithRevision(option.Key, option.Value.(string), model.OptionUpdateMetadata{
+		ActorUserId:          c.GetString("id"),
+		RequestId:            c.GetString(common.RequestIdKey),
+		Reason:               option.Reason,
+		RollbackOfRevisionId: option.RollbackOfRevisionId,
+	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
+	}
+	revisionID := ""
+	auditOther := map[string]interface{}{
+		"key":       option.Key,
+		"reason":    strings.TrimSpace(option.Reason),
+		"old_value": nil,
+		"new_value": nil,
+	}
+	if result != nil && result.Revision != nil {
+		revisionID = result.Revision.Id
+		auditOther["revision_id"] = result.Revision.Id
+		auditOther["old_value_snapshot"] = result.Revision.OldValueSnapshot
+		auditOther["new_value_snapshot"] = result.Revision.NewValueSnapshot
+		auditOther["old_value_sha256"] = result.Revision.OldValueSHA256
+		auditOther["new_value_sha256"] = result.Revision.NewValueSHA256
+		auditOther["is_sensitive"] = result.Revision.IsSensitive
+		auditOther["rollback_of_revision_id"] = result.Revision.RollbackOfRevisionId
 	}
 	model.RecordAuditEventWithContext(c, model.LogEventParams{
 		Event:        "admin.option.update",
 		Content:      "system option updated",
 		ResourceType: "option",
 		ResourceId:   option.Key,
-		Other: map[string]interface{}{
-			"key": option.Key,
-		},
+		Other:        auditOther,
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data": gin.H{
+			"revision_id": revisionID,
+		},
 	})
 	return
+}
+
+func GetOptionRevisions(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	revisions, total, err := model.GetOptionRevisions(c.Query("key"), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(revisions)
+	common.ApiSuccess(c, pageInfo)
 }

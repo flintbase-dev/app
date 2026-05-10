@@ -67,6 +67,7 @@ func Reset(t *testing.T, db *gorm.DB) {
 		"messages",
 		"abilities",
 		"redemptions",
+		"option_revisions",
 		"options",
 		"tokens",
 		"users",

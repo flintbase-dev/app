@@ -575,7 +575,7 @@ var graphqlAPIOperations = []apiOperation{
 	apiQuery("status", controller.GetStatus),
 	apiQuery("uptimeStatus", controller.GetUptimeKumaStatus),
 	apiQuery("dashboardModels", controller.DashboardListModels, userAuth()),
-	apiQuery("statusTest", controller.TestStatus, adminAuth()),
+	apiQuery("adminStatus", controller.GetAdminStatus, adminAuth()),
 	apiQuery("userAgreement", controller.GetUserAgreement),
 	apiQuery("privacyPolicy", controller.GetPrivacyPolicy),
 	apiQuery("about", controller.GetAbout),
@@ -638,6 +638,7 @@ var graphqlAPIOperations = []apiOperation{
 	apiMutation("deleteUserSubscription", controller.AdminDeleteUserSubscription, adminAudit("subscription"), withResourceParams("id")),
 
 	apiQuery("options", controller.GetOptions, rootAudit("option")),
+	apiQuery("optionRevisions", controller.GetOptionRevisions, rootAudit("option")),
 	apiMutation("updateOption", controller.UpdateOption, rootAudit("option")),
 	apiQuery("channelAffinityCache", controller.GetChannelAffinityCacheStats, rootAudit("option")),
 	apiMutation("clearChannelAffinityCache", controller.ClearChannelAffinityCache, rootAudit("option")),

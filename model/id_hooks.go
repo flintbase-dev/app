@@ -71,6 +71,11 @@ func (setup *Setup) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
+func (revision *OptionRevision) BeforeCreate(tx *gorm.DB) error {
+	fillTypedID(&revision.Id, "opr")
+	return nil
+}
+
 func (checkin *Checkin) BeforeCreate(tx *gorm.DB) error {
 	fillTypedID(&checkin.Id, "chk")
 	return nil

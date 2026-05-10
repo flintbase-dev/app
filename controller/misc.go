@@ -2,7 +2,6 @@ package controller
 
 import (
 	"net/http"
-	"os"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
@@ -16,28 +15,43 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-func TestStatus(c *gin.Context) {
-	err := model.PingDB()
-	if err != nil {
+func GetAdminStatus(c *gin.Context) {
+	dbErr := model.PingDB()
+	logDBErr := model.PingLogDB()
+
+	data := gin.H{
+		"status_contract_version": 1,
+		"version":                 common.Version,
+		"start_time":              common.StartTime,
+		"setup":                   constant.Setup,
+		"http_stats":              middleware.GetStats(),
+		"database": gin.H{
+			"ok": dbErr == nil,
+		},
+		"log_database": gin.H{
+			"ok": logDBErr == nil,
+		},
+	}
+
+	if dbErr != nil {
+		data["database"].(gin.H)["error"] = dbErr.Error()
+	}
+	if logDBErr != nil {
+		data["log_database"].(gin.H)["error"] = logDBErr.Error()
+	}
+	if dbErr != nil || logDBErr != nil {
 		c.JSON(http.StatusServiceUnavailable, gin.H{
 			"success": false,
-			"message": "数据库连接失败",
+			"message": "服务依赖检查失败",
+			"data":    data,
 		})
 		return
 	}
-	if err := model.PingLogDB(); err != nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{
-			"success": false,
-			"message": "日志数据库连接失败",
-		})
-		return
-	}
-	// 获取HTTP统计信息
-	httpStats := middleware.GetStats()
+
 	c.JSON(http.StatusOK, gin.H{
-		"success":    true,
-		"message":    "Server is running",
-		"http_stats": httpStats,
+		"success": true,
+		"message": "Server is running",
+		"data":    data,
 	})
 	return
 }
@@ -51,10 +65,10 @@ func GetStatus(c *gin.Context) {
 	legalSetting := system_setting.GetLegalSettings()
 
 	data := gin.H{
+		"status_contract_version":     1,
 		"version":                     common.Version,
 		"start_time":                  common.StartTime,
 		"workos_auth":                 true,
-		"workos_client_id":            os.Getenv("WORKOS_CLIENT_ID"),
 		"system_name":                 common.SystemName,
 		"logo":                        common.Logo,
 		"footer_html":                 common.Footer,

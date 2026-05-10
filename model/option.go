@@ -1,6 +1,9 @@
 package model
 
 import (
+	"crypto/sha256"
+	"encoding/hex"
+	"errors"
 	"strconv"
 	"strings"
 	"time"
@@ -12,11 +15,89 @@ import (
 	"github.com/QuantumNous/new-api/setting/performance_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 	"github.com/QuantumNous/new-api/setting/system_setting"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 type Option struct {
 	Key   string `json:"key" gorm:"primaryKey"`
 	Value string `json:"value"`
+}
+
+type OptionRevision struct {
+	Id                   string  `json:"id" gorm:"primaryKey;type:varchar(32)"`
+	Key                  string  `json:"key" gorm:"column:key;type:varchar(191);index:idx_option_revisions_key_created_at,priority:1"`
+	OldValueSnapshot     *string `json:"old_value_snapshot,omitempty" gorm:"type:text"`
+	NewValueSnapshot     string  `json:"new_value_snapshot" gorm:"type:text;not null"`
+	OldValueSHA256       string  `json:"old_value_sha256" gorm:"type:char(64);not null;default:''"`
+	NewValueSHA256       string  `json:"new_value_sha256" gorm:"type:char(64);not null"`
+	ActorUserId          string  `json:"actor_user_id" gorm:"type:varchar(32);not null;default:'';index:idx_option_revisions_actor_created_at,priority:1"`
+	RequestId            string  `json:"request_id" gorm:"type:varchar(64);not null;default:'';index"`
+	Reason               string  `json:"reason" gorm:"type:text;not null;default:''"`
+	IsSensitive          bool    `json:"is_sensitive" gorm:"not null;default:false"`
+	RollbackOfRevisionId *string `json:"rollback_of_revision_id,omitempty" gorm:"type:varchar(32)"`
+	CreatedAt            int64   `json:"created_at" gorm:"bigint;not null;index:idx_option_revisions_key_created_at,priority:2;index:idx_option_revisions_actor_created_at,priority:2"`
+}
+
+func (OptionRevision) TableName() string {
+	return "option_revisions"
+}
+
+type OptionUpdateMetadata struct {
+	ActorUserId          string
+	RequestId            string
+	Reason               string
+	RollbackOfRevisionId string
+}
+
+type OptionUpdateResult struct {
+	Key         string
+	OldValue    string
+	NewValue    string
+	HadOldValue bool
+	Revision    *OptionRevision
+}
+
+func IsSensitiveOptionKey(key string) bool {
+	return strings.HasSuffix(key, "Token") ||
+		strings.HasSuffix(key, "Secret") ||
+		strings.HasSuffix(key, "Key") ||
+		strings.HasSuffix(key, "secret") ||
+		strings.HasSuffix(key, "api_key")
+}
+
+func optionValueSHA256(value string) string {
+	sum := sha256.Sum256([]byte(value))
+	return hex.EncodeToString(sum[:])
+}
+
+func optionValueSnapshot(key string, value string) string {
+	if IsSensitiveOptionKey(key) && value != "" {
+		return "[redacted]"
+	}
+	return value
+}
+
+func newOptionRevision(key string, oldValue string, hadOldValue bool, newValue string, metadata OptionUpdateMetadata) *OptionRevision {
+	revision := &OptionRevision{
+		Key:              key,
+		NewValueSnapshot: optionValueSnapshot(key, newValue),
+		NewValueSHA256:   optionValueSHA256(newValue),
+		ActorUserId:      strings.TrimSpace(metadata.ActorUserId),
+		RequestId:        strings.TrimSpace(metadata.RequestId),
+		Reason:           strings.TrimSpace(metadata.Reason),
+		IsSensitive:      IsSensitiveOptionKey(key),
+		CreatedAt:        common.GetTimestamp(),
+	}
+	if hadOldValue {
+		oldSnapshot := optionValueSnapshot(key, oldValue)
+		revision.OldValueSnapshot = &oldSnapshot
+		revision.OldValueSHA256 = optionValueSHA256(oldValue)
+	}
+	if rollbackOf := strings.TrimSpace(metadata.RollbackOfRevisionId); rollbackOf != "" {
+		revision.RollbackOfRevisionId = &rollbackOf
+	}
+	return revision
 }
 
 func AllOption() ([]*Option, error) {
@@ -132,28 +213,84 @@ func SyncOptions(frequency int) {
 }
 
 func UpdateOption(key string, value string) error {
-	// Save to database first
-	option := Option{
-		Key: key,
+	_, err := UpdateOptionWithRevision(key, value, OptionUpdateMetadata{})
+	return err
+}
+
+func UpdateOptionWithRevision(key string, value string, metadata OptionUpdateMetadata) (*OptionUpdateResult, error) {
+	key = strings.TrimSpace(key)
+	if key == "" {
+		return nil, errors.New("option key is required")
 	}
-	// https://gorm.io/docs/update.html#Save-All-Fields
-	DB.FirstOrCreate(&option, Option{Key: key})
-	option.Value = value
-	// Save is a combination function.
-	// If save value does not contain primary key, it will execute Create,
-	// otherwise it will execute Update (with all fields).
-	DB.Save(&option)
-	// Update OptionMap
-	return updateOptionMap(key, value)
+	if DB == nil {
+		return nil, errors.New("database is not initialized")
+	}
+
+	result := &OptionUpdateResult{
+		Key:      key,
+		NewValue: value,
+	}
+
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		var option Option
+		err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Where(`"key" = ?`, key).First(&option).Error
+		switch {
+		case err == nil:
+			result.HadOldValue = true
+			result.OldValue = option.Value
+			if err := tx.Model(&Option{}).Where(`"key" = ?`, key).Update("value", value).Error; err != nil {
+				return err
+			}
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			option = Option{Key: key, Value: value}
+			if err := tx.Create(&option).Error; err != nil {
+				return err
+			}
+		default:
+			return err
+		}
+
+		revision := newOptionRevision(key, result.OldValue, result.HadOldValue, value, metadata)
+		if err := tx.Create(revision).Error; err != nil {
+			return err
+		}
+		result.Revision = revision
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	if err := updateOptionMap(key, value); err != nil {
+		return nil, err
+	}
+	return result, nil
+}
+
+func GetOptionRevisions(key string, startIdx int, num int) (revisions []*OptionRevision, total int64, err error) {
+	if DB == nil {
+		return nil, 0, errors.New("database is not initialized")
+	}
+	if num <= 0 {
+		num = common.ItemsPerPage
+	}
+	query := DB.Model(&OptionRevision{})
+	if key = strings.TrimSpace(key); key != "" {
+		query = query.Where(`"key" = ?`, key)
+	}
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	err = query.Order("created_at desc, id desc").Limit(num).Offset(startIdx).Find(&revisions).Error
+	return revisions, total, err
 }
 
 func updateOptionMap(key string, value string) (err error) {
 	common.OptionMapRWMutex.Lock()
 	defer common.OptionMapRWMutex.Unlock()
-	common.OptionMap[key] = value
 
 	// 检查是否是模型配置 - 使用更规范的方式处理
 	if handleConfigUpdate(key, value) {
+		common.OptionMap[key] = value
 		return nil // 已由配置系统处理
 	}
 
@@ -308,6 +445,10 @@ func updateOptionMap(key string, value string) (err error) {
 	case "StreamCacheQueueLength":
 		setting.StreamCacheQueueLength, _ = strconv.Atoi(value)
 	}
+	if err != nil {
+		return err
+	}
+	common.OptionMap[key] = value
 	return err
 }
 

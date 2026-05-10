@@ -155,6 +155,25 @@ CREATE TABLE options (
     value TEXT
 );
 
+CREATE TABLE option_revisions (
+    id VARCHAR(32) PRIMARY KEY,
+    "key" VARCHAR(191) NOT NULL REFERENCES options ("key") ON DELETE RESTRICT,
+    old_value_snapshot TEXT,
+    new_value_snapshot TEXT NOT NULL,
+    old_value_sha256 CHAR(64) NOT NULL DEFAULT '',
+    new_value_sha256 CHAR(64) NOT NULL,
+    actor_user_id VARCHAR(32) NOT NULL DEFAULT '',
+    request_id VARCHAR(64) NOT NULL DEFAULT '',
+    reason TEXT NOT NULL DEFAULT '',
+    is_sensitive BOOLEAN NOT NULL DEFAULT false,
+    rollback_of_revision_id VARCHAR(32) REFERENCES option_revisions(id),
+    created_at BIGINT NOT NULL
+);
+
+CREATE INDEX idx_option_revisions_key_created_at ON option_revisions ("key", created_at);
+CREATE INDEX idx_option_revisions_actor_created_at ON option_revisions (actor_user_id, created_at);
+CREATE INDEX idx_option_revisions_request_id ON option_revisions (request_id);
+
 CREATE TABLE redemptions (
     id VARCHAR(32) PRIMARY KEY,
     user_id VARCHAR(32),
@@ -239,6 +258,14 @@ FOR EACH ROW EXECUTE FUNCTION prevent_append_only_mutation();
 
 CREATE TRIGGER audit_logs_prevent_delete
 BEFORE DELETE ON audit_logs
+FOR EACH ROW EXECUTE FUNCTION prevent_append_only_mutation();
+
+CREATE TRIGGER option_revisions_prevent_update
+BEFORE UPDATE ON option_revisions
+FOR EACH ROW EXECUTE FUNCTION prevent_append_only_mutation();
+
+CREATE TRIGGER option_revisions_prevent_delete
+BEFORE DELETE ON option_revisions
 FOR EACH ROW EXECUTE FUNCTION prevent_append_only_mutation();
 
 CREATE TABLE credit_grants (
