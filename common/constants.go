@@ -37,24 +37,18 @@ var MaxRecentItems = 1000
 
 var TurnstileCheckEnabled = false
 
-var EmailLoginAuthServerList = []string{
-	"smtp.sendcloud.net",
-	"smtp.azurecomm.net",
-}
-
 var DebugEnabled bool
 var MemoryCacheEnabled bool
 
 var TLSInsecureSkipVerify bool
 var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}
 
-var SMTPServer = ""
-var SMTPPort = 587
-var SMTPSSLEnabled = false
-var SMTPForceAuthLogin = false
-var SMTPAccount = ""
-var SMTPFrom = ""
-var SMTPToken = ""
+const DefaultPostmarkAPIBaseURL = "https://api.postmarkapp.com"
+
+var PostmarkAPIBaseURL = DefaultPostmarkAPIBaseURL
+var PostmarkFrom = ""
+var PostmarkServerToken = ""
+var PostmarkMessageStream = "outbound"
 
 var TurnstileSiteKey = ""
 var TurnstileSecretKey = ""

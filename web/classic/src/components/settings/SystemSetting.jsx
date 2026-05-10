@@ -44,11 +44,10 @@ const SystemSetting = () => {
   const { t } = useTranslation();
   let [inputs, setInputs] = useState({
     Notice: '',
-    SMTPServer: '',
-    SMTPPort: '',
-    SMTPAccount: '',
-    SMTPFrom: '',
-    SMTPToken: '',
+    PostmarkAPIBaseURL: '',
+    PostmarkFrom: '',
+    PostmarkServerToken: '',
+    PostmarkMessageStream: '',
     WorkerUrl: '',
     WorkerValidKey: '',
     WorkerAllowHttpImageRequestEnabled: '',
@@ -56,8 +55,6 @@ const SystemSetting = () => {
     TurnstileCheckEnabled: '',
     TurnstileSiteKey: '',
     TurnstileSecretKey: '',
-    SMTPSSLEnabled: '',
-    SMTPForceAuthLogin: '',
     ServerAddress: '',
     // SSRF防护配置
     'fetch_setting.enable_ssrf_protection': true,
@@ -123,8 +120,6 @@ const SystemSetting = () => {
             }
             break;
           case 'TurnstileCheckEnabled':
-          case 'SMTPSSLEnabled':
-          case 'SMTPForceAuthLogin':
           case 'WorkerAllowHttpImageRequestEnabled':
             item.value = toBoolean(item.value);
             break;
@@ -241,29 +236,34 @@ const SystemSetting = () => {
     await updateOptions([{ key: 'ServerAddress', value: ServerAddress }]);
   };
 
-  const submitSMTP = async () => {
+  const submitPostmark = async () => {
     const options = [];
 
-    if (originInputs['SMTPServer'] !== inputs.SMTPServer) {
-      options.push({ key: 'SMTPServer', value: inputs.SMTPServer });
+    if (originInputs['PostmarkAPIBaseURL'] !== inputs.PostmarkAPIBaseURL) {
+      options.push({
+        key: 'PostmarkAPIBaseURL',
+        value: removeTrailingSlash(inputs.PostmarkAPIBaseURL),
+      });
     }
-    if (originInputs['SMTPAccount'] !== inputs.SMTPAccount) {
-      options.push({ key: 'SMTPAccount', value: inputs.SMTPAccount });
-    }
-    if (originInputs['SMTPFrom'] !== inputs.SMTPFrom) {
-      options.push({ key: 'SMTPFrom', value: inputs.SMTPFrom });
-    }
-    if (
-      originInputs['SMTPPort'] !== inputs.SMTPPort &&
-      inputs.SMTPPort !== ''
-    ) {
-      options.push({ key: 'SMTPPort', value: inputs.SMTPPort });
+    if (originInputs['PostmarkFrom'] !== inputs.PostmarkFrom) {
+      options.push({ key: 'PostmarkFrom', value: inputs.PostmarkFrom });
     }
     if (
-      originInputs['SMTPToken'] !== inputs.SMTPToken &&
-      inputs.SMTPToken !== ''
+      originInputs['PostmarkMessageStream'] !== inputs.PostmarkMessageStream
     ) {
-      options.push({ key: 'SMTPToken', value: inputs.SMTPToken });
+      options.push({
+        key: 'PostmarkMessageStream',
+        value: inputs.PostmarkMessageStream,
+      });
+    }
+    if (
+      originInputs['PostmarkServerToken'] !== inputs.PostmarkServerToken &&
+      inputs.PostmarkServerToken !== ''
+    ) {
+      options.push({
+        key: 'PostmarkServerToken',
+        value: inputs.PostmarkServerToken,
+      });
     }
 
     if (options.length > 0) {
@@ -659,64 +659,48 @@ const SystemSetting = () => {
               </Card>
 
               <Card>
-                <Form.Section text={t('配置 SMTP')}>
+                <Form.Section text={t('配置 Postmark')}>
                   <Text>{t('用以支持系统的邮件发送')}</Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
-                        field='SMTPServer'
-                        label={t('SMTP 服务器地址')}
+                        field='PostmarkAPIBaseURL'
+                        label={t('Postmark API 地址')}
+                        placeholder='https://api.postmarkapp.com'
                       />
                     </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input field='SMTPPort' label={t('SMTP 端口')} />
-                    </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Input field='SMTPAccount' label={t('SMTP 账户')} />
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+                      <Form.Input
+                        field='PostmarkMessageStream'
+                        label={t('Postmark Message Stream')}
+                        placeholder='outbound'
+                      />
                     </Col>
                   </Row>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                     style={{ marginTop: 16 }}
                   >
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
-                        field='SMTPFrom'
-                        label={t('SMTP 发送者邮箱')}
+                        field='PostmarkFrom'
+                        label={t('Postmark 发件人邮箱')}
                       />
                     </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+                    <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
-                        field='SMTPToken'
-                        label={t('SMTP 访问凭证')}
+                        field='PostmarkServerToken'
+                        label={t('Postmark Server Token')}
                         type='password'
                         placeholder='敏感信息不会发送到前端显示'
                       />
                     </Col>
-                    <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-                      <Form.Checkbox
-                        field='SMTPSSLEnabled'
-                        noLabel
-                        onChange={(e) =>
-                          handleCheckboxChange('SMTPSSLEnabled', e)
-                        }
-                      >
-                        {t('启用SMTP SSL')}
-                      </Form.Checkbox>
-                      <Form.Checkbox
-                        field='SMTPForceAuthLogin'
-                        noLabel
-                        onChange={(e) =>
-                          handleCheckboxChange('SMTPForceAuthLogin', e)
-                        }
-                      >
-                        {t('强制使用 AUTH LOGIN')}
-                      </Form.Checkbox>
-                    </Col>
                   </Row>
-                  <Button onClick={submitSMTP}>{t('保存 SMTP 设置')}</Button>
+                  <Button onClick={submitPostmark}>
+                    {t('保存 Postmark 设置')}
+                  </Button>
                 </Form.Section>
               </Card>
               <Card>

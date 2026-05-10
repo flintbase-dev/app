@@ -41,13 +41,10 @@ func InitOptionMap() {
 	common.OptionMap["DisplayTokenStatEnabled"] = strconv.FormatBool(common.DisplayTokenStatEnabled)
 	common.OptionMap["DrawingEnabled"] = strconv.FormatBool(common.DrawingEnabled)
 	common.OptionMap["ChannelDisableThreshold"] = strconv.FormatFloat(common.ChannelDisableThreshold, 'f', -1, 64)
-	common.OptionMap["SMTPServer"] = ""
-	common.OptionMap["SMTPFrom"] = ""
-	common.OptionMap["SMTPPort"] = strconv.Itoa(common.SMTPPort)
-	common.OptionMap["SMTPAccount"] = ""
-	common.OptionMap["SMTPToken"] = ""
-	common.OptionMap["SMTPSSLEnabled"] = strconv.FormatBool(common.SMTPSSLEnabled)
-	common.OptionMap["SMTPForceAuthLogin"] = strconv.FormatBool(common.SMTPForceAuthLogin)
+	common.OptionMap["PostmarkAPIBaseURL"] = common.PostmarkAPIBaseURL
+	common.OptionMap["PostmarkFrom"] = ""
+	common.OptionMap["PostmarkServerToken"] = ""
+	common.OptionMap["PostmarkMessageStream"] = common.PostmarkMessageStream
 	common.OptionMap["Notice"] = ""
 	common.OptionMap["About"] = ""
 	common.OptionMap["HomePageContent"] = ""
@@ -175,7 +172,7 @@ func updateOptionMap(key string, value string) (err error) {
 			common.ImageDownloadPermission = intValue
 		}
 	}
-	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" || key == "SMTPForceAuthLogin" {
+	if strings.HasSuffix(key, "Enabled") || key == "DefaultCollapseSidebar" || key == "DefaultUseAutoGroup" {
 		boolValue := value == "true"
 		switch key {
 		case "TurnstileCheckEnabled":
@@ -198,10 +195,6 @@ func updateOptionMap(key string, value string) (err error) {
 			setting.ModelRequestRateLimitEnabled = boolValue
 		case "StopOnSensitiveEnabled":
 			setting.StopOnSensitiveEnabled = boolValue
-		case "SMTPSSLEnabled":
-			common.SMTPSSLEnabled = boolValue
-		case "SMTPForceAuthLogin":
-			common.SMTPForceAuthLogin = boolValue
 		case "WorkerAllowHttpImageRequestEnabled":
 			system_setting.WorkerAllowHttpImageRequestEnabled = boolValue
 		case "DefaultUseAutoGroup":
@@ -211,17 +204,14 @@ func updateOptionMap(key string, value string) (err error) {
 		}
 	}
 	switch key {
-	case "SMTPServer":
-		common.SMTPServer = value
-	case "SMTPPort":
-		intValue, _ := strconv.Atoi(value)
-		common.SMTPPort = intValue
-	case "SMTPAccount":
-		common.SMTPAccount = value
-	case "SMTPFrom":
-		common.SMTPFrom = value
-	case "SMTPToken":
-		common.SMTPToken = value
+	case "PostmarkAPIBaseURL":
+		common.PostmarkAPIBaseURL = value
+	case "PostmarkFrom":
+		common.PostmarkFrom = value
+	case "PostmarkServerToken":
+		common.PostmarkServerToken = value
+	case "PostmarkMessageStream":
+		common.PostmarkMessageStream = value
 	case "ServerAddress":
 		system_setting.ServerAddress = value
 	case "WorkerUrl":
