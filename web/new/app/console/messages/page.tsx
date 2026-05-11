@@ -1,15 +1,13 @@
-import {
-  Check,
-  CheckCheck,
-  Inbox,
-  Megaphone,
-  Search,
-} from "lucide-react";
+import { Check, CheckCheck, Inbox, Megaphone, Search } from "lucide-react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { fmtRelative, MESSAGES } from "@/lib/console/mock";
@@ -40,22 +38,15 @@ export default function MessagesPage() {
         {/* List column */}
         <div className="flex min-h-0 flex-col border-border bg-card lg:border-r">
           <div className="flex shrink-0 items-center gap-2 border-b border-border bg-background p-3">
-            <div className="relative flex-1">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input placeholder="Search…" className="pl-8" />
-            </div>
-            <button
-              type="button"
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "icon-sm" }),
-              )}
-              aria-label="Mark all read"
-            >
+            <InputGroup className="flex-1">
+              <InputGroupAddon>
+                <Search aria-hidden="true" />
+              </InputGroupAddon>
+              <InputGroupInput placeholder="Search…" />
+            </InputGroup>
+            <Button variant="ghost" size="icon-sm" aria-label="Mark all read">
               <CheckCheck aria-hidden="true" />
-            </button>
+            </Button>
           </div>
           <Tabs defaultValue="all">
             <div className="shrink-0 border-b border-border bg-background px-3 py-2">
@@ -139,13 +130,10 @@ export default function MessagesPage() {
               {selected.item_type}
             </Badge>
             <div className="ml-auto flex items-center gap-2">
-              <button
-                type="button"
-                className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-              >
+              <Button variant="ghost" size="sm">
                 <Check aria-hidden="true" />
                 Mark read
-              </button>
+              </Button>
               <span className="font-mono text-xs tabular-nums text-muted-foreground">
                 {new Date(selected.created_at).toLocaleString()}
               </span>

@@ -1,22 +1,32 @@
 import {
   ArrowLeft,
-  ChevronDown,
-  Globe,
   HelpCircle,
   Infinity as InfinityIcon,
   KeyRound,
-  Layers,
-  Lock,
   Plus,
   ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { GROUPS, USER_MODELS } from "@/lib/console/mock";
 import { cn } from "@/lib/utils";
 
@@ -55,7 +65,7 @@ export default function CreateTokenPage() {
             <CardContent className="flex flex-col gap-5 py-5">
               <SectionTitle icon={KeyRound} title="Basics" />
 
-              <Field label="Name" required>
+              <FieldRow label="Name" required>
                 <Input
                   name="name"
                   defaultValue="production-api"
@@ -64,16 +74,24 @@ export default function CreateTokenPage() {
                 <Hint>
                   Shown in logs and the keys list. Not visible to the API.
                 </Hint>
-              </Field>
+              </FieldRow>
 
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Group">
-                  <SelectStub
-                    placeholder="default"
-                    options={GROUPS.map((g) => g.label)}
-                  />
-                </Field>
-                <Field label="Number of keys">
+                <FieldRow label="Group">
+                  <Select defaultValue={GROUPS[0]?.name}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="default" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GROUPS.map((g) => (
+                        <SelectItem key={g.name} value={g.name}>
+                          {g.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldRow>
+                <FieldRow label="Number of keys">
                   <Input
                     type="number"
                     name="tokenCount"
@@ -84,10 +102,11 @@ export default function CreateTokenPage() {
                   <Hint>
                     Create multiple at once. Names get a random suffix.
                   </Hint>
-                </Field>
+                </FieldRow>
               </div>
 
               <CheckRow
+                name="cross-group-retry"
                 label="Allow cross-group retries"
                 description="Retry on a different group when a request fails on this group."
                 defaultChecked
@@ -101,11 +120,12 @@ export default function CreateTokenPage() {
               <SectionTitle icon={InfinityIcon} title="Quota" />
 
               <CheckRow
+                name="unlimited"
                 label="Unlimited quota"
                 description="Use the wallet balance directly. No per-key cap."
               />
 
-              <Field label="Quota (USD)">
+              <FieldRow label="Quota (USD)">
                 <Input
                   type="number"
                   step="0.01"
@@ -115,21 +135,16 @@ export default function CreateTokenPage() {
                 <Hint>
                   Maximum spend allowed on this key. Ignored when unlimited.
                 </Hint>
-              </Field>
+              </FieldRow>
 
-              <Field label="Expires">
+              <FieldRow label="Expires">
                 <div className="flex items-center gap-2">
                   <Input type="datetime-local" />
-                  <button
-                    type="button"
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "sm" }),
-                    )}
-                  >
+                  <Button variant="outline" size="sm">
                     Never
-                  </button>
+                  </Button>
                 </div>
-              </Field>
+              </FieldRow>
             </CardContent>
           </Card>
 
@@ -138,8 +153,19 @@ export default function CreateTokenPage() {
             <CardContent className="flex flex-col gap-5 py-5">
               <SectionTitle icon={ShieldCheck} title="Restrictions" />
 
-              <Field label="Model limits">
-                <SelectStub placeholder="Any model" options={USER_MODELS} />
+              <FieldRow label="Model limits">
+                <Select>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Any model" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {USER_MODELS.map((m) => (
+                      <SelectItem key={m} value={m}>
+                        {m}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
                 <div className="mt-2 flex flex-wrap gap-1">
                   <Badge variant="outline" className="px-1.5">
                     claude-haiku-4-5
@@ -166,15 +192,15 @@ export default function CreateTokenPage() {
                   Only the models in this list will be reachable from this key.
                   Empty list means all available models.
                 </Hint>
-              </Field>
+              </FieldRow>
 
-              <Field label="Allowed IPs / CIDRs">
+              <FieldRow label="Allowed IPs / CIDRs">
                 <Input placeholder="10.0.0.0/8, 203.0.113.4" />
                 <Hint>
                   Comma-separated. Requests from outside the allowlist are
                   blocked at the edge.
                 </Hint>
-              </Field>
+              </FieldRow>
             </CardContent>
           </Card>
 
@@ -187,19 +213,13 @@ export default function CreateTokenPage() {
               Cancel
             </Link>
             <div className="flex items-center gap-2">
-              <button
-                type="submit"
-                className={cn(buttonVariants({ variant: "outline" }))}
-              >
+              <Button type="submit" variant="outline">
                 Create &amp; create another
-              </button>
-              <button
-                type="submit"
-                className={cn(buttonVariants({ variant: "brand" }))}
-              >
+              </Button>
+              <Button type="submit" variant="brand">
                 <Plus aria-hidden="true" />
                 Create key
-              </button>
+              </Button>
             </div>
           </div>
         </form>
@@ -208,7 +228,6 @@ export default function CreateTokenPage() {
   );
 }
 
-/* helpers (sub-page only) */
 function SectionTitle({
   icon: Icon,
   title,
@@ -228,7 +247,7 @@ function SectionTitle({
   );
 }
 
-function Field({
+function FieldRow({
   label,
   children,
   required,
@@ -260,46 +279,28 @@ function Hint({ children }: { children: React.ReactNode }) {
   );
 }
 
-function SelectStub({
-  placeholder,
-  options,
-}: {
-  placeholder: string;
-  options: string[];
-}) {
-  return (
-    <button
-      type="button"
-      className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-2.5 text-sm text-muted-foreground transition-colors hover:bg-muted"
-    >
-      <span>{placeholder}</span>
-      <ChevronDown aria-hidden="true" className="size-3" />
-    </button>
-  );
-}
-
 function CheckRow({
+  name,
   label,
   description,
   defaultChecked,
 }: {
+  name: string;
   label: string;
   description?: string;
   defaultChecked?: boolean;
 }) {
   return (
-    <label className="flex items-start gap-3 rounded-md border border-border bg-card p-3 hover:border-border-emphasis">
-      <input
-        type="checkbox"
-        defaultChecked={defaultChecked}
-        className="mt-0.5 size-4 accent-brand"
-      />
-      <div className="flex-1">
-        <span className="text-sm font-medium text-foreground">{label}</span>
-        {description ? (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
-    </label>
+    <FieldLabel htmlFor={name}>
+      <Field orientation="horizontal">
+        <Checkbox id={name} defaultChecked={defaultChecked} />
+        <FieldContent>
+          <FieldTitle>{label}</FieldTitle>
+          {description ? (
+            <FieldDescription>{description}</FieldDescription>
+          ) : null}
+        </FieldContent>
+      </Field>
+    </FieldLabel>
   );
 }

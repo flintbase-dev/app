@@ -1,21 +1,22 @@
 import {
   ArrowUpDown,
   ChevronDown,
-  ChevronRight,
   Copy,
-  ExternalLink,
   Eye,
   Filter,
-  Flame,
   Search,
 } from "lucide-react";
-import Link from "next/link";
 
+import { SiteFooter } from "@/components/site/site-footer";
+import { SiteHeader } from "@/components/site/site-header";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
-import { Card, CardContent } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
-import { Separator } from "@/components/ui/separator";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import {
   Table,
   TableBody,
@@ -24,11 +25,8 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { cn } from "@/lib/utils";
-
-const SYSTEM_NAME = "Flint";
-const DOCS_URL = "https://docs.flint.dev";
 
 type Endpoint = "chat" | "messages" | "responses" | "images";
 type Group = "default" | "premium" | "fast" | "open";
@@ -221,13 +219,6 @@ const ALL_TAGS: Tag[] = [
   "long-context",
 ];
 
-const NAV_ITEMS = [
-  { label: "Models", href: "/pricing" },
-  { label: "Pricing", href: "/pricing" },
-  { label: "Docs", href: DOCS_URL },
-  { label: "Changelog", href: "#" },
-];
-
 function fmtPrice(n: number): string {
   return n < 1 ? n.toFixed(2) : n.toFixed(2);
 }
@@ -238,25 +229,14 @@ function fmtContext(n: number): string {
   return `${n}`;
 }
 
-const ENDPOINT_PATH: Record<Endpoint, string> = {
-  chat: "/v1/chat/completions",
-  messages: "/v1/messages",
-  responses: "/v1/responses",
-  images: "/v1/images",
-};
-
 export default function PricingPage() {
   return <CatalogTable />;
 }
 
-/* ═════════════════════════════════════════════════════════════════════════════
- *  Variant 1 — Catalog Table (Ledger)
- *  Dense one-row-per-model table. Left filter rail, top toolbar.
- * ═════════════════════════════════════════════════════════════════════════════ */
 function CatalogTable() {
   return (
     <div className="isolate flex min-h-dvh flex-1 flex-col antialiased">
-      <SiteHeader theme="light" />
+      <SiteHeader active="Pricing" />
 
       <main className="flex-1">
         <div className="mx-auto w-full max-w-[1200px] px-8 py-12">
@@ -268,35 +248,29 @@ function CatalogTable() {
 
           {/* Toolbar */}
           <div className="mt-10 flex flex-wrap items-center gap-2">
-            <div className="relative min-w-64 flex-1">
-              <Search
-                aria-hidden="true"
-                className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-              />
-              <Input
-                placeholder="Search models, vendors, tags…"
-                className="pl-8"
-              />
-            </div>
-            <ToggleStub options={["USD", "CNY"]} active="USD" />
-            <ToggleStub
-              options={["per 1M tok", "per 1K tok"]}
-              active="per 1M tok"
-            />
-            <button
-              type="button"
-              className={cn(
-                buttonVariants({ variant: "outline", size: "sm" }),
-                "gap-1.5",
-              )}
-            >
+            <InputGroup className="min-w-64 flex-1">
+              <InputGroupAddon>
+                <Search aria-hidden="true" />
+              </InputGroupAddon>
+              <InputGroupInput placeholder="Search models, vendors, tags…" />
+            </InputGroup>
+            <ToggleGroup defaultValue={["USD"]} variant="outline">
+              <ToggleGroupItem value="USD">USD</ToggleGroupItem>
+              <ToggleGroupItem value="CNY">CNY</ToggleGroupItem>
+            </ToggleGroup>
+            <ToggleGroup defaultValue={["per1M"]} variant="outline">
+              <ToggleGroupItem value="per1M">per 1M tok</ToggleGroupItem>
+              <ToggleGroupItem value="per1K">per 1K tok</ToggleGroupItem>
+            </ToggleGroup>
+            <Button variant="outline" size="sm">
               <Filter aria-hidden="true" />
               Filters
               <ChevronDown
                 aria-hidden="true"
+                data-icon="inline-end"
                 className="size-3 text-muted-foreground"
               />
-            </button>
+            </Button>
           </div>
 
           <div className="mt-6 grid gap-8 lg:grid-cols-[14rem_1fr]">
@@ -325,7 +299,7 @@ function CatalogTable() {
             </aside>
 
             {/* Table */}
-            <div className="overflow-hidden rounded-xl border border-border bg-card">
+            <Card className="overflow-hidden p-0">
               <Table>
                 <TableHeader>
                   <TableRow>
@@ -410,37 +384,27 @@ function CatalogTable() {
                       </TableCell>
                       <TableCell className="pr-4 text-right">
                         <div className="inline-flex items-center gap-1">
-                          <button
-                            type="button"
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
                             aria-label={`Copy ${m.id}`}
-                            className={cn(
-                              buttonVariants({
-                                variant: "ghost",
-                                size: "icon-sm",
-                              }),
-                            )}
                           >
                             <Copy aria-hidden="true" />
-                          </button>
-                          <button
-                            type="button"
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon-sm"
                             aria-label={`View ${m.id}`}
-                            className={cn(
-                              buttonVariants({
-                                variant: "ghost",
-                                size: "icon-sm",
-                              }),
-                            )}
                           >
                             <Eye aria-hidden="true" />
-                          </button>
+                          </Button>
                         </div>
                       </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
               </Table>
-            </div>
+            </Card>
           </div>
         </div>
       </main>
@@ -450,9 +414,6 @@ function CatalogTable() {
   );
 }
 
-/* ═════════════════════════════════════════════════════════════════════════════
- *  Shared chrome
- * ═════════════════════════════════════════════════════════════════════════════ */
 function PageHeader({
   eyebrow,
   title,
@@ -524,55 +485,6 @@ function FilterRow({ label, count }: { label: string; count: number }) {
   );
 }
 
-function ChipFilter({
-  label,
-  active = false,
-}: {
-  label: string;
-  active?: boolean;
-}) {
-  return (
-    <button
-      type="button"
-      className={cn(
-        "inline-flex h-7 items-center gap-1 rounded-full border px-3 text-xs font-medium transition-colors",
-        active
-          ? "border-foreground bg-foreground text-background"
-          : "border-border bg-background text-muted-foreground hover:border-border-emphasis hover:text-foreground",
-      )}
-    >
-      <span className="capitalize">{label}</span>
-    </button>
-  );
-}
-
-function ToggleStub({
-  options,
-  active,
-}: {
-  options: string[];
-  active: string;
-}) {
-  return (
-    <div className="inline-flex h-9 items-center rounded-md border border-input bg-background p-[3px]">
-      {options.map((o) => (
-        <button
-          key={o}
-          type="button"
-          className={cn(
-            "inline-flex h-full items-center rounded-sm px-2.5 text-xs font-medium transition-colors",
-            o === active
-              ? "bg-muted text-foreground"
-              : "text-muted-foreground hover:text-foreground",
-          )}
-        >
-          {o}
-        </button>
-      ))}
-    </div>
-  );
-}
-
 function VendorMark({
   vendor,
   size = "sm",
@@ -600,25 +512,6 @@ function VendorMark({
   );
 }
 
-function DT({ children }: { children: React.ReactNode }) {
-  return (
-    <dt className="text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
-      {children}
-    </dt>
-  );
-}
-
-function DD({
-  children,
-  className,
-}: {
-  children: React.ReactNode;
-  className?: string;
-}) {
-  return <dd className={cn("text-foreground", className)}>{children}</dd>;
-}
-
-/* ─────── helpers ─────── */
 function modelsByVendor(v: string): number {
   return MODELS.filter((m) => m.vendor === v).length;
 }
@@ -630,104 +523,4 @@ function modelsWithEndpoint(e: Endpoint): number {
 }
 function modelsWithTag(t: Tag): number {
   return MODELS.filter((m) => m.tags.includes(t)).length;
-}
-
-/* ─────── header & footer (light theme) ─────── */
-function SiteHeader({ theme = "light" }: { theme?: "light" | "dark" }) {
-  return (
-    <header
-      className={cn(
-        "border-b border-border",
-        theme === "dark" && "dark scheme-only-dark bg-background",
-      )}
-    >
-      <div className="mx-auto flex h-12 w-full max-w-[1200px] items-center justify-between px-8">
-        <Link
-          href="/"
-          aria-label="Homepage"
-          className="flex items-center gap-2"
-        >
-          <Flame className="size-4 text-brand" aria-hidden="true" />
-          <span className="font-heading text-sm font-medium tracking-tight text-foreground">
-            {SYSTEM_NAME}
-          </span>
-        </Link>
-        <nav className="hidden items-center gap-1 lg:flex">
-          {NAV_ITEMS.map((item) => (
-            <a
-              key={item.label}
-              href={item.href}
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "sm" }),
-                item.label === "Pricing" && "text-foreground",
-              )}
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
-        <div className="flex items-center gap-2">
-          <Link
-            href="/login"
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "sm" }),
-              "max-sm:hidden",
-            )}
-          >
-            Sign in
-          </Link>
-          <Link
-            href="/console"
-            className={cn(buttonVariants({ variant: "brand", size: "sm" }))}
-          >
-            Get a key
-          </Link>
-        </div>
-      </div>
-    </header>
-  );
-}
-
-function SiteFooter() {
-  return (
-    <footer className="border-t border-border bg-background">
-      <div className="mx-auto flex w-full max-w-[1200px] flex-col items-start justify-between gap-6 px-8 py-10 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-2">
-          <Flame className="size-4 text-brand" aria-hidden="true" />
-          <span className="font-heading text-sm font-medium text-foreground">
-            {SYSTEM_NAME}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()}
-          </span>
-        </div>
-        <nav className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <a
-            href={DOCS_URL}
-            className="text-sm font-normal text-muted-foreground hover:text-foreground"
-          >
-            Docs
-          </a>
-          <Link
-            href="/pricing"
-            className="text-sm font-normal text-muted-foreground hover:text-foreground"
-          >
-            Pricing
-          </Link>
-          <Link
-            href="/privacy-policy"
-            className="text-sm font-normal text-muted-foreground hover:text-foreground"
-          >
-            Privacy
-          </Link>
-          <Link
-            href="/user-agreement"
-            className="text-sm font-normal text-muted-foreground hover:text-foreground"
-          >
-            Terms
-          </Link>
-        </nav>
-      </div>
-    </footer>
-  );
 }

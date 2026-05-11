@@ -9,13 +9,12 @@ import {
 import Link from "next/link";
 
 import { CopyButton } from "@/components/site/copy-button";
+import { SiteFooter } from "@/components/site/site-footer";
+import { SiteHeader } from "@/components/site/site-header";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
+import { BASE_URL, DOCS_URL, SYSTEM_NAME } from "@/lib/site";
 import { cn } from "@/lib/utils";
-
-const SYSTEM_NAME = "Flint";
-const BASE_URL = "https://api.flint.dev";
-const DOCS_URL = "https://docs.flint.dev";
 
 const ENDPOINTS: { method: "POST" | "GET"; path: string; label: string }[] = [
   { method: "POST", path: "/v1/chat/completions", label: "Chat completions" },
@@ -26,17 +25,10 @@ const ENDPOINTS: { method: "POST" | "GET"; path: string; label: string }[] = [
   { method: "POST", path: "/v1/images", label: "Images" },
 ];
 
-const NAV_ITEMS = [
-  { label: "Models", href: "/pricing" },
-  { label: "Pricing", href: "/pricing" },
-  { label: "Docs", href: DOCS_URL },
-  { label: "Changelog", href: "#" },
-];
-
 export default function Home() {
   return (
     <div className="dark scheme-only-dark isolate flex min-h-dvh flex-1 flex-col bg-background text-foreground antialiased">
-      <DarkNav />
+      <SiteHeader theme="dark" />
 
       <main className="flex flex-1 flex-col">
         {/* Hero */}
@@ -159,100 +151,7 @@ export default function Home() {
         </section>
       </main>
 
-      <DarkFooter />
+      <SiteFooter />
     </div>
-  );
-}
-
-function DarkNav() {
-  return (
-    <header className="border-b border-border bg-background text-foreground">
-      <div className="mx-auto flex h-12 w-full max-w-[1200px] items-center justify-between px-8">
-        <Link
-          href="/"
-          aria-label="Homepage"
-          className="flex items-center gap-2"
-        >
-          <Flame className="size-4 text-brand" aria-hidden="true" />
-          <span className="font-heading text-sm font-medium tracking-tight text-foreground">
-            {SYSTEM_NAME}
-          </span>
-        </Link>
-
-        <nav className="hidden items-center gap-1 lg:flex">
-          {NAV_ITEMS.map((item) => (
-            <a
-              key={item.label}
-              href={item.href}
-              className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-            >
-              {item.label}
-            </a>
-          ))}
-        </nav>
-
-        <div className="flex items-center gap-2">
-          <Link
-            href="/login"
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "sm" }),
-              "max-sm:hidden",
-            )}
-          >
-            Sign in
-          </Link>
-          <Link
-            href="/console"
-            className={cn(buttonVariants({ variant: "brand", size: "sm" }))}
-          >
-            Get a key
-          </Link>
-        </div>
-      </div>
-    </header>
-  );
-}
-
-function DarkFooter() {
-  return (
-    <footer className="border-t border-border bg-background">
-      <div className="mx-auto flex w-full max-w-[1200px] flex-col items-start justify-between gap-6 px-8 py-10 sm:flex-row sm:items-center">
-        <div className="flex items-center gap-2">
-          <Flame className="size-4 text-brand" aria-hidden="true" />
-          <span className="font-heading text-sm font-medium text-foreground">
-            {SYSTEM_NAME}
-          </span>
-          <span className="text-xs text-muted-foreground">
-            © {new Date().getFullYear()}
-          </span>
-        </div>
-        <nav className="flex flex-wrap items-center gap-x-6 gap-y-2">
-          <a
-            href={DOCS_URL}
-            className="text-sm font-normal text-muted-foreground hover:text-foreground"
-          >
-            Docs
-          </a>
-          <Link
-            href="/pricing"
-            className="text-sm font-normal text-muted-foreground hover:text-foreground"
-          >
-            Pricing
-          </Link>
-          <Link
-            href="/privacy-policy"
-            className="text-sm font-normal text-muted-foreground hover:text-foreground"
-          >
-            Privacy
-          </Link>
-          <Link
-            href="/user-agreement"
-            className="text-sm font-normal text-muted-foreground hover:text-foreground"
-          >
-            Terms
-          </Link>
-        </nav>
-      </div>
-    </footer>
   );
 }

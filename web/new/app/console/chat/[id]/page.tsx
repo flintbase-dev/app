@@ -9,7 +9,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { CHAT_CLIENTS, TOKENS } from "@/lib/console/mock";
 import { cn } from "@/lib/utils";
 
@@ -46,42 +46,18 @@ export default async function ChatRunnerPage({
           base https://api.flint.dev
         </span>
         <div className="ml-auto flex items-center gap-1">
-          <button
-            type="button"
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "icon-sm" }),
-            )}
-            aria-label="Reload"
-          >
+          <Button variant="ghost" size="icon-sm" aria-label="Reload">
             <RefreshCw aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "icon-sm" }),
-            )}
-            aria-label="Open externally"
-          >
+          </Button>
+          <Button variant="ghost" size="icon-sm" aria-label="Open externally">
             <ExternalLink aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "icon-sm" }),
-            )}
-            aria-label="Fullscreen"
-          >
+          </Button>
+          <Button variant="ghost" size="icon-sm" aria-label="Fullscreen">
             <Maximize2 aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "icon-sm" }),
-            )}
-            aria-label="Settings"
-          >
+          </Button>
+          <Button variant="ghost" size="icon-sm" aria-label="Settings">
             <Settings2 aria-hidden="true" />
-          </button>
+          </Button>
         </div>
       </div>
 

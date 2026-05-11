@@ -1,7 +1,6 @@
 import {
   ArrowUp,
   Bot,
-  ChevronDown,
   Copy,
   Image as ImageIcon,
   RefreshCw,
@@ -12,8 +11,15 @@ import {
   Wand2,
 } from "lucide-react";
 
-import { buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Textarea } from "@/components/ui/textarea";
 import { GROUPS, USER_MODELS } from "@/lib/console/mock";
 import { cn } from "@/lib/utils";
 
@@ -40,29 +46,41 @@ export default function PlaygroundPage() {
     <div className="flex h-[calc(100dvh-3rem)] flex-1 flex-col">
       {/* Top bar */}
       <div className="flex h-12 shrink-0 items-center gap-2 border-b border-border bg-background px-4">
-        <SelectStub
-          value="claude-sonnet-4-6"
-          options={USER_MODELS}
-          icon={<Sparkles aria-hidden="true" className="size-3.5" />}
-        />
-        <SelectStub value="default" options={GROUPS.map((g) => g.name)} />
-        <button
-          type="button"
-          className={cn(buttonVariants({ variant: "ghost", size: "sm" }))}
-        >
+        <Select defaultValue="claude-sonnet-4-6">
+          <SelectTrigger size="sm">
+            <Sparkles aria-hidden="true" />
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {USER_MODELS.map((m) => (
+              <SelectItem key={m} value={m}>
+                {m}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Select defaultValue="default">
+          <SelectTrigger size="sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {GROUPS.map((g) => (
+              <SelectItem key={g.name} value={g.name}>
+                {g.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        <Button variant="ghost" size="sm">
           <Settings2 aria-hidden="true" />
           Parameters
-        </button>
+        </Button>
         <span className="ml-auto font-mono text-xs tabular-nums text-muted-foreground">
           ~$0.0048 est
         </span>
-        <button
-          type="button"
-          className={cn(buttonVariants({ variant: "ghost", size: "icon-sm" }))}
-          aria-label="Reset"
-        >
+        <Button variant="ghost" size="icon-sm" aria-label="Reset">
           <RefreshCw aria-hidden="true" />
-        </button>
+        </Button>
       </div>
 
       {/* Messages */}
@@ -78,69 +96,27 @@ export default function PlaygroundPage() {
       <div className="shrink-0 border-t border-border bg-background">
         <div className="mx-auto w-full max-w-3xl p-3">
           <div className="rounded-xl border border-border bg-card p-2">
-            <textarea
-              className="w-full resize-none border-0 bg-transparent p-2 text-sm leading-relaxed outline-none"
+            <Textarea
               rows={2}
               placeholder="Ask anything…"
+              className="min-h-0 resize-none border-0 bg-transparent shadow-none ring-0 focus-visible:ring-0"
             />
             <div className="flex items-center gap-1">
-              <button
-                type="button"
-                className={cn(
-                  buttonVariants({ variant: "ghost", size: "icon-sm" }),
-                )}
-                aria-label="Attach"
-              >
+              <Button variant="ghost" size="icon-sm" aria-label="Attach">
                 <ImageIcon aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                className={cn(
-                  buttonVariants({ variant: "ghost", size: "icon-sm" }),
-                )}
-                aria-label="System prompt"
-              >
+              </Button>
+              <Button variant="ghost" size="icon-sm" aria-label="System prompt">
                 <Wand2 aria-hidden="true" />
-              </button>
-              <button
-                type="button"
-                className={cn(
-                  buttonVariants({ variant: "brand", size: "sm" }),
-                  "ml-auto",
-                )}
-              >
+              </Button>
+              <Button variant="brand" size="sm" className="ml-auto">
                 <ArrowUp aria-hidden="true" />
                 Send
-              </button>
+              </Button>
             </div>
           </div>
         </div>
       </div>
     </div>
-  );
-}
-
-function SelectStub({
-  value,
-  options: _options,
-  icon,
-}: {
-  value: string;
-  options: string[];
-  icon?: React.ReactNode;
-}) {
-  return (
-    <button
-      type="button"
-      className="flex h-8 items-center gap-1.5 rounded-md border border-input bg-background px-2 text-sm text-foreground transition-colors hover:bg-muted"
-    >
-      {icon}
-      <span className="truncate font-mono text-xs">{value}</span>
-      <ChevronDown
-        aria-hidden="true"
-        className="ml-auto size-3 text-muted-foreground"
-      />
-    </button>
   );
 }
 
@@ -151,8 +127,7 @@ function MessageBlock({
   role: "system" | "user" | "assistant";
   content: string;
 }) {
-  const Avatar =
-    role === "assistant" ? Bot : role === "user" ? User : Wand2;
+  const Avatar = role === "assistant" ? Bot : role === "user" ? User : Wand2;
   const avatarBg =
     role === "assistant"
       ? "bg-brand-subtle text-brand-emphasis"
@@ -177,33 +152,15 @@ function MessageBlock({
             {role}
           </span>
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "icon-xs" }),
-              )}
-              aria-label="Copy"
-            >
+            <Button variant="ghost" size="icon-xs" aria-label="Copy">
               <Copy aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "icon-xs" }),
-              )}
-              aria-label="Re-run"
-            >
+            </Button>
+            <Button variant="ghost" size="icon-xs" aria-label="Re-run">
               <RefreshCw aria-hidden="true" />
-            </button>
-            <button
-              type="button"
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "icon-xs" }),
-              )}
-              aria-label="Delete"
-            >
+            </Button>
+            <Button variant="ghost" size="icon-xs" aria-label="Delete">
               <Trash2 aria-hidden="true" />
-            </button>
+            </Button>
           </div>
         </div>
         <p className="mt-1 text-sm leading-relaxed whitespace-pre-wrap text-foreground">

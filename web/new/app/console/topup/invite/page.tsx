@@ -8,7 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { AFF, fmtMoney, fmtNum } from "@/lib/console/mock";
@@ -68,15 +68,10 @@ export default function InvitePage() {
                 <code className="flex-1 truncate font-mono text-sm text-foreground">
                   {AFF.link}
                 </code>
-                <button
-                  type="button"
-                  className={cn(
-                    buttonVariants({ variant: "outline", size: "sm" }),
-                  )}
-                >
+                <Button variant="outline" size="sm">
                   <Copy aria-hidden="true" />
                   Copy
-                </button>
+                </Button>
               </div>
               <p className="mt-2 font-mono text-xs tabular-nums text-muted-foreground">
                 Code: <span className="text-foreground">{AFF.code}</span>
@@ -86,27 +81,18 @@ export default function InvitePage() {
             <Separator />
 
             <div className="flex flex-wrap items-center gap-2">
-              <button
-                type="button"
-                className={cn(buttonVariants({ variant: "outline" }))}
-              >
+              <Button variant="outline">
                 <Mail aria-hidden="true" />
                 Share via email
-              </button>
-              <button
-                type="button"
-                className={cn(buttonVariants({ variant: "outline" }))}
-              >
+              </Button>
+              <Button variant="outline">
                 <Share2 aria-hidden="true" />
                 Share on X
-              </button>
-              <button
-                type="button"
-                className={cn(buttonVariants({ variant: "outline" }))}
-              >
+              </Button>
+              <Button variant="outline">
                 <Share2 aria-hidden="true" />
                 Copy share text
-              </button>
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -125,13 +111,10 @@ export default function InvitePage() {
                 of vested credit into your wallet balance.
               </p>
             </div>
-            <button
-              type="button"
-              className={cn(buttonVariants({ variant: "brand" }))}
-            >
+            <Button variant="brand">
               <ArrowDownRight aria-hidden="true" />
               Transfer
-            </button>
+            </Button>
           </CardContent>
         </Card>
       </div>

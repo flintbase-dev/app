@@ -18,7 +18,13 @@ import {
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { Input } from "@/components/ui/input";
+import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import { Kbd } from "@/components/ui/kbd";
 import { Separator } from "@/components/ui/separator";
 import { CURRENT_USER, fmtMoney } from "@/lib/console/mock";
 import { cn } from "@/lib/utils";
@@ -127,14 +133,14 @@ export default function ConsoleLayout({
 
         {/* User block */}
         <div className="border-t border-sidebar-border p-3">
-          <button
-            type="button"
-            className="flex w-full items-center gap-2 rounded-md p-2 text-left transition-colors hover:bg-sidebar-accent"
+          <Button
+            variant="ghost"
+            className="h-auto w-full justify-start gap-2 p-2 hover:bg-sidebar-accent"
           >
             <div className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-subtle font-mono text-xs font-medium text-brand-emphasis">
               KN
             </div>
-            <div className="min-w-0 flex-1">
+            <div className="min-w-0 flex-1 text-left">
               <p className="truncate text-sm font-medium text-foreground">
                 {CURRENT_USER.display_name}
               </p>
@@ -146,7 +152,7 @@ export default function ConsoleLayout({
               aria-hidden="true"
               className="size-3.5 shrink-0 text-muted-foreground"
             />
-          </button>
+          </Button>
         </div>
       </aside>
 
@@ -154,19 +160,15 @@ export default function ConsoleLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top bar */}
         <header className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-border bg-background px-4 lg:px-6">
-          <div className="relative max-w-md flex-1">
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input
-              placeholder="Jump to a page, model, or token id…"
-              className="h-8 pl-8"
-            />
-            <kbd className="pointer-events-none absolute top-1/2 right-2 inline-flex h-5 -translate-y-1/2 items-center rounded-xs border border-border bg-background px-1 font-mono text-[10px] text-muted-foreground">
-              ⌘K
-            </kbd>
-          </div>
+          <InputGroup className="h-8 max-w-md flex-1">
+            <InputGroupAddon>
+              <Search aria-hidden="true" />
+            </InputGroupAddon>
+            <InputGroupInput placeholder="Jump to a page, model, or token id…" />
+            <InputGroupAddon align="inline-end">
+              <Kbd>⌘K</Kbd>
+            </InputGroupAddon>
+          </InputGroup>
           <div className="ml-auto flex items-center gap-2">
             <span className="hidden font-mono text-xs tabular-nums text-muted-foreground sm:inline">
               Balance
@@ -175,19 +177,21 @@ export default function ConsoleLayout({
               {fmtMoney(CURRENT_USER.balance)}
             </span>
             <Link
-              href="/console/topup/charge"
-              className="inline-flex h-7 items-center rounded-md bg-brand px-2.5 text-xs font-medium text-brand-foreground transition-colors hover:bg-brand-hover"
+              href="/console/topup"
+              className={cn(buttonVariants({ variant: "brand", size: "sm" }))}
             >
-              <CreditCard className="mr-1 size-3" aria-hidden="true" />
+              <CreditCard aria-hidden="true" />
               Top up
             </Link>
             <Separator orientation="vertical" className="mx-1 h-5" />
             <Link
               href="/login"
-              className="inline-flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className={cn(
+                buttonVariants({ variant: "ghost", size: "icon-sm" }),
+              )}
               aria-label="Sign out"
             >
-              <LogOut className="size-3.5" aria-hidden="true" />
+              <LogOut aria-hidden="true" />
             </Link>
           </div>
         </header>

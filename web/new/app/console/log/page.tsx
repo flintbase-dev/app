@@ -1,20 +1,10 @@
-import {
-  CheckCircle2,
-  Copy,
-  XCircle,
-  Zap,
-} from "lucide-react";
+import { CheckCircle2, Copy, XCircle, Zap } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  fmtMoney,
-  fmtNum,
-  LOGS,
-  type LogEntry,
-} from "@/lib/console/mock";
+import { fmtMoney, fmtNum, LOGS, type LogEntry } from "@/lib/console/mock";
 import { cn } from "@/lib/utils";
 
 export default function LogPage() {
@@ -93,15 +83,9 @@ export default function LogPage() {
                 <code className="flex-1 truncate font-mono text-xs text-foreground">
                   {selected.request_id}
                 </code>
-                <button
-                  type="button"
-                  className={cn(
-                    buttonVariants({ variant: "ghost", size: "icon-xs" }),
-                  )}
-                  aria-label="Copy"
-                >
+                <Button variant="ghost" size="icon-xs" aria-label="Copy">
                   <Copy aria-hidden="true" />
-                </button>
+                </Button>
               </div>
             </div>
 

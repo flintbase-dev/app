@@ -15,9 +15,14 @@ import {
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
 import {
   Table,
   TableBody,
@@ -37,41 +42,25 @@ export default function TokenPage() {
 
         {/* Toolbar */}
         <div className="mt-6 flex flex-wrap items-center gap-2">
-          <div className="relative min-w-64 flex-1">
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input placeholder="Search by name or key…" className="pl-8" />
-          </div>
+          <InputGroup className="min-w-64 flex-1">
+            <InputGroupAddon>
+              <Search aria-hidden="true" />
+            </InputGroupAddon>
+            <InputGroupInput placeholder="Search by name or key…" />
+          </InputGroup>
           <FilterButton label="Status" />
           <FilterButton label="Group" />
-          <button
-            type="button"
-            className={cn(
-              buttonVariants({ variant: "outline", size: "sm" }),
-              "gap-1.5",
-            )}
-          >
+          <Button variant="outline" size="sm">
             <Copy aria-hidden="true" />
             Bulk copy
-          </button>
-          <button
-            type="button"
-            className={cn(
-              buttonVariants({ variant: "outline", size: "sm" }),
-              "gap-1.5 text-destructive",
-            )}
-          >
+          </Button>
+          <Button variant="outline" size="sm" className="text-destructive">
             <Trash2 aria-hidden="true" />
             Delete selected
-          </button>
+          </Button>
           <Link
             href="/console/token/new"
-            className={cn(
-              buttonVariants({ variant: "brand", size: "sm" }),
-              "gap-1.5",
-            )}
+            className={cn(buttonVariants({ variant: "brand", size: "sm" }))}
           >
             <Plus aria-hidden="true" />
             Create key
@@ -79,12 +68,12 @@ export default function TokenPage() {
         </div>
 
         {/* Table */}
-        <Card className="mt-4">
+        <Card className="mt-4 overflow-hidden p-0">
           <Table>
             <TableHeader>
               <TableRow>
                 <TableHead className="w-8 pl-4">
-                  <input type="checkbox" aria-label="Select all" />
+                  <Checkbox aria-label="Select all" />
                 </TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Key</TableHead>
@@ -101,7 +90,7 @@ export default function TokenPage() {
               {TOKENS.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell className="pl-4">
-                    <input type="checkbox" aria-label={`Select ${t.name}`} />
+                    <Checkbox aria-label={`Select ${t.name}`} />
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
@@ -123,30 +112,20 @@ export default function TokenPage() {
                       <code className="font-mono text-xs text-muted-foreground">
                         {t.key_preview}
                       </code>
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
                         aria-label="Reveal key"
-                        className={cn(
-                          buttonVariants({
-                            variant: "ghost",
-                            size: "icon-xs",
-                          }),
-                        )}
                       >
                         <Eye aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-xs"
                         aria-label="Copy key"
-                        className={cn(
-                          buttonVariants({
-                            variant: "ghost",
-                            size: "icon-xs",
-                          }),
-                        )}
                       >
                         <Copy aria-hidden="true" />
-                      </button>
+                      </Button>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -201,42 +180,23 @@ export default function TokenPage() {
                       >
                         <Pencil aria-hidden="true" />
                       </Link>
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label="Toggle status"
-                        className={cn(
-                          buttonVariants({
-                            variant: "ghost",
-                            size: "icon-sm",
-                          }),
-                        )}
                       >
                         <Power aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label="Connection string"
-                        className={cn(
-                          buttonVariants({
-                            variant: "ghost",
-                            size: "icon-sm",
-                          }),
-                        )}
                       >
                         <Link2 aria-hidden="true" />
-                      </button>
-                      <button
-                        type="button"
-                        aria-label="More"
-                        className={cn(
-                          buttonVariants({
-                            variant: "ghost",
-                            size: "icon-sm",
-                          }),
-                        )}
-                      >
+                      </Button>
+                      <Button variant="ghost" size="icon-sm" aria-label="More">
                         <MoreHorizontal aria-hidden="true" />
-                      </button>
+                      </Button>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -250,20 +210,12 @@ export default function TokenPage() {
             Showing 1–{TOKENS.length} of {TOKENS.length}
           </span>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-              disabled
-            >
+            <Button variant="outline" size="sm" disabled>
               Previous
-            </button>
-            <button
-              type="button"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-              disabled
-            >
+            </Button>
+            <Button variant="outline" size="sm" disabled>
               Next
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -293,8 +245,8 @@ function PageHeader() {
         </p>
       </div>
       <span className="font-mono text-xs tabular-nums text-muted-foreground">
-        {TOKENS.length} keys ·{" "}
-        {TOKENS.filter((t) => t.status === 1).length} enabled
+        {TOKENS.length} keys · {TOKENS.filter((t) => t.status === 1).length}{" "}
+        enabled
       </span>
     </div>
   );
@@ -302,15 +254,13 @@ function PageHeader() {
 
 function FilterButton({ label }: { label: string }) {
   return (
-    <button
-      type="button"
-      className={cn(
-        buttonVariants({ variant: "outline", size: "sm" }),
-        "gap-1.5",
-      )}
-    >
+    <Button variant="outline" size="sm">
       {label}
-      <ChevronDown aria-hidden="true" className="size-3 text-muted-foreground" />
-    </button>
+      <ChevronDown
+        aria-hidden="true"
+        data-icon="inline-end"
+        className="size-3 text-muted-foreground"
+      />
+    </Button>
   );
 }

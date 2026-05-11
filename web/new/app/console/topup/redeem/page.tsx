@@ -1,7 +1,7 @@
 import { ArrowLeft, Gift, ShieldCheck } from "lucide-react";
 import Link from "next/link";
 
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
@@ -57,13 +57,10 @@ export default function RedeemPage() {
                 placeholder="FLINT-XXXX-XXXX"
                 className="font-mono tracking-tight uppercase"
               />
-              <button
-                type="submit"
-                className={cn(buttonVariants({ variant: "brand" }))}
-              >
+              <Button type="submit" variant="brand">
                 <Gift aria-hidden="true" />
                 Redeem
-              </button>
+              </Button>
             </form>
 
             <div className="flex items-start gap-2 rounded-md border-l-2 border-info bg-info-bg p-3 text-info-dark">

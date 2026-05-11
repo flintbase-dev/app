@@ -9,8 +9,21 @@ import {
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button, buttonVariants } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import {
+  InputGroup,
+  InputGroupAddon,
+  InputGroupInput,
+} from "@/components/ui/input-group";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { BILLS, fmtMoney, fmtRelative } from "@/lib/console/mock";
 import { cn } from "@/lib/utils";
 
@@ -40,63 +53,42 @@ export default function HistoryPage() {
               Billing history
             </h1>
           </div>
-          <button
-            type="button"
-            className={cn(
-              buttonVariants({ variant: "outline", size: "sm" }),
-              "gap-1.5",
-            )}
-          >
+          <Button variant="outline" size="sm">
             <Download aria-hidden="true" />
             Export CSV
-          </button>
+          </Button>
         </div>
 
         {/* Filters */}
         <div className="mt-6 flex flex-wrap items-center gap-2">
-          <div className="relative min-w-64 flex-1">
-            <Search
-              aria-hidden="true"
-              className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground"
-            />
-            <Input placeholder="Search by reference…" className="pl-8" />
-          </div>
+          <InputGroup className="min-w-64 flex-1">
+            <InputGroupAddon>
+              <Search aria-hidden="true" />
+            </InputGroupAddon>
+            <InputGroupInput placeholder="Search by reference…" />
+          </InputGroup>
           <FilterButton label="Type" />
           <FilterButton label="Status" />
           <FilterButton label="Date range" />
         </div>
 
-        <div className="mt-4 overflow-hidden rounded-xl border border-border bg-card">
-          <table className="w-full text-sm">
-            <thead className="bg-muted/50">
-              <tr className="border-b border-border">
-                <th className="px-4 py-2.5 text-left text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
-                  Type
-                </th>
-                <th className="px-4 py-2.5 text-left text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
-                  Reference
-                </th>
-                <th className="px-4 py-2.5 text-left text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
-                  Method
-                </th>
-                <th className="px-4 py-2.5 text-left text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
-                  Status
-                </th>
-                <th className="px-4 py-2.5 text-left text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
-                  When
-                </th>
-                <th className="px-4 py-2.5 text-right text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
-                  Amount
-                </th>
-                <th className="px-4 py-2.5 text-right text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
-                  Receipt
-                </th>
-              </tr>
-            </thead>
-            <tbody>
+        <Card className="mt-4 overflow-hidden p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead className="pl-4">Type</TableHead>
+                <TableHead>Reference</TableHead>
+                <TableHead>Method</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>When</TableHead>
+                <TableHead className="text-right">Amount</TableHead>
+                <TableHead className="pr-4 text-right">Receipt</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
               {BILLS.map((b) => (
-                <tr key={b.id} className="border-b border-border last:border-0">
-                  <td className="px-4 py-3">
+                <TableRow key={b.id}>
+                  <TableCell className="pl-4">
                     <Badge
                       variant={
                         b.type === "subscription"
@@ -109,19 +101,19 @@ export default function HistoryPage() {
                     >
                       {b.type}
                     </Badge>
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell>
                     <code className="font-mono text-xs text-foreground">
                       {b.reference}
                     </code>
                     <p className="font-mono text-[11px] tabular-nums text-muted-foreground">
                       bill {b.id}
                     </p>
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
                     {b.method}
-                  </td>
-                  <td className="px-4 py-3">
+                  </TableCell>
+                  <TableCell>
                     {b.status === "completed" ? (
                       <span className="inline-flex items-center gap-1 text-xs text-success-dark">
                         <CheckCircle2 aria-hidden="true" className="size-3" />
@@ -135,11 +127,11 @@ export default function HistoryPage() {
                     ) : (
                       <span className="text-xs text-warning-dark">pending</span>
                     )}
-                  </td>
-                  <td className="px-4 py-3 text-xs text-muted-foreground">
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
                     {fmtRelative(b.ts)}
-                  </td>
-                  <td className="px-4 py-3 text-right">
+                  </TableCell>
+                  <TableCell className="text-right">
                     <span
                       className={cn(
                         "font-mono tabular-nums",
@@ -150,30 +142,25 @@ export default function HistoryPage() {
                     >
                       {fmtMoney(b.amount)}
                     </span>
-                  </td>
-                  <td className="px-4 py-3 text-right">
+                  </TableCell>
+                  <TableCell className="pr-4 text-right">
                     {b.status === "completed" ? (
-                      <button
-                        type="button"
+                      <Button
+                        variant="ghost"
+                        size="icon-sm"
                         aria-label="Download receipt"
-                        className={cn(
-                          buttonVariants({
-                            variant: "ghost",
-                            size: "icon-sm",
-                          }),
-                        )}
                       >
                         <Download aria-hidden="true" />
-                      </button>
+                      </Button>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
-                  </td>
-                </tr>
+                  </TableCell>
+                </TableRow>
               ))}
-            </tbody>
-          </table>
-        </div>
+            </TableBody>
+          </Table>
+        </Card>
       </div>
     </div>
   );
@@ -181,15 +168,13 @@ export default function HistoryPage() {
 
 function FilterButton({ label }: { label: string }) {
   return (
-    <button
-      type="button"
-      className={cn(
-        buttonVariants({ variant: "outline", size: "sm" }),
-        "gap-1.5",
-      )}
-    >
+    <Button variant="outline" size="sm">
       {label}
-      <ChevronDown aria-hidden="true" className="size-3 text-muted-foreground" />
-    </button>
+      <ChevronDown
+        aria-hidden="true"
+        data-icon="inline-end"
+        className="size-3 text-muted-foreground"
+      />
+    </Button>
   );
 }

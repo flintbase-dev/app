@@ -12,7 +12,7 @@ import {
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -55,9 +55,7 @@ export default function DashboardPage() {
             <MiniStat
               icon={TrendingUp}
               label="Spend (7d)"
-              value={fmtMoney(
-                USAGE_TIMESERIES.reduce((a, x) => a + x.cost, 0),
-              )}
+              value={fmtMoney(USAGE_TIMESERIES.reduce((a, x) => a + x.cost, 0))}
             />
             <MiniStat
               icon={Zap}
@@ -137,15 +135,9 @@ export default function DashboardPage() {
                   <code className="flex-1 truncate font-mono text-xs text-foreground">
                     {a.url}
                   </code>
-                  <button
-                    type="button"
-                    aria-label="Copy"
-                    className={cn(
-                      buttonVariants({ variant: "ghost", size: "icon-xs" }),
-                    )}
-                  >
+                  <Button variant="ghost" size="icon-xs" aria-label="Copy">
                     <Copy aria-hidden="true" />
-                  </button>
+                  </Button>
                 </div>
               ))}
               <Link

@@ -1,7 +1,6 @@
 import {
   AlertTriangle,
   Bell,
-  Check,
   Copy,
   Eye,
   Globe,
@@ -14,10 +13,19 @@ import {
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { CURRENT_USER, fmtMoney, fmtNum } from "@/lib/console/mock";
 import { cn } from "@/lib/utils";
 
@@ -219,31 +227,16 @@ function SecuritySection() {
           <code className="flex-1 truncate font-mono text-sm text-foreground">
             {CURRENT_USER.app_access_token}
           </code>
-          <button
-            type="button"
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "icon-xs" }),
-            )}
-            aria-label="Reveal"
-          >
+          <Button variant="ghost" size="icon-xs" aria-label="Reveal">
             <Eye aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={cn(
-              buttonVariants({ variant: "ghost", size: "icon-xs" }),
-            )}
-            aria-label="Copy"
-          >
+          </Button>
+          <Button variant="ghost" size="icon-xs" aria-label="Copy">
             <Copy aria-hidden="true" />
-          </button>
-          <button
-            type="button"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-          >
+          </Button>
+          <Button variant="outline" size="sm">
             <RefreshCw aria-hidden="true" />
             Reset token
-          </button>
+          </Button>
         </div>
 
         <Separator />
@@ -288,33 +281,24 @@ function PreferencesSection() {
           <p className="text-xs text-muted-foreground">
             Affects the console UI and email content.
           </p>
-          <div className="mt-2 grid grid-cols-2 gap-2 sm:grid-cols-4">
-            {LANGUAGES.map((l) => {
-              const active = l.id === CURRENT_USER.language;
-              return (
-                <button
-                  key={l.id}
-                  type="button"
-                  className={cn(
-                    "flex h-9 items-center justify-center rounded-md border text-sm transition-colors",
-                    active
-                      ? "border-2 border-brand bg-brand-subtle text-brand-emphasis"
-                      : "border-border text-foreground hover:border-border-emphasis",
-                  )}
-                >
-                  {active ? (
-                    <Check aria-hidden="true" className="mr-1 size-3" />
-                  ) : null}
-                  {l.label}
-                </button>
-              );
-            })}
-          </div>
+          <ToggleGroup
+            defaultValue={[CURRENT_USER.language]}
+            variant="outline"
+            spacing={2}
+            className="mt-2 flex-wrap"
+          >
+            {LANGUAGES.map((l) => (
+              <ToggleGroupItem key={l.id} value={l.id}>
+                {l.label}
+              </ToggleGroupItem>
+            ))}
+          </ToggleGroup>
         </div>
 
         <Separator />
 
         <CheckRow
+          name="accept-unset-price"
           label="Allow models with no posted price"
           description="Calls to models that don't have a configured price will succeed at the upstream's rate."
           defaultChecked={CURRENT_USER.accept_unset_model_price_model}
@@ -355,6 +339,7 @@ function NotificationsSection() {
         <Separator />
 
         <CheckRow
+          name="upstream-updates"
           label="Notify me about upstream model updates"
           description="Receive a digest when underlying providers ship new models or change pricing."
           defaultChecked={CURRENT_USER.upstream_model_update_notify_enabled}
@@ -369,6 +354,7 @@ function PrivacySection() {
     <Card>
       <CardContent className="flex flex-col gap-5 py-5">
         <CheckRow
+          name="record-ip"
           label="Record client IP in usage and error logs"
           description="Disable to keep IPs out of your own audit trail. Doesn't affect security blocks at the edge."
           defaultChecked={CURRENT_USER.record_ip_log}
@@ -410,15 +396,10 @@ function DangerSection() {
               cancelled. WorkOS identity is not affected.
             </p>
           </div>
-          <button
-            type="button"
-            className={cn(
-              buttonVariants({ variant: "destructive", size: "sm" }),
-            )}
-          >
+          <Button variant="destructive" size="sm">
             <Trash2 aria-hidden="true" />
             Delete account
-          </button>
+          </Button>
         </div>
       </CardContent>
     </Card>
@@ -426,28 +407,28 @@ function DangerSection() {
 }
 
 function CheckRow({
+  name,
   label,
   description,
   defaultChecked,
 }: {
+  name: string;
   label: string;
   description?: string;
   defaultChecked?: boolean;
 }) {
   return (
-    <label className="flex items-start gap-3 rounded-md border border-border p-3 hover:border-border-emphasis">
-      <input
-        type="checkbox"
-        defaultChecked={defaultChecked}
-        className="mt-0.5 size-4 accent-brand"
-      />
-      <div className="flex-1">
-        <span className="text-sm font-medium text-foreground">{label}</span>
-        {description ? (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
-    </label>
+    <FieldLabel htmlFor={name}>
+      <Field orientation="horizontal">
+        <Checkbox id={name} defaultChecked={defaultChecked} />
+        <FieldContent>
+          <FieldTitle>{label}</FieldTitle>
+          {description ? (
+            <FieldDescription>{description}</FieldDescription>
+          ) : null}
+        </FieldContent>
+      </Field>
+    </FieldLabel>
   );
 }
 

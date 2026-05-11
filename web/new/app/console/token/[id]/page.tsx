@@ -1,9 +1,7 @@
 import {
   ArrowLeft,
-  ChevronDown,
   Copy,
   Eye,
-  HelpCircle,
   Infinity as InfinityIcon,
   KeyRound,
   Power,
@@ -15,9 +13,24 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Field,
+  FieldContent,
+  FieldDescription,
+  FieldLabel,
+  FieldTitle,
+} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { fmtMoney, fmtRelative, GROUPS, TOKENS } from "@/lib/console/mock";
 import { cn } from "@/lib/utils";
 
@@ -62,23 +75,14 @@ export default async function EditTokenPage({
             </p>
           </div>
           <div className="flex items-center gap-1">
-            <button
-              type="button"
-              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
-            >
+            <Button variant="outline" size="sm">
               <Power aria-hidden="true" />
               {token.status === 1 ? "Disable" : "Enable"}
-            </button>
-            <button
-              type="button"
-              className={cn(
-                buttonVariants({ variant: "outline", size: "sm" }),
-                "text-destructive",
-              )}
-            >
+            </Button>
+            <Button variant="outline" size="sm" className="text-destructive">
               <Trash2 aria-hidden="true" />
               Delete
-            </button>
+            </Button>
           </div>
         </div>
 
@@ -103,24 +107,12 @@ export default async function EditTokenPage({
                 <code className="font-mono text-sm text-foreground">
                   {token.key_preview}
                 </code>
-                <button
-                  type="button"
-                  className={cn(
-                    buttonVariants({ variant: "ghost", size: "icon-xs" }),
-                  )}
-                  aria-label="Reveal"
-                >
+                <Button variant="ghost" size="icon-xs" aria-label="Reveal">
                   <Eye aria-hidden="true" />
-                </button>
-                <button
-                  type="button"
-                  className={cn(
-                    buttonVariants({ variant: "ghost", size: "icon-xs" }),
-                  )}
-                  aria-label="Copy"
-                >
+                </Button>
+                <Button variant="ghost" size="icon-xs" aria-label="Copy">
                   <Copy aria-hidden="true" />
-                </button>
+                </Button>
               </div>
             </div>
           </CardContent>
@@ -130,24 +122,40 @@ export default async function EditTokenPage({
           <Card>
             <CardContent className="flex flex-col gap-5 py-5">
               <SectionTitle icon={KeyRound} title="Basics" />
-              <Field label="Name" required>
+              <FieldRow label="Name" required>
                 <Input defaultValue={token.name} />
-              </Field>
+              </FieldRow>
               <div className="grid gap-4 md:grid-cols-2">
-                <Field label="Group">
-                  <SelectStub
-                    placeholder={token.group}
-                    options={GROUPS.map((g) => g.label)}
-                  />
-                </Field>
-                <Field label="Status">
-                  <SelectStub
-                    placeholder={token.status === 1 ? "Enabled" : "Disabled"}
-                    options={["Enabled", "Disabled"]}
-                  />
-                </Field>
+                <FieldRow label="Group">
+                  <Select defaultValue={token.group}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder={token.group} />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {GROUPS.map((g) => (
+                        <SelectItem key={g.name} value={g.name}>
+                          {g.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </FieldRow>
+                <FieldRow label="Status">
+                  <Select
+                    defaultValue={token.status === 1 ? "enabled" : "disabled"}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="enabled">Enabled</SelectItem>
+                      <SelectItem value="disabled">Disabled</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </FieldRow>
               </div>
               <CheckRow
+                name="cross-group-retry"
                 label="Allow cross-group retries"
                 defaultChecked={token.cross_group_retry}
               />
@@ -158,41 +166,33 @@ export default async function EditTokenPage({
             <CardContent className="flex flex-col gap-5 py-5">
               <SectionTitle icon={InfinityIcon} title="Quota" />
               <CheckRow
+                name="unlimited"
                 label="Unlimited quota"
                 description="Use wallet balance directly."
                 defaultChecked={token.unlimited_quota}
               />
-              <Field label="Quota (USD)">
+              <FieldRow label="Quota (USD)">
                 <Input
                   type="number"
                   step="0.01"
                   defaultValue={token.remain_amount}
                 />
-              </Field>
-              <Field label="Expires">
+              </FieldRow>
+              <FieldRow label="Expires">
                 <div className="flex items-center gap-2">
                   <Input
                     type="datetime-local"
                     defaultValue={
-                      token.expired_at
-                        ? token.expired_at.slice(0, 16)
-                        : ""
+                      token.expired_at ? token.expired_at.slice(0, 16) : ""
                     }
                   />
-                  <button
-                    type="button"
-                    className={cn(
-                      buttonVariants({ variant: "outline", size: "sm" }),
-                    )}
-                  >
+                  <Button variant="outline" size="sm">
                     Never
-                  </button>
+                  </Button>
                 </div>
-              </Field>
+              </FieldRow>
               <div className="flex items-center justify-between rounded-md bg-muted p-3 text-xs">
-                <span className="text-muted-foreground">
-                  Used to date
-                </span>
+                <span className="text-muted-foreground">Used to date</span>
                 <span className="font-mono tabular-nums text-foreground">
                   {fmtMoney(token.used)}
                 </span>
@@ -203,8 +203,13 @@ export default async function EditTokenPage({
           <Card>
             <CardContent className="flex flex-col gap-5 py-5">
               <SectionTitle icon={ShieldCheck} title="Restrictions" />
-              <Field label="Model limits">
-                <SelectStub placeholder="Add a model" options={[]} />
+              <FieldRow label="Model limits">
+                <Select>
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Add a model" />
+                  </SelectTrigger>
+                  <SelectContent />
+                </Select>
                 <div className="mt-2 flex flex-wrap gap-1">
                   {token.model_limits.length ? (
                     token.model_limits.map((m) => (
@@ -225,13 +230,13 @@ export default async function EditTokenPage({
                     </span>
                   )}
                 </div>
-              </Field>
-              <Field label="Allowed IPs / CIDRs">
+              </FieldRow>
+              <FieldRow label="Allowed IPs / CIDRs">
                 <Input
                   defaultValue={token.allow_ips.join(", ")}
                   placeholder="any"
                 />
-              </Field>
+              </FieldRow>
             </CardContent>
           </Card>
 
@@ -242,13 +247,10 @@ export default async function EditTokenPage({
             >
               Cancel
             </Link>
-            <button
-              type="submit"
-              className={cn(buttonVariants({ variant: "brand" }))}
-            >
+            <Button type="submit" variant="brand">
               <Save aria-hidden="true" />
               Save changes
-            </button>
+            </Button>
           </div>
         </form>
       </div>
@@ -275,7 +277,7 @@ function SectionTitle({
   );
 }
 
-function Field({
+function FieldRow({
   label,
   required,
   children,
@@ -295,46 +297,28 @@ function Field({
   );
 }
 
-function SelectStub({
-  placeholder,
-  options,
-}: {
-  placeholder: string;
-  options: string[];
-}) {
-  return (
-    <button
-      type="button"
-      className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-background px-2.5 text-sm text-foreground transition-colors hover:bg-muted"
-    >
-      <span className="capitalize">{placeholder}</span>
-      <ChevronDown aria-hidden="true" className="size-3" />
-    </button>
-  );
-}
-
 function CheckRow({
+  name,
   label,
   description,
   defaultChecked,
 }: {
+  name: string;
   label: string;
   description?: string;
   defaultChecked?: boolean;
 }) {
   return (
-    <label className="flex items-start gap-3 rounded-md border border-border p-3 hover:border-border-emphasis">
-      <input
-        type="checkbox"
-        defaultChecked={defaultChecked}
-        className="mt-0.5 size-4 accent-brand"
-      />
-      <div className="flex-1">
-        <span className="text-sm font-medium text-foreground">{label}</span>
-        {description ? (
-          <p className="text-xs text-muted-foreground">{description}</p>
-        ) : null}
-      </div>
-    </label>
+    <FieldLabel htmlFor={name}>
+      <Field orientation="horizontal">
+        <Checkbox id={name} defaultChecked={defaultChecked} />
+        <FieldContent>
+          <FieldTitle>{label}</FieldTitle>
+          {description ? (
+            <FieldDescription>{description}</FieldDescription>
+          ) : null}
+        </FieldContent>
+      </Field>
+    </FieldLabel>
   );
 }
