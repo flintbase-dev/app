@@ -4,7 +4,6 @@ import {
   CheckCircle2,
   CreditCard,
   Minus,
-  Sparkles,
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
@@ -19,16 +18,8 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
-  FieldTitle,
-} from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import {
   Select,
   SelectContent,
@@ -617,40 +608,6 @@ function AddCreditsDialog() {
                   Custom, $5 minimum.
                 </span>
               </div>
-            </div>
-            <div>
-              <p className="text-xs font-medium text-foreground">Pay with</p>
-              <RadioGroup defaultValue="stripe" className="mt-2 flex flex-col gap-2">
-                <FieldLabel htmlFor="receipt-stripe">
-                  <Field orientation="horizontal">
-                    <RadioGroupItem id="receipt-stripe" value="stripe" />
-                    <FieldContent>
-                      <FieldTitle>
-                        <CreditCard
-                          aria-hidden="true"
-                          className="mr-1.5 size-4"
-                        />
-                        Stripe — Visa •••• 4242
-                      </FieldTitle>
-                    </FieldContent>
-                  </Field>
-                </FieldLabel>
-                <FieldLabel htmlFor="receipt-wire" data-disabled="true">
-                  <Field orientation="horizontal">
-                    <RadioGroupItem id="receipt-wire" value="wire" disabled />
-                    <FieldContent>
-                      <FieldTitle>
-                        <Sparkles
-                          aria-hidden="true"
-                          className="mr-1.5 size-4"
-                        />
-                        Wire transfer
-                      </FieldTitle>
-                      <FieldDescription>Scale plan only</FieldDescription>
-                    </FieldContent>
-                  </Field>
-                </FieldLabel>
-              </RadioGroup>
             </div>
           </div>
           <div className="border-t border-border bg-muted/30 px-6 py-5 md:border-t-0 md:border-l">
