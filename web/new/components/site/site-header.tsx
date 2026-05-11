@@ -14,9 +14,9 @@ export function SiteHeader({ theme = "light", active }: SiteHeaderProps) {
   return (
     <header
       className={cn(
-        "border-b border-border",
+        "sticky top-0 z-30 border-b border-border bg-background/85 backdrop-blur supports-[backdrop-filter]:bg-background/60",
         theme === "dark" &&
-          "dark scheme-only-dark bg-background text-foreground",
+          "dark scheme-only-dark bg-background/85 text-foreground supports-[backdrop-filter]:bg-background/60",
       )}
     >
       <div className="mx-auto flex h-12 w-full max-w-[1200px] items-center justify-between px-8">

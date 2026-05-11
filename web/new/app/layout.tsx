@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import { Geist, IBM_Plex_Mono } from "next/font/google";
-import Script from "next/script";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
@@ -34,10 +33,7 @@ export default function RootLayout({
         plexMono.variable,
       )}
     >
-      <body className="min-h-full flex flex-col">
-        {children}
-        <Script src="https://ui.sh/ui-picker.js" />
-      </body>
+      <body className="min-h-full flex flex-col">{children}</body>
     </html>
   );
 }
