@@ -29,6 +29,13 @@ import {
 import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import {
   Table,
@@ -56,6 +63,12 @@ const ACTIVE_PLAN =
 const REQUEST_LIMIT = 50_000;
 const KEY_LIMIT = 10;
 const MAY_USAGE = 38.42;
+
+const BILLING_PREFERENCE_ITEMS = {
+  wallet_first: "Wallet first, then subscription",
+  subscription_first: "Subscription first, then wallet",
+  subscription_only: "Subscription only",
+};
 
 export default function TopupPage() {
   const planUsed = ACTIVE_SUBSCRIPTION.total - ACTIVE_SUBSCRIPTION.remaining;
@@ -266,6 +279,37 @@ export default function TopupPage() {
               <Button variant="outline" size="sm" className="mt-4">
                 Open portal
               </Button>
+            </div>
+
+            <Separator />
+
+            <div>
+              <p className="text-sm font-medium text-foreground">
+                Spending preferences
+              </p>
+              <p className="mt-2 text-xs text-muted-foreground">
+                Choose which balance is charged first for usage.
+              </p>
+              <Select
+                defaultValue="wallet_first"
+                items={BILLING_PREFERENCE_ITEMS}
+              >
+                <SelectTrigger
+                  aria-label="Billing preference"
+                  className="mt-4 w-full"
+                >
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(BILLING_PREFERENCE_ITEMS).map(
+                    ([value, label]) => (
+                      <SelectItem key={value} value={value}>
+                        {label}
+                      </SelectItem>
+                    ),
+                  )}
+                </SelectContent>
+              </Select>
             </div>
           </aside>
         </div>

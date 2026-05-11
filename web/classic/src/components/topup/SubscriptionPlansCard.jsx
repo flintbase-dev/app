@@ -57,6 +57,7 @@ const SubscriptionPlansCard = ({
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [paying, setPaying] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [paymentSession, setPaymentSession] = useState(null);
 
   const openBuy = (p) => {
     setSelectedPlan(p);
@@ -67,6 +68,7 @@ const SubscriptionPlansCard = ({
     setOpen(false);
     setSelectedPlan(null);
     setPaying(false);
+    setPaymentSession(null);
   };
 
   const handleRefresh = async () => {
@@ -78,20 +80,66 @@ const SubscriptionPlansCard = ({
     }
   };
 
+  const planPriceMap = useMemo(() => {
+    const map = new Map();
+    (plans || []).forEach((p) => {
+      if (p?.plan?.id) map.set(p.plan.id, Number(p.plan.price_amount || 0));
+    });
+    return map;
+  }, [plans]);
+
+  const getSwitchModeInfo = (targetPlan) => {
+    if (!targetPlan || !activeSubscriptions?.length) {
+      return { mode: 'purchase', amount: Number(targetPlan?.price_amount || 0) };
+    }
+    const now = Date.now() / 1000;
+    const candidates = activeSubscriptions
+      .map((item) => item?.subscription)
+      .filter(
+        (sub) =>
+          sub?.id &&
+          sub?.status === 'active' &&
+          (sub?.end_time || 0) > now &&
+          sub?.plan_id !== targetPlan.id,
+      )
+      .map((sub) => ({
+        sub,
+        price: planPriceMap.get(sub.plan_id) || 0,
+      }))
+      .sort((a, b) => b.price - a.price);
+    if (candidates.length === 0) {
+      return { mode: 'purchase', amount: Number(targetPlan.price_amount || 0) };
+    }
+    const current = candidates[0];
+    const diff = Number(targetPlan.price_amount || 0) - current.price;
+    if (diff > 0) {
+      return {
+        mode: 'switch',
+        amount: diff,
+        from_subscription_id: current.sub.id,
+        from_plan_id: current.sub.plan_id,
+      };
+    }
+    return { mode: 'purchase', amount: Number(targetPlan.price_amount || 0) };
+  };
+
+  const selectedModeInfo = getSwitchModeInfo(selectedPlan?.plan);
+
   const payStripe = async () => {
-    if (!selectedPlan?.plan?.stripe_price_id) {
-      showError(t('该套餐未配置 Stripe'));
+    if (!enableStripeTopUp) {
+      showError(t('管理员未开启Stripe充值！'));
       return;
     }
     setPaying(true);
     try {
+      const modeInfo = getSwitchModeInfo(selectedPlan?.plan);
       const res = await API.mutation('subscriptionStripePay', {
         plan_id: selectedPlan.plan.id,
+        mode: modeInfo.mode,
+        from_subscription_id: modeInfo.from_subscription_id || '',
       });
       if (res.data?.message === 'success') {
-        window.open(res.data.data?.pay_link, '_blank');
-        showSuccess(t('已打开支付页面'));
-        closeBuy();
+        setPaymentSession(res.data.data);
       } else {
         const errorMsg =
           typeof res.data?.data === 'string'
@@ -532,7 +580,11 @@ const SubscriptionPlansCard = ({
                                 if (!reached) openBuy(p);
                               }}
                             >
-                              {reached ? t('已达上限') : t('立即订阅')}
+                              {reached
+                                ? t('已达上限')
+                                : getSwitchModeInfo(plan).mode === 'switch'
+                                  ? t('切换套餐')
+                                  : t('立即订阅')}
                             </Button>
                           );
                           return reached ? (
@@ -575,6 +627,14 @@ const SubscriptionPlansCard = ({
         selectedPlan={selectedPlan}
         paying={paying}
         enableStripeTopUp={enableStripeTopUp}
+        paymentSession={paymentSession}
+        paymentAmount={selectedModeInfo.amount}
+        modeInfo={selectedModeInfo}
+        onPaymentSuccess={async () => {
+          showSuccess(t('支付已提交，订阅同步中'));
+          closeBuy();
+          await reloadSubscriptionSelf?.();
+        }}
         purchaseLimitInfo={
           selectedPlan?.plan?.id
             ? {

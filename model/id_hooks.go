@@ -41,11 +41,6 @@ func (entry *CreditLedgerEntry) BeforeCreate(tx *gorm.DB) error {
 	return nil
 }
 
-func (topUp *TopUp) BeforeCreate(tx *gorm.DB) error {
-	fillTypedID(&topUp.Id, "tup")
-	return nil
-}
-
 func (log *Log) BeforeCreate(tx *gorm.DB) error {
 	fillTypedID(&log.Id, "log")
 	return nil
@@ -83,5 +78,10 @@ func (checkin *Checkin) BeforeCreate(tx *gorm.DB) error {
 
 func (order *SubscriptionOrder) BeforeCreate(tx *gorm.DB) error {
 	fillTypedID(&order.Id, "sod")
+	return nil
+}
+
+func (fulfillment *StripeInvoiceFulfillment) BeforeCreate(tx *gorm.DB) error {
+	fillTypedID(&fulfillment.Id, "sif")
 	return nil
 }

@@ -34,6 +34,7 @@ export default function SettingsPaymentGateway(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     StripeApiSecret: '',
+    StripePublishableKey: '',
     StripeWebhookSecret: '',
     StripePriceId: '',
     StripeUnitPrice: 8.0,
@@ -47,6 +48,7 @@ export default function SettingsPaymentGateway(props) {
     if (props.options && formApiRef.current) {
       const currentInputs = {
         StripeApiSecret: props.options.StripeApiSecret || '',
+        StripePublishableKey: props.options.StripePublishableKey || '',
         StripeWebhookSecret: props.options.StripeWebhookSecret || '',
         StripePriceId: props.options.StripePriceId || '',
         StripeUnitPrice:
@@ -84,6 +86,15 @@ export default function SettingsPaymentGateway(props) {
 
       if (inputs.StripeApiSecret && inputs.StripeApiSecret !== '') {
         options.push({ key: 'StripeApiSecret', value: inputs.StripeApiSecret });
+      }
+      if (
+        inputs.StripePublishableKey &&
+        inputs.StripePublishableKey !== ''
+      ) {
+        options.push({
+          key: 'StripePublishableKey',
+          value: inputs.StripePublishableKey,
+        });
       }
       if (inputs.StripeWebhookSecret && inputs.StripeWebhookSecret !== '') {
         options.push({
@@ -194,7 +205,7 @@ export default function SettingsPaymentGateway(props) {
           <Banner
             type='warning'
             icon={<TriangleAlert size={16} />}
-            description='需要包含事件：checkout.session.completed 和 checkout.session.expired'
+            description='需要包含事件：invoice.payment_succeeded、invoice.paid、invoice.payment_failed、invoice.voided、invoice.marked_uncollectible'
             style={{ marginBottom: 16 }}
           />
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
@@ -220,10 +231,10 @@ export default function SettingsPaymentGateway(props) {
             </Col>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
-                field='StripePriceId'
-                label={t('商品价格 ID')}
-                placeholder={t('例如：price_xxx')}
-                extraText={t('在 Stripe 后台创建价格后获得')}
+                field='StripePublishableKey'
+                label={t('Publishable Key')}
+                placeholder={t('例如：pk_xxx')}
+                extraText={t('用于 Stripe Elements 前端支付')}
               />
             </Col>
           </Row>
@@ -231,6 +242,14 @@ export default function SettingsPaymentGateway(props) {
             gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
             style={{ marginTop: 16 }}
           >
+            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
+              <Form.Input
+                field='StripePriceId'
+                label={t('商品价格 ID')}
+                placeholder={t('例如：price_xxx')}
+                extraText={t('兼容旧配置；当前 Invoice 支付按站内金额创建账单')}
+              />
+            </Col>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.InputNumber
                 field='StripeUnitPrice'

@@ -33,6 +33,7 @@ const PaymentSetting = () => {
     AmountDiscount: '',
 
     StripeApiSecret: '',
+    StripePublishableKey: '',
     StripeWebhookSecret: '',
     StripePriceId: '',
     StripeUnitPrice: 8.0,

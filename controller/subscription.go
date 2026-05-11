@@ -45,9 +45,14 @@ func GetSubscriptionSelf(c *gin.Context) {
 	if err != nil {
 		allSubscriptions = []model.SubscriptionSummary{}
 	}
+	activeSubscriptions, err := model.GetAllActiveUserSubscriptions(userId)
+	if err != nil {
+		activeSubscriptions = []model.SubscriptionSummary{}
+	}
 
 	common.ApiSuccess(c, gin.H{
 		"billing_preference": pref,
+		"subscriptions":      activeSubscriptions,
 		"all_subscriptions":  allSubscriptions, // all subscriptions including expired
 	})
 }

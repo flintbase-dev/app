@@ -25,12 +25,18 @@ func GetTopUpInfo(c *gin.Context) {
 	}
 
 	data := gin.H{
-		"enable_stripe_topup": isStripeTopUpEnabled(),
-		"pay_methods":          payMethods,
-		"stripe_min_topup":     setting.StripeMinTopUp,
-		"amount_options":       operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":             operation_setting.GetPaymentSetting().AmountDiscount,
-		"topup_link":           common.TopUpLink,
+		"enable_stripe_topup":    isStripeTopUpEnabled(),
+		"pay_methods":            payMethods,
+		"stripe_min_topup":       setting.StripeMinTopUp,
+		"stripe_publishable_key": setting.StripePublishableKey,
+		"stripe_payment_method_types": []string{
+			"card",
+			"alipay",
+			"wechat_pay",
+		},
+		"amount_options": operation_setting.GetPaymentSetting().AmountOptions,
+		"discount":       operation_setting.GetPaymentSetting().AmountDiscount,
+		"topup_link":     common.TopUpLink,
 	}
 	common.ApiSuccess(c, data)
 }
@@ -82,16 +88,18 @@ func GetUserTopUps(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	keyword := c.Query("keyword")
 
-	var (
-		topups []*model.TopUp
-		total  int64
-		err    error
-	)
-	if keyword != "" {
-		topups, total, err = model.SearchUserTopUps(userId, keyword, pageInfo)
-	} else {
-		topups, total, err = model.GetUserTopUps(userId, pageInfo)
+	user, err := model.GetUserById(userId, false)
+	if err != nil {
+		common.ApiError(c, err)
+		return
 	}
+	if user == nil || user.StripeCustomer == "" {
+		pageInfo.SetTotal(0)
+		pageInfo.SetItems([]StripeInvoiceRecord{})
+		common.ApiSuccess(c, pageInfo)
+		return
+	}
+	topups, total, err := listStripeInvoiceRecords(user.StripeCustomer, keyword, pageInfo)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -107,16 +115,7 @@ func GetAllTopUps(c *gin.Context) {
 	pageInfo := common.GetPageQuery(c)
 	keyword := c.Query("keyword")
 
-	var (
-		topups []*model.TopUp
-		total  int64
-		err    error
-	)
-	if keyword != "" {
-		topups, total, err = model.SearchAllTopUps(keyword, pageInfo)
-	} else {
-		topups, total, err = model.GetAllTopUps(pageInfo)
-	}
+	topups, total, err := listStripeInvoiceRecords("", keyword, pageInfo)
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -125,27 +124,4 @@ func GetAllTopUps(c *gin.Context) {
 	pageInfo.SetTotal(int(total))
 	pageInfo.SetItems(topups)
 	common.ApiSuccess(c, pageInfo)
-}
-
-type AdminCompleteTopupRequest struct {
-	TradeNo string `json:"trade_no"`
-}
-
-// AdminCompleteTopUp 管理员补单接口
-func AdminCompleteTopUp(c *gin.Context) {
-	var req AdminCompleteTopupRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.TradeNo == "" {
-		common.ApiErrorMsg(c, "参数错误")
-		return
-	}
-
-	// 订单级互斥，防止并发补单
-	LockOrder(req.TradeNo)
-	defer UnlockOrder(req.TradeNo)
-
-	if err := model.ManualCompleteTopUp(req.TradeNo, c.ClientIP()); err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	common.ApiSuccess(c, nil)
 }

@@ -35,6 +35,7 @@ import {
   formatSubscriptionDuration,
   formatSubscriptionResetPeriod,
 } from '../../../helpers/subscriptionFormat';
+import StripePaymentElement from '../StripePaymentElement';
 
 const { Text } = Typography;
 
@@ -47,13 +48,25 @@ const SubscriptionPurchaseModal = ({
   enableStripeTopUp = false,
   purchaseLimitInfo = null,
   onPayStripe,
+  paymentSession = null,
+  paymentAmount = null,
+  modeInfo = null,
+  onPaymentSuccess,
 }) => {
   const plan = selectedPlan?.plan;
   const totalAmount = Number(plan?.total_amount || 0);
   const { symbol } = getCurrencyConfig();
   const price = plan ? Number(plan.price_amount || 0) : 0;
-  const displayPrice = price.toFixed(Number.isInteger(price) ? 0 : 2);
-  const hasStripe = enableStripeTopUp && !!plan?.stripe_price_id;
+  const payableAmount =
+    paymentSession?.amount !== undefined && paymentSession?.amount !== null
+      ? Number(paymentSession.amount || 0)
+      : paymentAmount !== null && paymentAmount !== undefined
+        ? Number(paymentAmount || 0)
+        : price;
+  const displayPayableAmount = payableAmount.toFixed(
+    Number.isInteger(payableAmount) ? 0 : 2,
+  );
+  const hasStripe = enableStripeTopUp && payableAmount > 0;
   const purchaseLimit = Number(purchaseLimitInfo?.limit || 0);
   const purchaseCount = Number(purchaseLimitInfo?.count || 0);
   const purchaseLimitReached =
@@ -147,9 +160,19 @@ const SubscriptionPurchaseModal = ({
                 </Text>
                 <Text strong className='text-xl text-purple-600'>
                   {symbol}
-                  {displayPrice}
+                  {displayPayableAmount}
                 </Text>
               </div>
+              {modeInfo?.mode === 'switch' && (
+                <div className='flex justify-between items-center'>
+                  <Text className='text-slate-500 dark:text-slate-400'>
+                    {t('支付类型')}：
+                  </Text>
+                  <Text className='text-slate-900 dark:text-slate-100'>
+                    {t('切换套餐补差价')}
+                  </Text>
+                </div>
+              )}
             </div>
           </Card>
 
@@ -163,7 +186,15 @@ const SubscriptionPurchaseModal = ({
             />
           )}
 
-          {hasStripe ? (
+          {paymentSession ? (
+            <StripePaymentElement
+              t={t}
+              session={paymentSession}
+              submitLabel={t('确认支付')}
+              onSuccess={onPaymentSuccess}
+              onProcessing={onPaymentSuccess}
+            />
+          ) : hasStripe ? (
             <div className='space-y-3'>
               <Text size='small' type='tertiary'>
                 {t('选择支付方式')}：

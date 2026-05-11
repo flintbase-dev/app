@@ -57,11 +57,6 @@ func TestBeforeCreateHooksGenerateTypedIDs(t *testing.T) {
 			err := item.BeforeCreate(nil)
 			return item.Id, err
 		}},
-		{name: "top up", prefix: "tup", create: func() (string, error) {
-			item := &TopUp{}
-			err := item.BeforeCreate(nil)
-			return item.Id, err
-		}},
 		{name: "log", prefix: "log", create: func() (string, error) {
 			item := &Log{}
 			err := item.BeforeCreate(nil)
@@ -94,6 +89,11 @@ func TestBeforeCreateHooksGenerateTypedIDs(t *testing.T) {
 		}},
 		{name: "subscription order", prefix: "sod", create: func() (string, error) {
 			item := &SubscriptionOrder{}
+			err := item.BeforeCreate(nil)
+			return item.Id, err
+		}},
+		{name: "stripe invoice fulfillment", prefix: "sif", create: func() (string, error) {
+			item := &StripeInvoiceFulfillment{}
 			err := item.BeforeCreate(nil)
 			return item.Id, err
 		}},

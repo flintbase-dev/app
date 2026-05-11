@@ -356,22 +356,6 @@ CREATE INDEX idx_midjourneys_finish_time ON midjourneys (finish_time);
 CREATE INDEX idx_midjourneys_status ON midjourneys (status);
 CREATE INDEX idx_midjourneys_progress ON midjourneys (progress);
 
-CREATE TABLE top_ups (
-    id VARCHAR(32) PRIMARY KEY,
-    user_id VARCHAR(32),
-    amount BIGINT,
-    money DOUBLE PRECISION,
-    trade_no VARCHAR(255),
-    payment_method VARCHAR(50),
-    payment_provider VARCHAR(50) DEFAULT '',
-    create_time BIGINT,
-    complete_time BIGINT,
-    status TEXT
-);
-
-CREATE UNIQUE INDEX idx_top_ups_trade_no ON top_ups (trade_no);
-CREATE INDEX idx_top_ups_user_id ON top_ups (user_id);
-
 CREATE TABLE tasks (
     id VARCHAR(32) PRIMARY KEY,
     created_at BIGINT,
@@ -482,12 +466,40 @@ CREATE TABLE subscription_orders (
     status TEXT,
     create_time BIGINT,
     complete_time BIGINT,
+    purchase_mode VARCHAR(32) DEFAULT 'purchase',
+    from_subscription_id VARCHAR(32) DEFAULT '',
+    stripe_invoice_id VARCHAR(128) DEFAULT '',
+    stripe_payment_intent_id VARCHAR(128) DEFAULT '',
     provider_payload TEXT
 );
 
 CREATE UNIQUE INDEX idx_subscription_orders_trade_no ON subscription_orders (trade_no);
 CREATE INDEX idx_subscription_orders_user_id ON subscription_orders (user_id);
 CREATE INDEX idx_subscription_orders_plan_id ON subscription_orders (plan_id);
+CREATE INDEX idx_subscription_orders_from_subscription_id ON subscription_orders (from_subscription_id);
+CREATE INDEX idx_subscription_orders_stripe_invoice_id ON subscription_orders (stripe_invoice_id);
+CREATE INDEX idx_subscription_orders_stripe_payment_intent_id ON subscription_orders (stripe_payment_intent_id);
+CREATE UNIQUE INDEX idx_subscription_orders_pending_switch_source ON subscription_orders (from_subscription_id)
+    WHERE purchase_mode = 'switch' AND status = 'pending' AND from_subscription_id <> '';
+
+CREATE TABLE stripe_invoice_fulfillments (
+    id VARCHAR(32) PRIMARY KEY,
+    invoice_id VARCHAR(128) NOT NULL,
+    kind VARCHAR(64) NOT NULL DEFAULT '',
+    user_id VARCHAR(32) NOT NULL DEFAULT '',
+    source_type VARCHAR(64) NOT NULL DEFAULT '',
+    source_id VARCHAR(128) NOT NULL DEFAULT '',
+    stripe_payment_intent_id VARCHAR(128) NOT NULL DEFAULT '',
+    status VARCHAR(32) NOT NULL DEFAULT 'completed',
+    created_at BIGINT NOT NULL,
+    metadata TEXT NOT NULL DEFAULT '{}',
+    CHECK (status IN ('completed'))
+);
+
+CREATE UNIQUE INDEX idx_stripe_invoice_fulfillments_invoice_id ON stripe_invoice_fulfillments (invoice_id);
+CREATE INDEX idx_stripe_invoice_fulfillments_user_id ON stripe_invoice_fulfillments (user_id);
+CREATE INDEX idx_stripe_invoice_fulfillments_source ON stripe_invoice_fulfillments (source_type, source_id);
+CREATE INDEX idx_stripe_invoice_fulfillments_created_at ON stripe_invoice_fulfillments (created_at);
 
 CREATE TABLE user_subscriptions (
     id VARCHAR(32) PRIMARY KEY,

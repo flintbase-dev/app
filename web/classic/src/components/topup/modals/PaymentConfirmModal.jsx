@@ -22,15 +22,14 @@ import { Modal, Typography, Card, Skeleton } from '@douyinfe/semi-ui';
 import { SiStripe } from 'react-icons/si';
 import { CreditCard } from 'lucide-react';
 import { formatSiteCurrency } from '../../../helpers';
+import StripePaymentElement from '../StripePaymentElement';
 
 const { Text } = Typography;
 
 const PaymentConfirmModal = ({
   t,
   open,
-  onlineTopUp,
   handleCancel,
-  confirmLoading,
   topUpCount,
   renderQuotaWithAmount,
   amountLoading,
@@ -40,6 +39,8 @@ const PaymentConfirmModal = ({
   // 新增：用于显示折扣明细
   amountNumber,
   discountRate,
+  paymentSession,
+  onPaymentSuccess,
 }) => {
   const hasDiscount =
     discountRate && discountRate > 0 && discountRate < 1 && amountNumber > 0;
@@ -54,12 +55,11 @@ const PaymentConfirmModal = ({
         </div>
       }
       visible={open}
-      onOk={onlineTopUp}
       onCancel={handleCancel}
       maskClosable={false}
       size='small'
       centered
-      confirmLoading={confirmLoading}
+      footer={null}
     >
       <div className='space-y-4'>
         <Card className='!rounded-xl !border-0 bg-slate-50 dark:bg-slate-800'>
@@ -158,6 +158,15 @@ const PaymentConfirmModal = ({
             </div>
           </div>
         </Card>
+        {paymentSession ? (
+          <StripePaymentElement
+            t={t}
+            session={paymentSession}
+            submitLabel={t('确认支付')}
+            onSuccess={onPaymentSuccess}
+            onProcessing={onPaymentSuccess}
+          />
+        ) : null}
       </div>
     </Modal>
   );

@@ -66,8 +66,8 @@ const TopUp = () => {
   const [payWay, setPayWay] = useState('');
   const [amountLoading, setAmountLoading] = useState(false);
   const [paymentLoading, setPaymentLoading] = useState(false);
-  const [confirmLoading, setConfirmLoading] = useState(false);
   const [stripePaymentOptions, setStripePaymentOptions] = useState([]);
+  const [stripePaymentSession, setStripePaymentSession] = useState(null);
 
   const affFetchedRef = useRef(false);
 
@@ -173,51 +173,29 @@ const TopUp = () => {
         showError(t('充值数量不能小于') + selectedMinTopUp);
         return;
       }
-      setOpen(true);
-    } catch (error) {
-      showError(t('获取金额失败'));
-    } finally {
-      setPaymentLoading(false);
-    }
-  };
-
-  const onlineTopUp = async () => {
-    if (payWay !== 'stripe') {
-      showError(t('不支持的支付渠道'));
-      return;
-    }
-    if (amount === 0) {
-      await getStripeAmount();
-    }
-
-    if (topUpCount < minTopUp) {
-      showError('充值数量不能小于' + minTopUp);
-      return;
-    }
-    setConfirmLoading(true);
-    try {
       const res = await API.mutation('stripePay', {
         amount: parseInt(topUpCount),
         payment_method: 'stripe',
       });
-
       if (res !== undefined) {
         const { message, data } = res.data;
         if (message === 'success') {
-          window.open(data.pay_link, '_blank');
+          setStripePaymentSession(data);
         } else {
           const errorMsg =
             typeof data === 'string' ? data : message || t('支付失败');
           showError(errorMsg);
+          return;
         }
       } else {
-        showError(res);
+        showError(t('支付请求失败'));
+        return;
       }
-    } catch (err) {
+      setOpen(true);
+    } catch (error) {
       showError(t('支付请求失败'));
     } finally {
-      setOpen(false);
-      setConfirmLoading(false);
+      setPaymentLoading(false);
     }
   };
 
@@ -485,6 +463,14 @@ const TopUp = () => {
 
   const handleCancel = () => {
     setOpen(false);
+    setStripePaymentSession(null);
+  };
+
+  const handleTopupPaymentSuccess = async () => {
+    setOpen(false);
+    setStripePaymentSession(null);
+    await getUserQuota();
+    setOpenHistory(true);
   };
 
   const handleTransferCancel = () => {
@@ -542,9 +528,7 @@ const TopUp = () => {
       <PaymentConfirmModal
         t={t}
         open={open}
-        onlineTopUp={onlineTopUp}
         handleCancel={handleCancel}
-        confirmLoading={confirmLoading}
         topUpCount={topUpCount}
         renderQuotaWithAmount={renderQuotaWithAmount}
         amountLoading={amountLoading}
@@ -553,6 +537,8 @@ const TopUp = () => {
         stripePaymentOptions={confirmStripePaymentOptions}
         amountNumber={amount}
         discountRate={topupInfo?.discount?.[topUpCount] || 1.0}
+        paymentSession={stripePaymentSession}
+        onPaymentSuccess={handleTopupPaymentSuccess}
       />
 
       {/* 充值账单模态框 */}

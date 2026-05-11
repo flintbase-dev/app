@@ -137,6 +137,7 @@ func InitOptionMap() {
 	common.OptionMap["WorkerAllowHttpImageRequestEnabled"] = strconv.FormatBool(system_setting.WorkerAllowHttpImageRequestEnabled)
 	common.OptionMap["StripeMinTopUp"] = strconv.Itoa(setting.StripeMinTopUp)
 	common.OptionMap["StripeApiSecret"] = setting.StripeApiSecret
+	common.OptionMap["StripePublishableKey"] = setting.StripePublishableKey
 	common.OptionMap["StripeWebhookSecret"] = setting.StripeWebhookSecret
 	common.OptionMap["StripePriceId"] = setting.StripePriceId
 	common.OptionMap["StripeUnitPrice"] = strconv.FormatFloat(setting.StripeUnitPrice, 'f', -1, 64)
@@ -360,6 +361,8 @@ func updateOptionMap(key string, value string) (err error) {
 		err = setting.UpdateAutoGroupsByJsonString(value)
 	case "StripeApiSecret":
 		setting.StripeApiSecret = value
+	case "StripePublishableKey":
+		setting.StripePublishableKey = value
 	case "StripeWebhookSecret":
 		setting.StripeWebhookSecret = value
 	case "StripePriceId":

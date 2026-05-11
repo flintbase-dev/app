@@ -51,6 +51,7 @@ func Reset(t *testing.T, db *gorm.DB) {
 
 	tables := []string{
 		"subscription_pre_consume_records",
+		"stripe_invoice_fulfillments",
 		"user_subscriptions",
 		"subscription_orders",
 		"subscription_plans",
@@ -58,7 +59,6 @@ func Reset(t *testing.T, db *gorm.DB) {
 		"prefill_groups",
 		"vendors",
 		"models",
-		"top_ups",
 		"audit_logs",
 		"credit_ledger_entries",
 		"credit_grants",

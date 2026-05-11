@@ -1,21 +1,13 @@
 package controller
 
-import (
-	"strings"
-
-	"github.com/QuantumNous/new-api/setting"
-)
-
 func isStripeTopUpEnabled() bool {
-	return strings.TrimSpace(setting.StripeApiSecret) != "" &&
-		strings.TrimSpace(setting.StripeWebhookSecret) != "" &&
-		strings.TrimSpace(setting.StripePriceId) != ""
+	return validateStripeElementsPaymentConfig() == nil
 }
 
 func isStripeWebhookConfigured() bool {
-	return strings.TrimSpace(setting.StripeWebhookSecret) != ""
+	return validateStripeWebhookConfig() == nil
 }
 
 func isStripeWebhookEnabled() bool {
-	return isStripeTopUpEnabled()
+	return validateStripeAPIConfig() == nil && validateStripeWebhookConfig() == nil
 }

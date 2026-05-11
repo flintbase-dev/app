@@ -1,6 +1,7 @@
 package setting
 
 var StripeApiSecret = ""
+var StripePublishableKey = ""
 var StripeWebhookSecret = ""
 var StripePriceId = ""
 var StripeUnitPrice = 8.0
