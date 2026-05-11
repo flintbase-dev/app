@@ -394,9 +394,10 @@ export type SubPlan = {
   title: string;
   subtitle: string;
   price: number; // monthly USD
-  total: number; // included USD credit
+  total: number; // included USD credit (0 = unlimited)
   duration: string; // human readable
   reset: string;
+  max_purchase_per_user: number; // 0 = unlimited
   upgrade_group: string;
 };
 
@@ -409,6 +410,7 @@ export const SUB_PLANS: SubPlan[] = [
     total: 25,
     duration: "month",
     reset: "monthly",
+    max_purchase_per_user: 0,
     upgrade_group: "default",
   },
   {
@@ -419,6 +421,7 @@ export const SUB_PLANS: SubPlan[] = [
     total: 130,
     duration: "month",
     reset: "monthly",
+    max_purchase_per_user: 0,
     upgrade_group: "premium",
   },
   {
@@ -429,6 +432,7 @@ export const SUB_PLANS: SubPlan[] = [
     total: 700,
     duration: "month",
     reset: "monthly",
+    max_purchase_per_user: 0,
     upgrade_group: "premium",
   },
 ];

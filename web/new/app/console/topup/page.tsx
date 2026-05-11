@@ -51,17 +51,14 @@ import {
   BILLS,
   CURRENT_USER,
   fmtMoney,
-  fmtNum,
   SUB_PLANS,
-  TOKENS,
+  type SubPlan,
 } from "@/lib/console/mock";
 import { cn } from "@/lib/utils";
 
 const ACTIVE_PLAN =
   SUB_PLANS.find((p) => p.id === ACTIVE_SUBSCRIPTION.plan_id) ?? SUB_PLANS[0];
 
-const REQUEST_LIMIT = 50_000;
-const KEY_LIMIT = 10;
 const MAY_USAGE = 38.42;
 
 const BILLING_PREFERENCE_ITEMS = {
@@ -72,7 +69,6 @@ const BILLING_PREFERENCE_ITEMS = {
 
 export default function TopupPage() {
   const planUsed = ACTIVE_SUBSCRIPTION.total - ACTIVE_SUBSCRIPTION.remaining;
-  const activeKeys = TOKENS.filter((t) => t.status === 1).length;
   const renewalDays = daysUntil(ACTIVE_SUBSCRIPTION.next_renewal_at);
 
   return (
@@ -97,18 +93,6 @@ export default function TopupPage() {
                   display={`${fmtMoney(planUsed)} / ${fmtMoney(ACTIVE_SUBSCRIPTION.total)}`}
                   percent={(planUsed / ACTIVE_SUBSCRIPTION.total) * 100}
                   resets={`Resets in ${renewalDays} days`}
-                />
-                <UsageBar
-                  label="Requests"
-                  display={`${fmtNum(CURRENT_USER.request_count)} / ${fmtNum(REQUEST_LIMIT)}`}
-                  percent={(CURRENT_USER.request_count / REQUEST_LIMIT) * 100}
-                  resets={`Resets in ${renewalDays} days`}
-                />
-                <UsageBar
-                  label="Active API keys"
-                  display={`${activeKeys} / ${KEY_LIMIT}`}
-                  percent={(activeKeys / KEY_LIMIT) * 100}
-                  resets="Plan limit"
                 />
               </div>
             </section>
@@ -193,9 +177,6 @@ export default function TopupPage() {
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
                 <PlansDialog />
-                <Button variant="ghost" size="sm">
-                  Cancel
-                </Button>
               </div>
             </div>
 
@@ -227,9 +208,6 @@ export default function TopupPage() {
               </dl>
               <div className="mt-4 flex flex-wrap gap-2">
                 <AddCreditsDialog />
-                <Button variant="outline" size="sm">
-                  Auto-reload
-                </Button>
                 <Link
                   href="/console/topup/redeem"
                   className={cn(
@@ -371,24 +349,52 @@ function InvoiceStatus({ status }: { status: "completed" | "pending" | "failed" 
 
 type FeatureRow = {
   label: string;
-  values: [React.ReactNode, React.ReactNode, React.ReactNode];
+  values: React.ReactNode[];
 };
 
-const FEATURE_MATRIX: FeatureRow[] = [
-  { label: "Monthly credit", values: ["$25", "$130", "$700"] },
-  { label: "API keys", values: ["5", "25", "Unlimited"] },
-  {
-    label: "Routing",
-    values: ["Default", "Premium + retries", "Reserved + priority"],
-  },
-  {
-    label: "Support",
-    values: ["Email", "Priority email", "Dedicated Slack"],
-  },
-  { label: "Latency", values: ["Standard", "Lower", "Lowest"] },
-  { label: "Team workspace", values: [false, true, true] },
-  { label: "SLA", values: [false, false, "99.9%"] },
+const RESET_LABELS: Record<string, string> = {
+  never: "Never",
+  daily: "Daily",
+  weekly: "Weekly",
+  monthly: "Monthly",
+  custom: "Custom",
+};
+
+function planCreditLabel(p: SubPlan): React.ReactNode {
+  return p.total > 0 ? fmtMoney(p.total) : "Unlimited";
+}
+
+function planResetLabel(p: SubPlan): React.ReactNode {
+  return RESET_LABELS[p.reset] ?? p.reset;
+}
+
+function planDurationLabel(p: SubPlan): React.ReactNode {
+  return `1 ${p.duration}`;
+}
+
+function planPurchaseLimitLabel(p: SubPlan): React.ReactNode {
+  return p.max_purchase_per_user > 0 ? p.max_purchase_per_user : "Unlimited";
+}
+
+function planUpgradeGroupLabel(p: SubPlan): React.ReactNode {
+  return p.upgrade_group || "—";
+}
+
+const PLAN_LIMIT_ROWS: {
+  label: string;
+  render: (p: SubPlan) => React.ReactNode;
+}[] = [
+  { label: "Credit per period", render: planCreditLabel },
+  { label: "Quota reset", render: planResetLabel },
+  { label: "Billing period", render: planDurationLabel },
+  { label: "Purchases per user", render: planPurchaseLimitLabel },
+  { label: "User group", render: planUpgradeGroupLabel },
 ];
+
+const FEATURE_MATRIX: FeatureRow[] = PLAN_LIMIT_ROWS.map((row) => ({
+  label: row.label,
+  values: SUB_PLANS.map((p) => row.render(p)),
+}));
 
 function PlansDialog() {
   const currentIdx = SUB_PLANS.findIndex(
