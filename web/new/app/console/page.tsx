@@ -16,19 +16,13 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import {
-  API_INFO,
-  CURRENT_USER,
-  FAQ,
-  fmtMoney,
-  fmtNum,
-  MODEL_USAGE,
-  UPTIME,
-  USAGE_TIMESERIES,
-} from "@/lib/console/mock";
+import { loadDashboardData } from "@/lib/console/data";
+import { fmtMoney, fmtNum } from "@/lib/console/format";
 import { cn } from "@/lib/utils";
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const { user, status, usageSeries, modelUsage, uptime } =
+    await loadDashboardData();
   return (
     <div className="flex-1">
       <div className="mx-auto grid w-full max-w-[1400px] gap-0 lg:grid-cols-[1fr_28rem]">
@@ -37,7 +31,7 @@ export default function DashboardPage() {
           <div className="flex items-end justify-between">
             <div>
               <h1 className="font-heading text-3xl font-medium tracking-tight">
-                Hi, {CURRENT_USER.display_name.split(" ")[0]}
+                Hi, {user.displayName.split(" ")[0]}
               </h1>
               <p className="mt-1 text-sm text-muted-foreground">
                 Here's your inference activity.
@@ -50,19 +44,20 @@ export default function DashboardPage() {
             <MiniStat
               icon={Gauge}
               label="Balance"
-              value={fmtMoney(CURRENT_USER.balance)}
+              value={fmtMoney(user.balance, status)}
             />
             <MiniStat
               icon={TrendingUp}
               label="Spend (7d)"
-              value={fmtMoney(USAGE_TIMESERIES.reduce((a, x) => a + x.cost, 0))}
+              value={fmtMoney(
+                usageSeries.reduce((a, x) => a + x.cost, 0),
+                status,
+              )}
             />
             <MiniStat
               icon={Zap}
               label="Requests (7d)"
-              value={fmtNum(
-                USAGE_TIMESERIES.reduce((a, x) => a + x.requests, 0),
-              )}
+              value={fmtNum(usageSeries.reduce((a, x) => a + x.requests, 0))}
             />
           </div>
 
@@ -71,7 +66,7 @@ export default function DashboardPage() {
               <p className="text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
                 Daily spend
               </p>
-              <BarChart data={USAGE_TIMESERIES} />
+              <BarChart data={usageSeries} status={status} />
             </CardContent>
           </Card>
 
@@ -89,7 +84,7 @@ export default function DashboardPage() {
                 </Link>
               </div>
               <ul className="mt-3 flex flex-col gap-2">
-                {MODEL_USAGE.slice(0, 5).map((m) => (
+                {modelUsage.slice(0, 5).map((m) => (
                   <li key={m.model} className="flex items-center gap-3">
                     <code className="w-44 truncate font-mono text-sm text-foreground">
                       {m.model}
@@ -101,7 +96,7 @@ export default function DashboardPage() {
                       />
                     </div>
                     <span className="w-16 text-right font-mono text-xs tabular-nums text-foreground">
-                      {fmtMoney(m.cost)}
+                      {fmtMoney(m.cost, status)}
                     </span>
                   </li>
                 ))}
@@ -124,7 +119,7 @@ export default function DashboardPage() {
             </div>
 
             <div className="mt-3 flex flex-col gap-2">
-              {API_INFO.map((a) => (
+              {status.apiInfo.map((a) => (
                 <div
                   key={a.label}
                   className="flex items-center gap-2 rounded-lg border border-border p-2 pl-3"
@@ -158,7 +153,7 @@ export default function DashboardPage() {
               Status
             </p>
             <ul className="mt-3 flex flex-col gap-2">
-              {UPTIME.map((u) => (
+              {uptime.map((u) => (
                 <li key={u.name} className="flex items-center gap-2 text-sm">
                   {u.status === "operational" ? (
                     <CheckCircle2
@@ -185,7 +180,7 @@ export default function DashboardPage() {
               FAQ
             </p>
             <ul className="mt-3 flex flex-col gap-3">
-              {FAQ.map((f) => (
+              {status.faq.map((f) => (
                 <li key={f.q}>
                   <p className="text-sm font-medium text-foreground">{f.q}</p>
                   <p className="mt-1 text-xs leading-relaxed text-muted-foreground">
@@ -248,8 +243,14 @@ function MiniStat({
   );
 }
 
-function BarChart({ data }: { data: { day: string; cost: number }[] }) {
-  const max = Math.max(...data.map((d) => d.cost));
+function BarChart({
+  data,
+  status,
+}: {
+  data: { day: string; cost: number }[];
+  status: Awaited<ReturnType<typeof loadDashboardData>>["status"];
+}) {
+  const max = Math.max(1, ...data.map((d) => d.cost));
   return (
     <div className="mt-4">
       <div className="flex h-32 items-end gap-2">
@@ -264,7 +265,7 @@ function BarChart({ data }: { data: { day: string; cost: number }[] }) {
                 style={{ height: `${(d.cost / max) * 100}%` }}
               />
               <span className="pointer-events-none absolute -top-5 left-1/2 -translate-x-1/2 rounded-xs bg-foreground px-1.5 py-0.5 font-mono text-[10px] text-background opacity-0 transition-opacity group-hover:opacity-100">
-                {fmtMoney(d.cost)}
+                {fmtMoney(d.cost, status)}
               </span>
             </div>
           </div>

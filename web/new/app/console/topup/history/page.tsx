@@ -9,7 +9,7 @@ import {
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
-import { Button, buttonVariants } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   InputGroup,
@@ -24,10 +24,30 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { BILLS, fmtMoney, fmtRelative } from "@/lib/console/mock";
+import { loadTopupHistory } from "@/lib/console/data";
+import { fmtMoney, fmtRelative } from "@/lib/console/format";
 import { cn } from "@/lib/utils";
 
-export default function HistoryPage() {
+export default async function HistoryPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    keyword?: string;
+    status?: string;
+    type?: string;
+  }>;
+}) {
+  const {
+    keyword = "",
+    status: statusFilter = "",
+    type = "",
+  } = await searchParams;
+  const { invoices, status } = await loadTopupHistory({
+    keyword,
+    status: statusFilter,
+    type,
+  });
+
   return (
     <div className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
       <div className="mx-auto w-full max-w-[1100px]">
@@ -53,24 +73,37 @@ export default function HistoryPage() {
               Billing history
             </h1>
           </div>
-          <Button variant="outline" size="sm">
+          <Link
+            href="/console/topup/history/export"
+            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+          >
             <Download aria-hidden="true" />
             Export CSV
-          </Button>
+          </Link>
         </div>
 
         {/* Filters */}
-        <div className="mt-6 flex flex-wrap items-center gap-2">
+        <form className="mt-6 flex flex-wrap items-center gap-2">
           <InputGroup className="min-w-64 flex-1">
             <InputGroupAddon>
               <Search aria-hidden="true" />
             </InputGroupAddon>
-            <InputGroupInput placeholder="Search by reference…" />
+            <InputGroupInput
+              defaultValue={keyword}
+              name="keyword"
+              placeholder="Search by reference..."
+            />
           </InputGroup>
-          <FilterButton label="Type" />
-          <FilterButton label="Status" />
-          <FilterButton label="Date range" />
-        </div>
+          <FilterButton
+            href="/console/topup/history?type=subscription"
+            label="Type"
+          />
+          <FilterButton
+            href="/console/topup/history?status=completed"
+            label="Status"
+          />
+          <FilterButton href="/console/topup/history" label="All" />
+        </form>
 
         <Card className="mt-4 overflow-hidden p-0">
           <Table>
@@ -86,7 +119,7 @@ export default function HistoryPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {BILLS.map((b) => (
+              {invoices.items.map((b) => (
                 <TableRow key={b.id}>
                   <TableCell className="pl-4">
                     <Badge
@@ -140,18 +173,22 @@ export default function HistoryPage() {
                           : "text-foreground",
                       )}
                     >
-                      {fmtMoney(b.amount)}
+                      {fmtMoney(b.amount, status)}
                     </span>
                   </TableCell>
                   <TableCell className="pr-4 text-right">
-                    {b.status === "completed" ? (
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
+                    {b.status === "completed" &&
+                    (b.invoicePdf || b.receiptUrl) ? (
+                      <Link
+                        href={b.invoicePdf || b.receiptUrl}
+                        target="_blank"
+                        className={cn(
+                          buttonVariants({ variant: "ghost", size: "icon-sm" }),
+                        )}
                         aria-label="Download receipt"
                       >
                         <Download aria-hidden="true" />
-                      </Button>
+                      </Link>
                     ) : (
                       <span className="text-xs text-muted-foreground">—</span>
                     )}
@@ -166,15 +203,18 @@ export default function HistoryPage() {
   );
 }
 
-function FilterButton({ label }: { label: string }) {
+function FilterButton({ href, label }: { href: string; label: string }) {
   return (
-    <Button variant="outline" size="sm">
+    <Link
+      href={href}
+      className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+    >
       {label}
       <ChevronDown
         aria-hidden="true"
         data-icon="inline-end"
         className="size-3 text-muted-foreground"
       />
-    </Button>
+    </Link>
   );
 }

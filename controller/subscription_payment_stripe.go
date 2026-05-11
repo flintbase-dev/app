@@ -16,6 +16,7 @@ type SubscriptionStripePayRequest struct {
 	PlanId             string `json:"plan_id"`
 	Mode               string `json:"mode"`
 	FromSubscriptionId string `json:"from_subscription_id"`
+	PaymentMethodType  string `json:"payment_method_type"`
 }
 
 func SubscriptionRequestStripePay(c *gin.Context) {
@@ -101,6 +102,7 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		Description:            description,
 		InvoiceItemDescription: itemDescription,
 		Metadata:               metadata,
+		PaymentMethodType:      normalizeStripeInvoicePaymentMethodType(req.PaymentMethodType),
 	})
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅 Invoice 创建失败 trade_no=%s plan_id=%s error=%q", referenceId, plan.Id, err.Error()))

@@ -1,9 +1,10 @@
 import { Markdown } from "@/components/site/markdown";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
-import { ABOUT_CONTENT } from "@/lib/public-content";
+import { loadPublicContent } from "@/lib/console/data";
 
-export default function AboutPage() {
+export default async function AboutPage() {
+  const { about } = await loadPublicContent();
   return (
     <div className="isolate flex min-h-dvh flex-1 flex-col antialiased">
       <SiteHeader />
@@ -16,7 +17,7 @@ export default function AboutPage() {
             A grounded inference platform for developers.
           </h1>
           <div className="mt-10">
-            <Markdown content={ABOUT_CONTENT} />
+            <Markdown content={about} />
           </div>
         </div>
       </main>

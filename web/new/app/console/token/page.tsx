@@ -1,10 +1,6 @@
 import {
   CheckCircle2,
   ChevronDown,
-  Copy,
-  Eye,
-  Link2,
-  MoreHorizontal,
   Pencil,
   Plus,
   Power,
@@ -13,7 +9,11 @@ import {
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
-
+import { TokenSecretButton } from "@/components/console/token-actions";
+import {
+  TokenBulkCopyButton,
+  TokenBulkDeleteButton,
+} from "@/components/console/token-bulk-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -31,10 +31,26 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { fmtMoney, fmtRelative, TOKENS } from "@/lib/console/mock";
+import {
+  deleteTokenAction,
+  deleteTokensAction,
+  toggleTokenStatusAction,
+} from "@/lib/console/actions";
+import { loadTokenList } from "@/lib/console/data";
+import { fmtMoney, fmtRelative } from "@/lib/console/format";
 import { cn } from "@/lib/utils";
 
-export default function TokenPage() {
+export default async function TokenPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ p?: string; q?: string }>;
+}) {
+  const { p = "1", q = "" } = await searchParams;
+  const page = Math.max(Number(p) || 1, 1);
+  const { tokens, status } = await loadTokenList({
+    ...(q ? { keyword: q } : {}),
+    p: page,
+  });
   return (
     <div className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
       <div className="mx-auto w-full max-w-[1200px]">
@@ -42,22 +58,27 @@ export default function TokenPage() {
 
         {/* Toolbar */}
         <div className="mt-6 flex flex-wrap items-center gap-2">
-          <InputGroup className="min-w-64 flex-1">
-            <InputGroupAddon>
-              <Search aria-hidden="true" />
-            </InputGroupAddon>
-            <InputGroupInput placeholder="Search by name or key…" />
-          </InputGroup>
-          <FilterButton label="Status" />
-          <FilterButton label="Group" />
-          <Button variant="outline" size="sm">
-            <Copy aria-hidden="true" />
-            Bulk copy
-          </Button>
-          <Button variant="outline" size="sm" className="text-destructive">
-            <Trash2 aria-hidden="true" />
-            Delete selected
-          </Button>
+          <form action="/console/token" className="min-w-64 flex-1">
+            <InputGroup>
+              <InputGroupAddon>
+                <Search aria-hidden="true" />
+              </InputGroupAddon>
+              <InputGroupInput
+                name="q"
+                defaultValue={q}
+                placeholder="Search by name or key…"
+              />
+            </InputGroup>
+          </form>
+          <FilterButton href="/console/token?q=enabled" label="Status" />
+          <FilterButton href="/console/token?q=default" label="Group" />
+          <TokenBulkCopyButton ids={tokens.items.map((token) => token.id)} />
+          <form action={deleteTokensAction}>
+            {tokens.items.map((token) => (
+              <input key={token.id} type="hidden" name="ids" value={token.id} />
+            ))}
+            <TokenBulkDeleteButton disabled={tokens.items.length === 0} />
+          </form>
           <Link
             href="/console/token/new"
             className={cn(buttonVariants({ variant: "brand", size: "sm" }))}
@@ -87,7 +108,7 @@ export default function TokenPage() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {TOKENS.map((t) => (
+              {tokens.items.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell className="pl-4">
                     <Checkbox aria-label={`Select ${t.name}`} />
@@ -97,7 +118,7 @@ export default function TokenPage() {
                       <code className="font-mono text-sm font-medium text-foreground">
                         {t.name}
                       </code>
-                      {t.cross_group_retry ? (
+                      {t.crossGroupRetry ? (
                         <Badge variant="secondary" className="px-1.5">
                           retry
                         </Badge>
@@ -110,22 +131,10 @@ export default function TokenPage() {
                   <TableCell>
                     <div className="flex items-center gap-1.5">
                       <code className="font-mono text-xs text-muted-foreground">
-                        {t.key_preview}
+                        {t.keyPreview}
                       </code>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label="Reveal key"
-                      >
-                        <Eye aria-hidden="true" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-xs"
-                        aria-label="Copy key"
-                      >
-                        <Copy aria-hidden="true" />
-                      </Button>
+                      <TokenSecretButton tokenId={t.id} mode="reveal" />
+                      <TokenSecretButton tokenId={t.id} mode="copy" />
                     </div>
                   </TableCell>
                   <TableCell>
@@ -147,23 +156,23 @@ export default function TokenPage() {
                     )}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm tabular-nums">
-                    {fmtMoney(t.used)}
+                    {fmtMoney(t.used, status)}
                   </TableCell>
                   <TableCell className="text-right">
-                    {t.unlimited_quota ? (
+                    {t.unlimitedQuota ? (
                       <Badge variant="brand">unlimited</Badge>
                     ) : (
                       <span className="font-mono text-sm tabular-nums">
-                        {fmtMoney(t.remain_amount)}
+                        {fmtMoney(t.remainAmount, status)}
                       </span>
                     )}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {t.last_used_at ? fmtRelative(t.last_used_at) : "—"}
+                    {t.lastUsedAt ? fmtRelative(t.lastUsedAt) : "—"}
                   </TableCell>
                   <TableCell className="text-xs text-muted-foreground">
-                    {t.expired_at
-                      ? new Date(t.expired_at).toLocaleDateString()
+                    {t.expiredAt > 0
+                      ? new Date(t.expiredAt * 1000).toLocaleDateString()
                       : "never"}
                   </TableCell>
                   <TableCell className="pr-4 text-right">
@@ -180,23 +189,32 @@ export default function TokenPage() {
                       >
                         <Pencil aria-hidden="true" />
                       </Link>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Toggle status"
-                      >
-                        <Power aria-hidden="true" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon-sm"
-                        aria-label="Connection string"
-                      >
-                        <Link2 aria-hidden="true" />
-                      </Button>
-                      <Button variant="ghost" size="icon-sm" aria-label="More">
-                        <MoreHorizontal aria-hidden="true" />
-                      </Button>
+                      <form action={toggleTokenStatusAction}>
+                        <input type="hidden" name="id" value={t.id} />
+                        <input type="hidden" name="status" value={t.status} />
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="Toggle status"
+                        >
+                          <Power aria-hidden="true" />
+                        </Button>
+                      </form>
+                      <TokenSecretButton
+                        tokenId={t.id}
+                        mode="connection"
+                        connectionBase={status.serverAddress}
+                      />
+                      <form action={deleteTokenAction}>
+                        <input type="hidden" name="id" value={t.id} />
+                        <Button
+                          variant="ghost"
+                          size="icon-sm"
+                          aria-label="Delete"
+                        >
+                          <Trash2 aria-hidden="true" />
+                        </Button>
+                      </form>
                     </div>
                   </TableCell>
                 </TableRow>
@@ -207,15 +225,21 @@ export default function TokenPage() {
 
         <div className="mt-4 flex items-center justify-between text-sm">
           <span className="text-muted-foreground">
-            Showing 1–{TOKENS.length} of {TOKENS.length}
+            Showing 1–{tokens.items.length} of {tokens.total}
           </span>
           <div className="flex items-center gap-2">
-            <Button variant="outline" size="sm" disabled>
+            <Link
+              href={`/console/token?p=${Math.max(1, page - 1)}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
               Previous
-            </Button>
-            <Button variant="outline" size="sm" disabled>
+            </Link>
+            <Link
+              href={`/console/token?p=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
               Next
-            </Button>
+            </Link>
           </div>
         </div>
       </div>
@@ -245,22 +269,24 @@ function PageHeader() {
         </p>
       </div>
       <span className="font-mono text-xs tabular-nums text-muted-foreground">
-        {TOKENS.length} keys · {TOKENS.filter((t) => t.status === 1).length}{" "}
-        enabled
+        API key inventory
       </span>
     </div>
   );
 }
 
-function FilterButton({ label }: { label: string }) {
+function FilterButton({ href, label }: { href: string; label: string }) {
   return (
-    <Button variant="outline" size="sm">
+    <Link
+      href={href}
+      className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+    >
       {label}
       <ChevronDown
         aria-hidden="true"
         data-icon="inline-end"
         className="size-3 text-muted-foreground"
       />
-    </Button>
+    </Link>
   );
 }

@@ -1,16 +1,10 @@
-import {
-  ArrowUpDown,
-  ChevronDown,
-  Copy,
-  Eye,
-  Filter,
-  Search,
-} from "lucide-react";
+import { ArrowUpDown, ChevronDown, Eye, Filter, Search } from "lucide-react";
+import Link from "next/link";
 
+import { CopyButton } from "@/components/site/copy-button";
 import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import {
   InputGroup,
@@ -26,199 +20,11 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { loadPricingCatalog } from "@/lib/console/data";
+import type { PricingModel } from "@/lib/console/types";
 import { cn } from "@/lib/utils";
 
-type Endpoint = "chat" | "messages" | "responses" | "images";
-type Group = "default" | "premium" | "fast" | "open";
-type Tag =
-  | "reasoning"
-  | "vision"
-  | "fast"
-  | "open"
-  | "balanced"
-  | "cheap"
-  | "long-context";
-
-type Model = {
-  id: string;
-  vendor: string;
-  endpoints: Endpoint[];
-  context: number; // tokens
-  input: number; // USD per million tokens
-  output: number; // USD per million tokens
-  groups: Group[];
-  tags: Tag[];
-  desc: string;
-  ratio: number; // group ratio multiplier
-};
-
-const MODELS: Model[] = [
-  {
-    id: "claude-opus-4-7",
-    vendor: "Anthropic",
-    endpoints: ["chat", "messages"],
-    context: 200_000,
-    input: 15.0,
-    output: 75.0,
-    groups: ["default", "premium"],
-    tags: ["reasoning", "vision"],
-    desc: "Most capable Claude model. State-of-the-art reasoning and code.",
-    ratio: 1.0,
-  },
-  {
-    id: "claude-sonnet-4-6",
-    vendor: "Anthropic",
-    endpoints: ["chat", "messages"],
-    context: 200_000,
-    input: 3.0,
-    output: 15.0,
-    groups: ["default"],
-    tags: ["balanced", "vision"],
-    desc: "Balanced cost and capability. Default for production workloads.",
-    ratio: 1.0,
-  },
-  {
-    id: "claude-haiku-4-5",
-    vendor: "Anthropic",
-    endpoints: ["chat", "messages"],
-    context: 200_000,
-    input: 0.8,
-    output: 4.0,
-    groups: ["default", "fast"],
-    tags: ["fast"],
-    desc: "Fastest Claude. Sub-second first token for short prompts.",
-    ratio: 1.0,
-  },
-  {
-    id: "gpt-5",
-    vendor: "OpenAI",
-    endpoints: ["chat", "responses"],
-    context: 256_000,
-    input: 5.0,
-    output: 15.0,
-    groups: ["default"],
-    tags: ["reasoning"],
-    desc: "Frontier reasoning model from OpenAI.",
-    ratio: 1.0,
-  },
-  {
-    id: "gpt-5-mini",
-    vendor: "OpenAI",
-    endpoints: ["chat", "responses"],
-    context: 128_000,
-    input: 0.5,
-    output: 1.5,
-    groups: ["default", "fast"],
-    tags: ["fast"],
-    desc: "Compact GPT-5 for high-throughput workloads.",
-    ratio: 1.0,
-  },
-  {
-    id: "gpt-5-nano",
-    vendor: "OpenAI",
-    endpoints: ["chat", "responses"],
-    context: 64_000,
-    input: 0.1,
-    output: 0.4,
-    groups: ["fast"],
-    tags: ["cheap"],
-    desc: "Cheapest OpenAI model. For high-volume routing.",
-    ratio: 1.0,
-  },
-  {
-    id: "gemini-2-pro",
-    vendor: "Google",
-    endpoints: ["chat"],
-    context: 1_000_000,
-    input: 2.5,
-    output: 10.0,
-    groups: ["default"],
-    tags: ["long-context", "vision"],
-    desc: "1M-token context. Excellent at long-document analysis.",
-    ratio: 1.0,
-  },
-  {
-    id: "gemini-2-flash",
-    vendor: "Google",
-    endpoints: ["chat"],
-    context: 1_000_000,
-    input: 0.3,
-    output: 1.2,
-    groups: ["fast"],
-    tags: ["fast", "vision"],
-    desc: "Long context with low latency. Multimodal.",
-    ratio: 1.0,
-  },
-  {
-    id: "llama-4-405b",
-    vendor: "Meta",
-    endpoints: ["chat"],
-    context: 128_000,
-    input: 2.8,
-    output: 8.4,
-    groups: ["default", "open"],
-    tags: ["open"],
-    desc: "Largest open-weight Llama. Hosted on dedicated capacity.",
-    ratio: 1.0,
-  },
-  {
-    id: "llama-4-70b",
-    vendor: "Meta",
-    endpoints: ["chat"],
-    context: 128_000,
-    input: 0.6,
-    output: 1.8,
-    groups: ["open"],
-    tags: ["open", "fast"],
-    desc: "Mid-size open-weight Llama. Good cost/capability tradeoff.",
-    ratio: 1.0,
-  },
-  {
-    id: "mistral-large-2",
-    vendor: "Mistral",
-    endpoints: ["chat"],
-    context: 128_000,
-    input: 2.0,
-    output: 6.0,
-    groups: ["default", "open"],
-    tags: ["balanced"],
-    desc: "European-trained frontier model. Strong on multilingual.",
-    ratio: 1.0,
-  },
-  {
-    id: "deepseek-v3",
-    vendor: "DeepSeek",
-    endpoints: ["chat"],
-    context: 128_000,
-    input: 0.27,
-    output: 1.1,
-    groups: ["default", "open"],
-    tags: ["cheap", "open"],
-    desc: "Strong reasoning at very low cost. MoE architecture.",
-    ratio: 1.0,
-  },
-];
-
-const VENDORS = [
-  "Anthropic",
-  "OpenAI",
-  "Google",
-  "Meta",
-  "Mistral",
-  "DeepSeek",
-];
-const ALL_GROUPS: Group[] = ["default", "premium", "fast", "open"];
-const ALL_ENDPOINTS: Endpoint[] = ["chat", "messages", "responses", "images"];
-const ALL_TAGS: Tag[] = [
-  "reasoning",
-  "vision",
-  "fast",
-  "open",
-  "balanced",
-  "cheap",
-  "long-context",
-];
-
+type Model = PricingModel;
 function fmtPrice(n: number): string {
   return n < 1 ? n.toFixed(2) : n.toFixed(2);
 }
@@ -229,11 +35,69 @@ function fmtContext(n: number): string {
   return `${n}`;
 }
 
-export default function PricingPage() {
-  return <CatalogTable />;
+function filterModels(
+  models: Model[],
+  filters: {
+    endpoint?: string;
+    group?: string;
+    q?: string;
+    tag?: string;
+    vendor?: string;
+  },
+): Model[] {
+  const query = (filters.q || "").trim().toLowerCase();
+  return models.filter((model) => {
+    if (filters.endpoint && !model.endpoints.includes(filters.endpoint)) {
+      return false;
+    }
+    if (filters.group && !model.groups.includes(filters.group)) return false;
+    if (filters.tag && !model.tags.includes(filters.tag)) return false;
+    if (filters.vendor && model.vendor !== filters.vendor) return false;
+    if (!query) return true;
+    return [model.id, model.vendor, model.desc, ...model.tags, ...model.groups]
+      .join(" ")
+      .toLowerCase()
+      .includes(query);
+  });
 }
 
-function CatalogTable() {
+export default async function PricingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{
+    endpoint?: string;
+    group?: string;
+    q?: string;
+    tag?: string;
+    vendor?: string;
+  }>;
+}) {
+  const filters = await searchParams;
+  const { models } = await loadPricingCatalog();
+  return (
+    <CatalogTable filters={filters} models={filterModels(models, filters)} />
+  );
+}
+
+function CatalogTable({
+  filters,
+  models,
+}: {
+  filters: {
+    endpoint?: string;
+    group?: string;
+    q?: string;
+    tag?: string;
+    vendor?: string;
+  };
+  models: Model[];
+}) {
+  const vendors = [...new Set(models.map((model) => model.vendor))].sort();
+  const groups = [...new Set(models.flatMap((model) => model.groups))].sort();
+  const endpoints = [
+    ...new Set(models.flatMap((model) => model.endpoints)),
+  ].sort();
+  const tags = [...new Set(models.flatMap((model) => model.tags))].sort();
   return (
     <div className="isolate flex min-h-dvh flex-1 flex-col antialiased">
       <SiteHeader active="Pricing" />
@@ -243,16 +107,20 @@ function CatalogTable() {
           <PageHeader
             eyebrow="Model marketplace"
             title="Pricing"
-            description={`${MODELS.length} models from ${VENDORS.length} vendors. All prices are USD per million tokens.`}
+            description={`${models.length} models from ${vendors.length} vendors. All prices are USD per million tokens.`}
           />
 
           {/* Toolbar */}
-          <div className="mt-10 flex flex-wrap items-center gap-2">
+          <form className="mt-10 flex flex-wrap items-center gap-2">
             <InputGroup className="min-w-64 flex-1">
               <InputGroupAddon>
                 <Search aria-hidden="true" />
               </InputGroupAddon>
-              <InputGroupInput placeholder="Search models, vendors, tags…" />
+              <InputGroupInput
+                defaultValue={filters.q}
+                name="q"
+                placeholder="Search models, vendors, tags..."
+              />
             </InputGroup>
             <ToggleGroup defaultValue={["USD"]} variant="outline">
               <ToggleGroupItem value="USD">USD</ToggleGroupItem>
@@ -262,38 +130,61 @@ function CatalogTable() {
               <ToggleGroupItem value="per1M">per 1M tok</ToggleGroupItem>
               <ToggleGroupItem value="per1K">per 1K tok</ToggleGroupItem>
             </ToggleGroup>
-            <Button variant="outline" size="sm">
+            <Link
+              href="/pricing"
+              className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            >
               <Filter aria-hidden="true" />
-              Filters
+              Reset
               <ChevronDown
                 aria-hidden="true"
                 data-icon="inline-end"
                 className="size-3 text-muted-foreground"
               />
-            </Button>
-          </div>
+            </Link>
+          </form>
 
           <div className="mt-6 grid gap-8 lg:grid-cols-[14rem_1fr]">
             {/* Filter rail */}
             <aside className="hidden lg:block">
               <FilterGroup label="Groups">
-                {ALL_GROUPS.map((g) => (
-                  <FilterRow key={g} label={g} count={modelsInGroup(g)} />
+                {groups.map((g) => (
+                  <FilterRow
+                    key={g}
+                    href={`/pricing?group=${encodeURIComponent(g)}`}
+                    label={g}
+                    count={modelsInGroup(models, g)}
+                  />
                 ))}
               </FilterGroup>
               <FilterGroup label="Endpoint">
-                {ALL_ENDPOINTS.map((e) => (
-                  <FilterRow key={e} label={e} count={modelsWithEndpoint(e)} />
+                {endpoints.map((e) => (
+                  <FilterRow
+                    key={e}
+                    href={`/pricing?endpoint=${encodeURIComponent(e)}`}
+                    label={e}
+                    count={modelsWithEndpoint(models, e)}
+                  />
                 ))}
               </FilterGroup>
               <FilterGroup label="Vendor">
-                {VENDORS.map((v) => (
-                  <FilterRow key={v} label={v} count={modelsByVendor(v)} />
+                {vendors.map((v) => (
+                  <FilterRow
+                    key={v}
+                    href={`/pricing?vendor=${encodeURIComponent(v)}`}
+                    label={v}
+                    count={modelsByVendor(models, v)}
+                  />
                 ))}
               </FilterGroup>
               <FilterGroup label="Tags">
-                {ALL_TAGS.map((t) => (
-                  <FilterRow key={t} label={t} count={modelsWithTag(t)} />
+                {tags.map((t) => (
+                  <FilterRow
+                    key={t}
+                    href={`/pricing?tag=${encodeURIComponent(t)}`}
+                    label={t}
+                    count={modelsWithTag(models, t)}
+                  />
                 ))}
               </FilterGroup>
             </aside>
@@ -338,7 +229,7 @@ function CatalogTable() {
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {MODELS.map((m) => (
+                  {models.map((m) => (
                     <TableRow key={m.id}>
                       <TableCell className="pl-4">
                         <div className="flex items-center gap-2">
@@ -384,20 +275,19 @@ function CatalogTable() {
                       </TableCell>
                       <TableCell className="pr-4 text-right">
                         <div className="inline-flex items-center gap-1">
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            aria-label={`Copy ${m.id}`}
-                          >
-                            <Copy aria-hidden="true" />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
+                          <CopyButton value={m.id} label={`Copy ${m.id}`} />
+                          <Link
+                            href={`/console/playground?model=${encodeURIComponent(m.id)}`}
+                            className={cn(
+                              buttonVariants({
+                                variant: "ghost",
+                                size: "icon-sm",
+                              }),
+                            )}
                             aria-label={`View ${m.id}`}
                           >
                             <Eye aria-hidden="true" />
-                          </Button>
+                          </Link>
                         </div>
                       </TableCell>
                     </TableRow>
@@ -469,18 +359,26 @@ function FilterGroup({
   );
 }
 
-function FilterRow({ label, count }: { label: string; count: number }) {
+function FilterRow({
+  count,
+  href,
+  label,
+}: {
+  count: number;
+  href: string;
+  label: string;
+}) {
   return (
     <li>
-      <button
-        type="button"
+      <Link
+        href={href}
         className="flex w-full items-center justify-between rounded-sm px-1.5 py-1 text-left text-sm text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
       >
         <span className="capitalize">{label}</span>
         <span className="font-mono text-xs tabular-nums text-muted-foreground/70">
           {count}
         </span>
-      </button>
+      </Link>
     </li>
   );
 }
@@ -512,15 +410,15 @@ function VendorMark({
   );
 }
 
-function modelsByVendor(v: string): number {
-  return MODELS.filter((m) => m.vendor === v).length;
+function modelsByVendor(models: Model[], v: string): number {
+  return models.filter((m) => m.vendor === v).length;
 }
-function modelsInGroup(g: Group): number {
-  return MODELS.filter((m) => m.groups.includes(g)).length;
+function modelsInGroup(models: Model[], g: string): number {
+  return models.filter((m) => m.groups.includes(g)).length;
 }
-function modelsWithEndpoint(e: Endpoint): number {
-  return MODELS.filter((m) => m.endpoints.includes(e)).length;
+function modelsWithEndpoint(models: Model[], e: string): number {
+  return models.filter((m) => m.endpoints.includes(e)).length;
 }
-function modelsWithTag(t: Tag): number {
-  return MODELS.filter((m) => m.tags.includes(t)).length;
+function modelsWithTag(models: Model[], t: string): number {
+  return models.filter((m) => m.tags.includes(t)).length;
 }

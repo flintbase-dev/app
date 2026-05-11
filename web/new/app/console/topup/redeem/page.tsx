@@ -5,10 +5,14 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { CURRENT_USER, fmtMoney } from "@/lib/console/mock";
+import { redeemCodeAction } from "@/lib/console/actions";
+import { loadTopupData } from "@/lib/console/data";
+import { fmtMoney } from "@/lib/console/format";
 import { cn } from "@/lib/utils";
 
-export default function RedeemPage() {
+export default async function RedeemPage() {
+  const { status, user } = await loadTopupData();
+
   return (
     <div className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
       <div className="mx-auto w-full max-w-xl">
@@ -43,19 +47,25 @@ export default function RedeemPage() {
                 Current balance
               </p>
               <p className="mt-1 font-mono text-2xl font-medium tabular-nums">
-                {fmtMoney(CURRENT_USER.balance)}
+                {fmtMoney(user.balance, status)}
               </p>
             </div>
 
             <Separator />
 
-            <form className="flex flex-col gap-3">
-              <label className="text-sm font-medium text-foreground">
+            <form action={redeemCodeAction} className="flex flex-col gap-3">
+              <label
+                htmlFor="redemption-code"
+                className="text-sm font-medium text-foreground"
+              >
                 Redemption code
               </label>
               <Input
+                id="redemption-code"
+                name="key"
                 placeholder="FLINT-XXXX-XXXX"
                 className="font-mono tracking-tight uppercase"
+                required
               />
               <Button type="submit" variant="brand">
                 <Gift aria-hidden="true" />

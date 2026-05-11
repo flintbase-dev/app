@@ -1,14 +1,25 @@
 import { ArrowRight, Flame } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { buttonVariants } from "@/components/ui/button";
 import { Spinner } from "@/components/ui/spinner";
-import { CHAT_CLIENTS } from "@/lib/console/mock";
+import {
+  buildChatClientUrl,
+  loadChatPickerData,
+  requestTokenKey,
+} from "@/lib/console/data";
 import { SYSTEM_NAME } from "@/lib/site";
 import { cn } from "@/lib/utils";
 
-export default function Chat2LinkPage() {
-  const client = CHAT_CLIENTS[1];
+export default async function Chat2LinkPage() {
+  const { clients, status, tokens } = await loadChatPickerData();
+  const token = tokens.items.find((item) => item.status === 1);
+  const client = clients.find((item) => item.template.startsWith("http"));
+  if (client && token) {
+    const key = await requestTokenKey(token.id);
+    redirect(buildChatClientUrl(client.template, status.serverAddress, key));
+  }
 
   return (
     <main className="flex min-h-dvh flex-1 flex-col">
@@ -20,7 +31,9 @@ export default function Chat2LinkPage() {
           </span>
         </div>
         <Spinner className="mt-10 size-6 text-brand" />
-        <p className="mt-5 text-sm text-foreground">Opening {client.name}</p>
+        <p className="mt-5 text-sm text-foreground">
+          {client ? `Opening ${client.name}` : "No web chat client configured"}
+        </p>
         <p className="mt-1 max-w-[44ch] text-center text-xs text-muted-foreground">
           We&apos;re packaging your service base URL and an enabled key into the
           target client&apos;s config link.

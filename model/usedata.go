@@ -13,7 +13,7 @@ type QuotaData struct {
 	UserID    string `json:"user_id" gorm:"column:user_id"`
 	Username  string `json:"username" gorm:"column:username"`
 	ModelName string `json:"model_name" gorm:"column:model_name"`
-	CreatedAt int64  `json:"created_at" gorm:"column:created_at"`
+	CreatedAt int64  `json:"created_at" gorm:"column:bucket"`
 	TokenUsed int    `json:"token_used" gorm:"column:token_used"`
 	Count     int    `json:"count" gorm:"column:count"`
 	Quota     int    `json:"quota" gorm:"column:quota"`
@@ -43,8 +43,8 @@ func applyUsageTimeRange(query *gorm.DB, startTime int64, endTime int64) *gorm.D
 	return query
 }
 
-func orderUsageBucketsAsc(query *gorm.DB, bucketExpr string) *gorm.DB {
-	return query.Order(bucketExpr + " ASC")
+func orderUsageBucketsAsc(query *gorm.DB) *gorm.DB {
+	return query.Order("bucket ASC")
 }
 
 func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
@@ -54,10 +54,10 @@ func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (qu
 	}
 	bucketExpr := usageBucketExpr(3600)
 	query = query.
-		Select(fmt.Sprintf("user_id, username, model_name, %s AS created_at, sum(prompt_tokens + completion_tokens) AS token_used, count() AS count, sum(quota) AS quota", bucketExpr)).
+		Select(fmt.Sprintf("user_id, username, model_name, %s AS bucket, sum(prompt_tokens + completion_tokens) AS token_used, count() AS count, sum(quota) AS quota", bucketExpr)).
 		Where("username = ?", username).
 		Group(fmt.Sprintf("user_id, username, model_name, %s", bucketExpr))
-	query = orderUsageBucketsAsc(query, bucketExpr)
+	query = orderUsageBucketsAsc(query)
 	query = applyUsageTimeRange(query, startTime, endTime)
 	err = query.Find(&quotaData).Error
 	return quotaData, err
@@ -70,10 +70,10 @@ func GetQuotaDataByUserId(userId string, startTime int64, endTime int64) (quotaD
 	}
 	bucketExpr := usageBucketExpr(3600)
 	query = query.
-		Select(fmt.Sprintf("user_id, any(username) AS username, model_name, %s AS created_at, sum(prompt_tokens + completion_tokens) AS token_used, count() AS count, sum(quota) AS quota", bucketExpr)).
+		Select(fmt.Sprintf("user_id, any(username) AS username, model_name, %s AS bucket, sum(prompt_tokens + completion_tokens) AS token_used, count() AS count, sum(quota) AS quota", bucketExpr)).
 		Where("user_id = ?", userId).
 		Group(fmt.Sprintf("user_id, model_name, %s", bucketExpr))
-	query = orderUsageBucketsAsc(query, bucketExpr)
+	query = orderUsageBucketsAsc(query)
 	query = applyUsageTimeRange(query, startTime, endTime)
 	err = query.Find(&quotaData).Error
 	return quotaData, err
@@ -86,9 +86,9 @@ func GetQuotaDataGroupByUser(startTime int64, endTime int64) (quotaData []*Quota
 	}
 	bucketExpr := usageBucketExpr(3600)
 	query = query.
-		Select(fmt.Sprintf("user_id, username, %s AS created_at, sum(prompt_tokens + completion_tokens) AS token_used, count() AS count, sum(quota) AS quota", bucketExpr)).
+		Select(fmt.Sprintf("user_id, username, %s AS bucket, sum(prompt_tokens + completion_tokens) AS token_used, count() AS count, sum(quota) AS quota", bucketExpr)).
 		Group(fmt.Sprintf("user_id, username, %s", bucketExpr))
-	query = orderUsageBucketsAsc(query, bucketExpr)
+	query = orderUsageBucketsAsc(query)
 	query = applyUsageTimeRange(query, startTime, endTime)
 	err = query.Find(&quotaData).Error
 	return quotaData, err
@@ -104,9 +104,9 @@ func GetAllQuotaDates(startTime int64, endTime int64, username string) (quotaDat
 	}
 	bucketExpr := usageBucketExpr(3600)
 	query = query.
-		Select(fmt.Sprintf("model_name, %s AS created_at, sum(prompt_tokens + completion_tokens) AS token_used, count() AS count, sum(quota) AS quota", bucketExpr)).
+		Select(fmt.Sprintf("model_name, %s AS bucket, sum(prompt_tokens + completion_tokens) AS token_used, count() AS count, sum(quota) AS quota", bucketExpr)).
 		Group(fmt.Sprintf("model_name, %s", bucketExpr))
-	query = orderUsageBucketsAsc(query, bucketExpr)
+	query = orderUsageBucketsAsc(query)
 	query = applyUsageTimeRange(query, startTime, endTime)
 	err = query.Find(&quotaData).Error
 	return quotaData, err

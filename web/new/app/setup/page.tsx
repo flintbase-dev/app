@@ -4,42 +4,35 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { loadSetupStatus } from "@/lib/console/data";
 import { SYSTEM_NAME } from "@/lib/site";
 
-const ROWS: {
-  label: string;
-  value: string;
-  badge: { kind: "success" | "warning" | "neutral"; text: string };
-}[] = [
-  {
-    label: "Database",
-    value: "PostgreSQL 16.2",
-    badge: { kind: "success", text: "connected" },
-  },
-  {
-    label: "Host",
-    value: "db-primary.us-east-1.flint.internal",
-    badge: { kind: "neutral", text: "primary" },
-  },
-  {
-    label: "Schema migrations",
-    value: "287 / 287 statements applied",
-    badge: { kind: "success", text: "in sync" },
-  },
-  {
-    label: "Root account",
-    value: "Initialized · awaiting first WorkOS sign-in",
-    badge: { kind: "warning", text: "pending sign-in" },
-  },
-  {
-    label: "Region",
-    value: "us-east-1",
-    badge: { kind: "neutral", text: "default" },
-  },
-];
-
-export default function SetupPage() {
-  const overallDone = ROWS.every((r) => r.badge.kind !== "warning");
+export default async function SetupPage() {
+  const setup = await loadSetupStatus();
+  const rows = [
+    {
+      label: "Database",
+      value: String(setup.database_type || "postgres"),
+      badge: { kind: "success" as const, text: "configured" },
+    },
+    {
+      label: "Application setup",
+      value: setup.status ? "Initialized" : "Not initialized",
+      badge: {
+        kind: setup.status ? ("success" as const) : ("warning" as const),
+        text: setup.status ? "ready" : "pending",
+      },
+    },
+    {
+      label: "Root account",
+      value: setup.root_init ? "Initialized" : "Waiting for root user",
+      badge: {
+        kind: setup.root_init ? ("success" as const) : ("warning" as const),
+        text: setup.root_init ? "ready" : "pending",
+      },
+    },
+  ];
+  const overallDone = rows.every((r) => r.badge.kind !== "warning");
 
   return (
     <main className="flex min-h-dvh flex-1 flex-col bg-muted/30">
@@ -71,7 +64,7 @@ export default function SetupPage() {
         <Card className="mt-8 p-0">
           <CardContent className="p-0">
             <dl className="divide-y divide-border">
-              {ROWS.map((r) => (
+              {rows.map((r) => (
                 <div
                   key={r.label}
                   className="grid grid-cols-[10rem_1fr_auto] items-center gap-4 px-5 py-3"

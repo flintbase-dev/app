@@ -43,14 +43,19 @@ const (
 	stripeInvoiceKindTopup                = "topup"
 	stripeInvoiceKindSubscriptionPurchase = "subscription_purchase"
 	stripeInvoiceKindSubscriptionSwitch   = "subscription_switch"
+
+	stripePaymentMethodTypeCard      = "card"
+	stripePaymentMethodTypeAlipay    = "alipay"
+	stripePaymentMethodTypeWeChatPay = "wechat_pay"
 )
 
 var stripeAdaptor = &StripeAdaptor{}
 
 // StripePayRequest represents a Stripe Elements payment request.
 type StripePayRequest struct {
-	Amount        int64  `json:"amount"`
-	PaymentMethod string `json:"payment_method"`
+	Amount            int64  `json:"amount"`
+	PaymentMethod     string `json:"payment_method"`
+	PaymentMethodType string `json:"payment_method_type"`
 }
 
 type StripeAdaptor struct {
@@ -64,6 +69,7 @@ type stripeInvoicePaymentInput struct {
 	Description            string
 	InvoiceItemDescription string
 	Metadata               map[string]string
+	PaymentMethodType      string
 }
 
 type stripeInvoicePaymentSession struct {
@@ -170,6 +176,7 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		Description:            fmt.Sprintf("Wallet top up %d", req.Amount),
 		InvoiceItemDescription: fmt.Sprintf("Wallet credits: %d units", req.Amount),
 		Metadata:               metadata,
+		PaymentMethodType:      normalizeStripeInvoicePaymentMethodType(req.PaymentMethodType),
 	})
 	if err != nil {
 		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 创建 Invoice 充值失败 user_id=%s amount=%d error=%q", id, req.Amount, err.Error()))
@@ -413,6 +420,7 @@ func createStripeInvoicePayment(ctx context.Context, input stripeInvoicePaymentI
 	}
 	metadata := cloneStringMap(input.Metadata)
 	metadata[stripeMetadataUserIDKey] = input.User.Id
+	paymentMethodTypes := stripeInvoicePaymentMethodTypes(input.PaymentMethodType)
 
 	invoiceParams := &stripe.InvoiceParams{
 		AutoAdvance:      stripe.Bool(false),
@@ -422,12 +430,12 @@ func createStripeInvoicePayment(ctx context.Context, input stripeInvoicePaymentI
 		Description:      stripe.String(input.Description),
 		Metadata:         metadata,
 		PaymentSettings: &stripe.InvoicePaymentSettingsParams{
-			PaymentMethodTypes: stripeInvoicePaymentMethodTypes(),
+			PaymentMethodTypes: paymentMethodTypes,
 		},
 	}
 	invoiceParams.AddExpand("payment_intent")
 	draftInvoice, err := invoice.New(invoiceParams)
-	if err != nil && strings.Contains(strings.ToLower(err.Error()), "alipay") {
+	if err != nil && input.PaymentMethodType == "" && strings.Contains(strings.ToLower(err.Error()), "alipay") {
 		invoiceParams.PaymentSettings.PaymentMethodTypes = stripeInvoiceFallbackPaymentMethodTypes()
 		draftInvoice, err = invoice.New(invoiceParams)
 	}
@@ -469,15 +477,17 @@ func createStripeInvoicePayment(ctx context.Context, input stripeInvoicePaymentI
 		return nil, errors.New("Stripe Invoice 未返回 PaymentIntent client_secret")
 	}
 
-	if _, err := paymentintent.Update(finalizedInvoice.PaymentIntent.ID, stripePaymentIntentUpdateParams(input.User.Email, metadata)); err != nil {
+	if _, err := paymentintent.Update(finalizedInvoice.PaymentIntent.ID, stripePaymentIntentUpdateParams(input.User.Email, metadata, paymentMethodTypes)); err != nil {
 		logger.LogWarn(ctx, fmt.Sprintf("Stripe PaymentIntent 更新支付方式选项失败 invoice_id=%s payment_intent_id=%s error=%q", finalizedInvoice.ID, finalizedInvoice.PaymentIntent.ID, err.Error()))
 	}
 
 	customerSessionSecret := ""
-	if secret, err := createStripeCustomerSession(customerId); err == nil {
-		customerSessionSecret = secret
-	} else {
-		logger.LogWarn(ctx, fmt.Sprintf("Stripe CustomerSession 创建失败 customer_id=%s error=%q", customerId, err.Error()))
+	if input.PaymentMethodType == stripePaymentMethodTypeCard {
+		if secret, err := createStripeCustomerSession(customerId); err == nil {
+			customerSessionSecret = secret
+		} else {
+			logger.LogWarn(ctx, fmt.Sprintf("Stripe CustomerSession 创建失败 customer_id=%s error=%q", customerId, err.Error()))
+		}
 	}
 
 	return &stripeInvoicePaymentSession{
@@ -551,36 +561,64 @@ func createStripeCustomerSession(customerId string) (string, error) {
 	return session.ClientSecret, nil
 }
 
-func stripePaymentIntentUpdateParams(email string, metadata map[string]string) *stripe.PaymentIntentParams {
+func stripePaymentIntentUpdateParams(email string, metadata map[string]string, paymentMethodTypes []*string) *stripe.PaymentIntentParams {
 	none := "none"
-	return &stripe.PaymentIntentParams{
+	params := &stripe.PaymentIntentParams{
 		ReceiptEmail:       stripe.String(email),
 		Metadata:           metadata,
-		PaymentMethodTypes: stripeInvoicePaymentMethodTypes(),
-		PaymentMethodOptions: &stripe.PaymentIntentPaymentMethodOptionsParams{
-			Alipay: &stripe.PaymentIntentPaymentMethodOptionsAlipayParams{
+		PaymentMethodTypes: paymentMethodTypes,
+	}
+	for _, method := range paymentMethodTypes {
+		if method == nil {
+			continue
+		}
+		switch *method {
+		case stripePaymentMethodTypeAlipay:
+			if params.PaymentMethodOptions == nil {
+				params.PaymentMethodOptions = &stripe.PaymentIntentPaymentMethodOptionsParams{}
+			}
+			params.PaymentMethodOptions.Alipay = &stripe.PaymentIntentPaymentMethodOptionsAlipayParams{
 				SetupFutureUsage: stripe.String(none),
-			},
-			WeChatPay: &stripe.PaymentIntentPaymentMethodOptionsWeChatPayParams{
+			}
+		case stripePaymentMethodTypeWeChatPay:
+			if params.PaymentMethodOptions == nil {
+				params.PaymentMethodOptions = &stripe.PaymentIntentPaymentMethodOptionsParams{}
+			}
+			params.PaymentMethodOptions.WeChatPay = &stripe.PaymentIntentPaymentMethodOptionsWeChatPayParams{
 				Client:           stripe.String("web"),
 				SetupFutureUsage: stripe.String(none),
-			},
-		},
+			}
+		}
+	}
+	return params
+}
+
+func normalizeStripeInvoicePaymentMethodType(method string) string {
+	switch method {
+	case stripePaymentMethodTypeCard, stripePaymentMethodTypeAlipay, stripePaymentMethodTypeWeChatPay:
+		return method
+	default:
+		return ""
 	}
 }
 
-func stripeInvoicePaymentMethodTypes() []*string {
-	return []*string{
-		stripe.String("card"),
-		stripe.String("alipay"),
-		stripe.String("wechat_pay"),
+func stripeInvoicePaymentMethodTypes(method string) []*string {
+	switch method {
+	case stripePaymentMethodTypeCard, stripePaymentMethodTypeAlipay, stripePaymentMethodTypeWeChatPay:
+		return []*string{stripe.String(method)}
+	default:
+		return []*string{
+			stripe.String(stripePaymentMethodTypeCard),
+			stripe.String(stripePaymentMethodTypeAlipay),
+			stripe.String(stripePaymentMethodTypeWeChatPay),
+		}
 	}
 }
 
 func stripeInvoiceFallbackPaymentMethodTypes() []*string {
 	return []*string{
-		stripe.String("card"),
-		stripe.String("wechat_pay"),
+		stripe.String(stripePaymentMethodTypeCard),
+		stripe.String(stripePaymentMethodTypeWeChatPay),
 	}
 }
 

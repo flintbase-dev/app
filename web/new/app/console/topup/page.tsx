@@ -7,7 +7,7 @@ import {
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
-
+import { SubscriptionPayButton } from "@/components/console/payment-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
@@ -38,17 +38,16 @@ import {
 } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
-  ACTIVE_SUBSCRIPTION,
-  BILLS,
-  CURRENT_USER,
-  fmtMoney,
-  SUB_PLANS,
-  type SubPlan,
-} from "@/lib/console/mock";
+  openBillingPortalAction,
+  updateBillingPreferenceAction,
+} from "@/lib/console/actions";
+import { loadTopupData } from "@/lib/console/data";
+import { fmtAbsDate, fmtMoney } from "@/lib/console/format";
+import type {
+  ActiveSubscription,
+  SubscriptionPlan as SubPlan,
+} from "@/lib/console/types";
 import { cn } from "@/lib/utils";
-
-const ACTIVE_PLAN =
-  SUB_PLANS.find((p) => p.id === ACTIVE_SUBSCRIPTION.plan_id) ?? SUB_PLANS[0];
 
 const MAY_USAGE = 38.42;
 
@@ -58,9 +57,17 @@ const BILLING_PREFERENCE_ITEMS = {
   subscription_only: "Subscription only",
 };
 
-export default function TopupPage() {
-  const planUsed = ACTIVE_SUBSCRIPTION.total - ACTIVE_SUBSCRIPTION.remaining;
-  const renewalDays = daysUntil(ACTIVE_SUBSCRIPTION.next_renewal_at);
+export default async function TopupPage() {
+  const { user, status, invoices, plans, subscription } = await loadTopupData();
+  const activeSubscription = subscription.subscriptions[0];
+  const activePlan =
+    plans.find((p) => p.id === activeSubscription?.planId) ?? plans[0];
+  const planTotal = activeSubscription?.total ?? activePlan?.total ?? 0;
+  const planRemaining = activeSubscription?.remaining ?? 0;
+  const planUsed = Math.max(0, planTotal - planRemaining);
+  const renewalDays = activeSubscription
+    ? daysUntil(activeSubscription.nextRenewalAt)
+    : 0;
 
   return (
     <div className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
@@ -81,9 +88,13 @@ export default function TopupPage() {
               <div className="mt-6 flex flex-col gap-7">
                 <UsageBar
                   label="Plan credit"
-                  display={`${fmtMoney(planUsed)} / ${fmtMoney(ACTIVE_SUBSCRIPTION.total)}`}
-                  percent={(planUsed / ACTIVE_SUBSCRIPTION.total) * 100}
-                  resets={`Resets in ${renewalDays} days`}
+                  display={`${fmtMoney(planUsed, status)} / ${fmtMoney(planTotal, status)}`}
+                  percent={planTotal > 0 ? (planUsed / planTotal) * 100 : 0}
+                  resets={
+                    activeSubscription
+                      ? `Resets in ${renewalDays} days`
+                      : "No active plan"
+                  }
                 />
               </div>
             </section>
@@ -102,11 +113,11 @@ export default function TopupPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {BILLS.map((b) => (
+                    {invoices.items.map((b) => (
                       <TableRow key={b.id}>
                         <TableCell className="pl-4">
                           <code className="font-mono text-xs text-foreground">
-                            INV-{String(b.id).padStart(7, "0")}
+                            {b.invoiceNumber || b.reference || b.id}
                           </code>
                         </TableCell>
                         <TableCell className="text-xs text-muted-foreground">
@@ -121,7 +132,7 @@ export default function TopupPage() {
                                 : "text-foreground",
                             )}
                           >
-                            {fmtMoney(b.amount)}
+                            {fmtMoney(b.amount, status)}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -134,7 +145,10 @@ export default function TopupPage() {
                             </span>
                           ) : (
                             <Link
-                              href={`/console/topup/history#${b.id}`}
+                              href={
+                                b.hostedInvoiceUrl ||
+                                `/console/topup/history#${b.id}`
+                              }
                               className="text-xs text-muted-foreground hover:text-foreground"
                             >
                               View
@@ -155,19 +169,24 @@ export default function TopupPage() {
                 <p className="text-sm font-medium text-foreground">
                   Subscription
                 </p>
-                <Badge variant="brand">{ACTIVE_PLAN.title}</Badge>
+                <Badge variant="brand">{activePlan?.title ?? "No plan"}</Badge>
               </div>
               <p className="mt-3 font-mono text-3xl font-medium tabular-nums">
-                ${ACTIVE_PLAN.price}
+                ${activePlan?.price ?? 0}
                 <span className="ml-1 font-sans text-sm font-normal text-muted-foreground">
                   /mo
                 </span>
               </p>
               <p className="mt-2 text-xs text-muted-foreground">
-                Renews on {fmtAbsDate(ACTIVE_SUBSCRIPTION.next_renewal_at)}
+                {activeSubscription
+                  ? `Renews on ${fmtAbsDate(activeSubscription.nextRenewalAt)}`
+                  : "No active renewal"}
               </p>
               <div className="mt-4 flex flex-wrap gap-2">
-                <PlansDialog />
+                <PlansDialog
+                  plans={plans}
+                  activeSubscription={activeSubscription}
+                />
               </div>
             </div>
 
@@ -178,7 +197,7 @@ export default function TopupPage() {
                 Pay-as-you-go credits
               </p>
               <p className="mt-3 font-mono text-3xl font-medium tabular-nums">
-                {fmtMoney(CURRENT_USER.balance)}
+                {fmtMoney(user.balance, status)}
                 <span className="ml-1 font-sans text-sm font-normal text-muted-foreground">
                   remaining
                 </span>
@@ -187,18 +206,18 @@ export default function TopupPage() {
                 <div className="flex items-center justify-between">
                   <dt className="text-muted-foreground">Used in May 2026</dt>
                   <dd className="font-mono tabular-nums text-foreground">
-                    {fmtMoney(MAY_USAGE)}
+                    {fmtMoney(MAY_USAGE, status)}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between">
                   <dt className="text-muted-foreground">Lifetime</dt>
                   <dd className="font-mono tabular-nums text-foreground">
-                    {fmtMoney(CURRENT_USER.used)}
+                    {fmtMoney(user.used, status)}
                   </dd>
                 </div>
               </dl>
               <div className="mt-4 flex flex-wrap gap-2">
-                <AddCreditsDialog />
+                <AddCreditsDialog balance={user.balance} status={status} />
                 <Link
                   href="/console/topup/redeem"
                   className={cn(
@@ -224,15 +243,17 @@ export default function TopupPage() {
                   />
                 </div>
                 <div className="min-w-0">
-                  <p className="text-sm text-foreground">Visa •••• 4242</p>
+                  <p className="text-sm text-foreground">Card methods</p>
                   <p className="font-mono text-xs tabular-nums text-muted-foreground">
-                    Expires 08/2028
+                    Selected during card payment
                   </p>
                 </div>
               </div>
-              <Button variant="outline" size="sm" className="mt-4">
-                Update card
-              </Button>
+              <form action={openBillingPortalAction}>
+                <Button variant="outline" size="sm" className="mt-4">
+                  Update card
+                </Button>
+              </form>
             </div>
 
             <Separator />
@@ -245,9 +266,11 @@ export default function TopupPage() {
                 Manage invoices, tax IDs, and billing details through our
                 self-service portal.
               </p>
-              <Button variant="outline" size="sm" className="mt-4">
-                Open portal
-              </Button>
+              <form action={openBillingPortalAction}>
+                <Button variant="outline" size="sm" className="mt-4">
+                  Open portal
+                </Button>
+              </form>
             </div>
 
             <Separator />
@@ -259,26 +282,32 @@ export default function TopupPage() {
               <p className="mt-2 text-xs text-muted-foreground">
                 Choose which balance is charged first for usage.
               </p>
-              <Select
-                defaultValue="wallet_first"
-                items={BILLING_PREFERENCE_ITEMS}
-              >
-                <SelectTrigger
-                  aria-label="Billing preference"
-                  className="mt-4 w-full"
+              <form action={updateBillingPreferenceAction}>
+                <Select
+                  name="billing_preference"
+                  defaultValue={subscription.billingPreference}
+                  items={BILLING_PREFERENCE_ITEMS}
                 >
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(BILLING_PREFERENCE_ITEMS).map(
-                    ([value, label]) => (
-                      <SelectItem key={value} value={value}>
-                        {label}
-                      </SelectItem>
-                    ),
-                  )}
-                </SelectContent>
-              </Select>
+                  <SelectTrigger
+                    aria-label="Billing preference"
+                    className="mt-4 w-full"
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(BILLING_PREFERENCE_ITEMS).map(
+                      ([value, label]) => (
+                        <SelectItem key={value} value={value}>
+                          {label}
+                        </SelectItem>
+                      ),
+                    )}
+                  </SelectContent>
+                </Select>
+                <Button variant="outline" size="sm" className="mt-2">
+                  Save preference
+                </Button>
+              </form>
             </div>
           </aside>
         </div>
@@ -314,7 +343,11 @@ function UsageBar({
   );
 }
 
-function InvoiceStatus({ status }: { status: "completed" | "pending" | "failed" }) {
+function InvoiceStatus({
+  status,
+}: {
+  status: "completed" | "pending" | "failed" | "expired";
+}) {
   if (status === "completed") {
     return (
       <Badge variant="success" className="px-1.5">
@@ -364,11 +397,11 @@ function planDurationLabel(p: SubPlan): React.ReactNode {
 }
 
 function planPurchaseLimitLabel(p: SubPlan): React.ReactNode {
-  return p.max_purchase_per_user > 0 ? p.max_purchase_per_user : "Unlimited";
+  return p.maxPurchasePerUser > 0 ? p.maxPurchasePerUser : "Unlimited";
 }
 
 function planUpgradeGroupLabel(p: SubPlan): React.ReactNode {
-  return p.upgrade_group || "—";
+  return p.upgradeGroup || "—";
 }
 
 const PLAN_LIMIT_ROWS: {
@@ -382,16 +415,21 @@ const PLAN_LIMIT_ROWS: {
   { label: "User group", render: planUpgradeGroupLabel },
 ];
 
-const FEATURE_MATRIX: FeatureRow[] = PLAN_LIMIT_ROWS.map((row) => ({
-  label: row.label,
-  values: SUB_PLANS.map((p) => row.render(p)),
-}));
-
-function PlansDialog() {
-  const currentIdx = SUB_PLANS.findIndex(
-    (p) => p.id === ACTIVE_SUBSCRIPTION.plan_id,
+function PlansDialog({
+  plans,
+  activeSubscription,
+}: {
+  plans: SubPlan[];
+  activeSubscription?: ActiveSubscription;
+}) {
+  const currentIdx = plans.findIndex(
+    (p) => p.id === activeSubscription?.planId,
   );
-  const recommendedId = SUB_PLANS[currentIdx + 1]?.id ?? null;
+  const recommendedId = plans[currentIdx + 1]?.id ?? null;
+  const featureMatrix: FeatureRow[] = PLAN_LIMIT_ROWS.map((row) => ({
+    label: row.label,
+    values: plans.map((p) => row.render(p)),
+  }));
 
   return (
     <Dialog>
@@ -412,8 +450,8 @@ function PlansDialog() {
                 <th className="w-1/4 px-6 py-4 text-left text-xs font-medium text-muted-foreground">
                   Plan
                 </th>
-                {SUB_PLANS.map((p) => {
-                  const isCurrent = p.id === ACTIVE_SUBSCRIPTION.plan_id;
+                {plans.map((p) => {
+                  const isCurrent = p.id === activeSubscription?.planId;
                   const isRecommended = p.id === recommendedId;
                   return (
                     <th
@@ -451,7 +489,7 @@ function PlansDialog() {
               </tr>
             </thead>
             <tbody>
-              {FEATURE_MATRIX.map((row, i) => (
+              {featureMatrix.map((row, i) => (
                 <tr
                   key={row.label}
                   className={cn(i > 0 && "border-t border-border/60")}
@@ -460,11 +498,11 @@ function PlansDialog() {
                     {row.label}
                   </td>
                   {row.values.map((v, j) => {
-                    const planId = SUB_PLANS[j].id;
-                    const isCurrent = planId === ACTIVE_SUBSCRIPTION.plan_id;
+                    const planId = plans[j].id;
+                    const isCurrent = planId === activeSubscription?.planId;
                     return (
                       <td
-                        key={j}
+                        key={`${row.label}-${planId}`}
                         className={cn(
                           "px-4 py-3 text-foreground",
                           isCurrent && "bg-brand-subtle/40",
@@ -480,8 +518,8 @@ function PlansDialog() {
             <tfoot>
               <tr className="border-t border-border">
                 <td className="px-6 py-4" />
-                {SUB_PLANS.map((p) => {
-                  const isCurrent = p.id === ACTIVE_SUBSCRIPTION.plan_id;
+                {plans.map((p) => {
+                  const isCurrent = p.id === activeSubscription?.planId;
                   const isRecommended = p.id === recommendedId;
                   return (
                     <td
@@ -501,13 +539,12 @@ function PlansDialog() {
                           Current plan
                         </Button>
                       ) : (
-                        <Button
-                          variant={isRecommended ? "brand" : "outline"}
-                          size="sm"
-                          className="w-full"
-                        >
-                          Switch
-                        </Button>
+                        <SubscriptionPayButton
+                          fromSubscriptionId={activeSubscription?.id}
+                          mode={activeSubscription ? "switch" : "purchase"}
+                          planId={p.id}
+                          recommended={isRecommended}
+                        />
                       )}
                     </td>
                   );
@@ -524,10 +561,7 @@ function PlansDialog() {
 function FeatureCell({ value }: { value: React.ReactNode }) {
   if (value === true) {
     return (
-      <Check
-        aria-label="Included"
-        className="size-3.5 text-success-dark"
-      />
+      <Check aria-label="Included" className="size-3.5 text-success-dark" />
     );
   }
   if (value === false) {
@@ -557,11 +591,17 @@ function discountFor(amount: number): number {
   return TOPUP_DISCOUNTS[bestKey] ?? 0;
 }
 
-function AddCreditsDialog() {
+function AddCreditsDialog({
+  balance,
+  status,
+}: {
+  balance: number;
+  status: Awaited<ReturnType<typeof loadTopupData>>["status"];
+}) {
   const amount = TOPUP_DEFAULT;
   const discount = discountFor(amount);
   const charge = amount * (1 - discount);
-  const newBalance = CURRENT_USER.balance + amount;
+  const newBalance = balance + amount;
 
   return (
     <Dialog>
@@ -572,13 +612,16 @@ function AddCreditsDialog() {
         <DialogHeader className="px-6 pt-6 pb-4">
           <DialogTitle>Add credit</DialogTitle>
           <DialogDescription>
-            Charges processed by Stripe. Credit posts to your wallet immediately.
+            Charges processed by Stripe. Credit posts to your wallet
+            immediately.
           </DialogDescription>
         </DialogHeader>
         <div className="grid border-t border-border md:grid-cols-[minmax(0,1fr)_minmax(0,260px)]">
           <div className="flex flex-col gap-5 px-6 py-5">
             <div>
-              <p className="text-xs font-medium text-foreground">Amount (USD)</p>
+              <p className="text-xs font-medium text-foreground">
+                Amount (USD)
+              </p>
               <ToggleGroup
                 defaultValue={[String(amount)]}
                 variant="outline"
@@ -619,7 +662,7 @@ function AddCreditsDialog() {
                 <dt className="font-sans text-xs text-muted-foreground">
                   Credit added
                 </dt>
-                <dd className="text-foreground">{fmtMoney(amount)}</dd>
+                <dd className="text-foreground">{fmtMoney(amount, status)}</dd>
               </div>
               {discount ? (
                 <div className="flex items-baseline justify-between gap-3">
@@ -627,7 +670,7 @@ function AddCreditsDialog() {
                     Volume discount
                   </dt>
                   <dd className="text-success-dark">
-                    −{fmtMoney(amount - charge)}
+                    −{fmtMoney(amount - charge, status)}
                   </dd>
                 </div>
               ) : null}
@@ -637,7 +680,7 @@ function AddCreditsDialog() {
                   You pay
                 </dt>
                 <dd className="text-base font-medium text-foreground">
-                  {fmtMoney(charge)}
+                  {fmtMoney(charge, status)}
                 </dd>
               </div>
               <div className="border-t border-dashed border-border pt-2" />
@@ -645,14 +688,16 @@ function AddCreditsDialog() {
                 <dt className="font-sans text-xs text-muted-foreground">
                   New balance
                 </dt>
-                <dd className="text-foreground">{fmtMoney(newBalance)}</dd>
+                <dd className="text-foreground">
+                  {fmtMoney(newBalance, status)}
+                </dd>
               </div>
             </dl>
           </div>
         </div>
         <div className="flex flex-col gap-2 border-t border-border px-6 py-5">
           <Link
-            href="/console/topup/checkout"
+            href={`/console/topup/checkout?amount=${amount}`}
             className={cn(
               buttonVariants({ variant: "brand", size: "lg" }),
               "w-full",
@@ -670,16 +715,7 @@ function AddCreditsDialog() {
   );
 }
 
-function fmtAbsDate(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
-    month: "short",
-    day: "numeric",
-    year: "numeric",
-  });
-}
-
-function daysUntil(iso: string): number {
-  const now = new Date("2026-05-10T12:00:00Z").getTime();
-  const t = new Date(iso).getTime();
-  return Math.max(0, Math.ceil((t - now) / 86_400_000));
+function daysUntil(timestamp: number): number {
+  const t = timestamp > 10_000_000_000 ? timestamp : timestamp * 1000;
+  return Math.max(0, Math.ceil((t - Date.now()) / 86_400_000));
 }

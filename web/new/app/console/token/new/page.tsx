@@ -8,7 +8,6 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -27,10 +26,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { GROUPS, USER_MODELS } from "@/lib/console/mock";
+import { createTokenAction } from "@/lib/console/actions";
+import { loadTokenEditor } from "@/lib/console/data";
 import { cn } from "@/lib/utils";
 
-export default function CreateTokenPage() {
+export default async function CreateTokenPage() {
+  const { groups, models } = await loadTokenEditor();
   return (
     <div className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
       <div className="mx-auto w-full max-w-3xl">
@@ -59,7 +60,8 @@ export default function CreateTokenPage() {
           — you can copy it from this page or download it as a text file.
         </p>
 
-        <form className="mt-8 flex flex-col gap-6">
+        <form action={createTokenAction} className="mt-8 flex flex-col gap-6">
+          <input type="hidden" name="status" value={1} />
           {/* Basics */}
           <Card>
             <CardContent className="flex flex-col gap-5 py-5">
@@ -78,12 +80,12 @@ export default function CreateTokenPage() {
 
               <div className="grid gap-4 md:grid-cols-2">
                 <FieldRow label="Group">
-                  <Select defaultValue={GROUPS[0]?.name}>
+                  <Select name="group" defaultValue={groups[0]?.name}>
                     <SelectTrigger className="w-full">
                       <SelectValue placeholder="default" />
                     </SelectTrigger>
                     <SelectContent>
-                      {GROUPS.map((g) => (
+                      {groups.map((g) => (
                         <SelectItem key={g.name} value={g.name}>
                           {g.label}
                         </SelectItem>
@@ -106,7 +108,7 @@ export default function CreateTokenPage() {
               </div>
 
               <CheckRow
-                name="cross-group-retry"
+                name="cross_group_retry"
                 label="Allow cross-group retries"
                 description="Retry on a different group when a request fails on this group."
                 defaultChecked
@@ -120,7 +122,7 @@ export default function CreateTokenPage() {
               <SectionTitle icon={InfinityIcon} title="Quota" />
 
               <CheckRow
-                name="unlimited"
+                name="unlimited_quota"
                 label="Unlimited quota"
                 description="Use the wallet balance directly. No per-key cap."
               />
@@ -128,6 +130,7 @@ export default function CreateTokenPage() {
               <FieldRow label="Quota (USD)">
                 <Input
                   type="number"
+                  name="remain_amount"
                   step="0.01"
                   defaultValue={50}
                   placeholder="50.00"
@@ -139,8 +142,8 @@ export default function CreateTokenPage() {
 
               <FieldRow label="Expires">
                 <div className="flex items-center gap-2">
-                  <Input type="datetime-local" />
-                  <Button variant="outline" size="sm">
+                  <Input type="datetime-local" name="expired_at" />
+                  <Button type="reset" variant="outline" size="sm">
                     Never
                   </Button>
                 </div>
@@ -154,40 +157,18 @@ export default function CreateTokenPage() {
               <SectionTitle icon={ShieldCheck} title="Restrictions" />
 
               <FieldRow label="Model limits">
-                <Select>
+                <Select name="model_limits">
                   <SelectTrigger className="w-full">
                     <SelectValue placeholder="Any model" />
                   </SelectTrigger>
                   <SelectContent>
-                    {USER_MODELS.map((m) => (
+                    {models.map((m) => (
                       <SelectItem key={m} value={m}>
                         {m}
                       </SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
-                <div className="mt-2 flex flex-wrap gap-1">
-                  <Badge variant="outline" className="px-1.5">
-                    claude-haiku-4-5
-                    <button
-                      type="button"
-                      aria-label="Remove"
-                      className="ml-1 text-muted-foreground hover:text-foreground"
-                    >
-                      ×
-                    </button>
-                  </Badge>
-                  <Badge variant="outline" className="px-1.5">
-                    gpt-5-mini
-                    <button
-                      type="button"
-                      aria-label="Remove"
-                      className="ml-1 text-muted-foreground hover:text-foreground"
-                    >
-                      ×
-                    </button>
-                  </Badge>
-                </div>
                 <Hint>
                   Only the models in this list will be reachable from this key.
                   Empty list means all available models.
@@ -195,7 +176,7 @@ export default function CreateTokenPage() {
               </FieldRow>
 
               <FieldRow label="Allowed IPs / CIDRs">
-                <Input placeholder="10.0.0.0/8, 203.0.113.4" />
+                <Input name="allow_ips" placeholder="10.0.0.0/8, 203.0.113.4" />
                 <Hint>
                   Comma-separated. Requests from outside the allowlist are
                   blocked at the edge.
@@ -257,13 +238,13 @@ function FieldRow({
   required?: boolean;
 }) {
   return (
-    <label className="flex flex-col gap-1.5">
+    <div className="flex flex-col gap-1.5">
       <span className="text-sm font-medium text-foreground">
         {label}
         {required ? <span className="ml-1 text-brand">*</span> : null}
       </span>
       {children}
-    </label>
+    </div>
   );
 }
 
@@ -293,7 +274,7 @@ function CheckRow({
   return (
     <FieldLabel htmlFor={name}>
       <Field orientation="horizontal">
-        <Checkbox id={name} defaultChecked={defaultChecked} />
+        <Checkbox id={name} name={name} defaultChecked={defaultChecked} />
         <FieldContent>
           <FieldTitle>{label}</FieldTitle>
           {description ? (

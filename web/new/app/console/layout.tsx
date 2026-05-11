@@ -8,25 +8,20 @@ import {
   Inbox,
   Key,
   LayoutDashboard,
-  LogOut,
   MessageSquare,
   ScrollText,
-  Search,
   Sparkles,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
-
+import { redirect } from "next/navigation";
+import { LogoutButton } from "@/components/console/auth-actions";
+import { GlobalSearch } from "@/components/console/global-search";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import {
-  InputGroup,
-  InputGroupAddon,
-  InputGroupInput,
-} from "@/components/ui/input-group";
-import { Kbd } from "@/components/ui/kbd";
 import { Separator } from "@/components/ui/separator";
-import { CURRENT_USER, fmtMoney } from "@/lib/console/mock";
+import { loadConsoleLayoutData } from "@/lib/console/data";
+import { fmtMoney, initials } from "@/lib/console/format";
 import { cn } from "@/lib/utils";
 
 const NAV_SECTIONS = [
@@ -55,6 +50,21 @@ export default function ConsoleLayout({
 }: {
   children: React.ReactNode;
 }) {
+  return <ConsoleLayoutShell>{children}</ConsoleLayoutShell>;
+}
+
+async function ConsoleLayoutShell({ children }: { children: React.ReactNode }) {
+  let layoutData: Awaited<ReturnType<typeof loadConsoleLayoutData>>;
+  try {
+    layoutData = await loadConsoleLayoutData();
+  } catch (error) {
+    if (isUnauthorizedConsoleError(error)) {
+      redirect(`/login?return_to=${encodeURIComponent("/console")}`);
+    }
+    throw error;
+  }
+
+  const { user, status, unread } = layoutData;
   return (
     <div className="isolate flex min-h-dvh w-full flex-1 antialiased">
       {/* Sidebar */}
@@ -138,14 +148,14 @@ export default function ConsoleLayout({
             className="h-auto w-full justify-start gap-2 p-2 hover:bg-sidebar-accent"
           >
             <div className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-subtle font-mono text-xs font-medium text-brand-emphasis">
-              KN
+              {initials(user.displayName)}
             </div>
             <div className="min-w-0 flex-1 text-left">
               <p className="truncate text-sm font-medium text-foreground">
-                {CURRENT_USER.display_name}
+                {user.displayName}
               </p>
               <p className="truncate font-mono text-[11px] text-muted-foreground tabular-nums">
-                {fmtMoney(CURRENT_USER.balance)}
+                {fmtMoney(user.balance, status)}
               </p>
             </div>
             <ChevronsUpDown
@@ -160,21 +170,13 @@ export default function ConsoleLayout({
       <div className="flex min-w-0 flex-1 flex-col">
         {/* Top bar */}
         <header className="sticky top-0 z-20 flex h-12 items-center gap-3 border-b border-border bg-background px-4 lg:px-6">
-          <InputGroup className="h-8 max-w-md flex-1">
-            <InputGroupAddon>
-              <Search aria-hidden="true" />
-            </InputGroupAddon>
-            <InputGroupInput placeholder="Jump to a page, model, or token id…" />
-            <InputGroupAddon align="inline-end">
-              <Kbd>⌘K</Kbd>
-            </InputGroupAddon>
-          </InputGroup>
+          <GlobalSearch />
           <div className="ml-auto flex items-center gap-2">
             <span className="hidden font-mono text-xs tabular-nums text-muted-foreground sm:inline">
               Balance
             </span>
             <span className="font-mono text-sm font-medium tabular-nums text-foreground">
-              {fmtMoney(CURRENT_USER.balance)}
+              {fmtMoney(user.balance, status)}
             </span>
             <Link
               href="/console/topup"
@@ -183,16 +185,15 @@ export default function ConsoleLayout({
               <CreditCard aria-hidden="true" />
               Top up
             </Link>
+            {unread > 0 ? (
+              <Link href="/console/messages">
+                <Badge variant="brand" className="px-1.5">
+                  {unread}
+                </Badge>
+              </Link>
+            ) : null}
             <Separator orientation="vertical" className="mx-1 h-5" />
-            <Link
-              href="/login"
-              className={cn(
-                buttonVariants({ variant: "ghost", size: "icon-sm" }),
-              )}
-              aria-label="Sign out"
-            >
-              <LogOut aria-hidden="true" />
-            </Link>
+            <LogoutButton />
           </div>
         </header>
 
@@ -201,5 +202,15 @@ export default function ConsoleLayout({
         </main>
       </div>
     </div>
+  );
+}
+
+function isUnauthorizedConsoleError(error: unknown): boolean {
+  if (!(error instanceof Error)) return false;
+  const message = error.message.toLowerCase();
+  return (
+    message.includes("unauthorized") ||
+    message.includes("not logged in") ||
+    message.includes("no access token provided")
   );
 }

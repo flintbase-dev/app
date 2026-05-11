@@ -10,12 +10,31 @@ import {
 } from "@/components/ui/input-group";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { fmtRelative, MESSAGES } from "@/lib/console/mock";
+import {
+  markAllInboxReadAction,
+  markInboxItemReadAction,
+} from "@/lib/console/actions";
+import { loadMessages } from "@/lib/console/data";
+import { fmtRelative } from "@/lib/console/format";
 import { cn } from "@/lib/utils";
 
-export default function MessagesPage() {
-  const selected = MESSAGES[0];
-  const unread = MESSAGES.filter((m) => !m.read_at).length;
+const MESSAGE_TYPES = ["message", "broadcast"] as const;
+
+export default async function MessagesPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ type?: string }>;
+}) {
+  const { type = "" } = await searchParams;
+  const selectedType = MESSAGE_TYPES.includes(
+    type as (typeof MESSAGE_TYPES)[number],
+  )
+    ? type
+    : "all";
+  const { inbox, unread } = await loadMessages(
+    selectedType === "all" ? {} : { type: selectedType },
+  );
+  const selected = inbox.items[0] ?? null;
   return (
     <div className="flex h-[calc(100dvh-3rem)] flex-1 flex-col">
       {/* Top page header */}
@@ -44,33 +63,53 @@ export default function MessagesPage() {
               </InputGroupAddon>
               <InputGroupInput placeholder="Search…" />
             </InputGroup>
-            <Button variant="ghost" size="icon-sm" aria-label="Mark all read">
-              <CheckCheck aria-hidden="true" />
-            </Button>
+            <form action={markAllInboxReadAction}>
+              <Button variant="ghost" size="icon-sm" aria-label="Mark all read">
+                <CheckCheck aria-hidden="true" />
+              </Button>
+            </form>
           </div>
-          <Tabs defaultValue="all">
+          <Tabs value={selectedType}>
             <div className="shrink-0 border-b border-border bg-background px-3 py-2">
               <TabsList variant="line">
-                <TabsTrigger value="all">All</TabsTrigger>
-                <TabsTrigger value="message">Personal</TabsTrigger>
-                <TabsTrigger value="broadcast">Broadcasts</TabsTrigger>
+                <TabsTrigger
+                  nativeButton={false}
+                  value="all"
+                  render={<Link href="/console/messages" />}
+                >
+                  All
+                </TabsTrigger>
+                <TabsTrigger
+                  nativeButton={false}
+                  value="message"
+                  render={<Link href="/console/messages?type=message" />}
+                >
+                  Personal
+                </TabsTrigger>
+                <TabsTrigger
+                  nativeButton={false}
+                  value="broadcast"
+                  render={<Link href="/console/messages?type=broadcast" />}
+                >
+                  Broadcasts
+                </TabsTrigger>
               </TabsList>
             </div>
           </Tabs>
           <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
-            {MESSAGES.map((m) => (
+            {inbox.items.map((m) => (
               <li key={m.id}>
                 <button
                   type="button"
                   className={cn(
                     "flex w-full items-start gap-3 px-3 py-3 text-left transition-colors hover:bg-muted/40",
-                    m.id === selected.id && "bg-muted/40",
+                    selected && m.id === selected.id && "bg-muted/40",
                   )}
                 >
                   <span
                     className={cn(
                       "mt-1.5 size-1.5 shrink-0 rounded-full",
-                      m.read_at ? "bg-transparent" : "bg-brand",
+                      m.readAt ? "bg-transparent" : "bg-brand",
                     )}
                     aria-hidden="true"
                   />
@@ -78,25 +117,25 @@ export default function MessagesPage() {
                     <div className="flex items-center gap-2">
                       <Badge
                         variant={
-                          m.item_type === "broadcast" ? "info" : "secondary"
+                          m.itemType === "broadcast" ? "info" : "secondary"
                         }
                         className="px-1.5"
                       >
-                        {m.item_type === "broadcast" ? (
+                        {m.itemType === "broadcast" ? (
                           <Megaphone aria-hidden="true" />
                         ) : (
                           <Inbox aria-hidden="true" />
                         )}
-                        {m.item_type}
+                        {m.itemType}
                       </Badge>
                       <span className="ml-auto text-xs text-muted-foreground">
-                        {fmtRelative(m.created_at)}
+                        {fmtRelative(m.createdAt)}
                       </span>
                     </div>
                     <p
                       className={cn(
                         "mt-1 truncate text-sm",
-                        m.read_at
+                        m.readAt
                           ? "text-foreground"
                           : "font-medium text-foreground",
                       )}
@@ -114,39 +153,53 @@ export default function MessagesPage() {
         </div>
 
         {/* Reading pane */}
-        <article className="flex min-h-0 flex-col bg-background">
-          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border p-4">
-            <Badge
-              variant={
-                selected.item_type === "broadcast" ? "info" : "secondary"
-              }
-              className="px-1.5"
-            >
-              {selected.item_type === "broadcast" ? (
-                <Megaphone aria-hidden="true" />
-              ) : (
-                <Inbox aria-hidden="true" />
-              )}
-              {selected.item_type}
-            </Badge>
-            <div className="ml-auto flex items-center gap-2">
-              <Button variant="ghost" size="sm">
-                <Check aria-hidden="true" />
-                Mark read
-              </Button>
-              <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                {new Date(selected.created_at).toLocaleString()}
-              </span>
+        {selected ? (
+          <article className="flex min-h-0 flex-col bg-background">
+            <div className="flex shrink-0 items-center justify-between gap-2 border-b border-border p-4">
+              <Badge
+                variant={
+                  selected.itemType === "broadcast" ? "info" : "secondary"
+                }
+                className="px-1.5"
+              >
+                {selected.itemType === "broadcast" ? (
+                  <Megaphone aria-hidden="true" />
+                ) : (
+                  <Inbox aria-hidden="true" />
+                )}
+                {selected.itemType}
+              </Badge>
+              <div className="ml-auto flex items-center gap-2">
+                <form action={markInboxItemReadAction}>
+                  <input type="hidden" name="id" value={selected.id} />
+                  <input
+                    type="hidden"
+                    name="item_type"
+                    value={selected.itemType}
+                  />
+                  <Button variant="ghost" size="sm">
+                    <Check aria-hidden="true" />
+                    Mark read
+                  </Button>
+                </form>
+                <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                  {new Date(selected.createdAt * 1000).toLocaleString()}
+                </span>
+              </div>
             </div>
-          </div>
-          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
-            <h2 className="font-heading text-2xl font-medium tracking-tight text-foreground">
-              {selected.title}
-            </h2>
-            <Separator className="my-5" />
-            <Markdown content={selected.content} />
-          </div>
-        </article>
+            <div className="min-h-0 flex-1 overflow-y-auto px-6 py-8">
+              <h2 className="font-heading text-2xl font-medium tracking-tight text-foreground">
+                {selected.title}
+              </h2>
+              <Separator className="my-5" />
+              <Markdown content={selected.content} />
+            </div>
+          </article>
+        ) : (
+          <article className="flex min-h-0 flex-col items-center justify-center bg-background p-8 text-sm text-muted-foreground">
+            No messages.
+          </article>
+        )}
       </div>
     </div>
   );
@@ -156,8 +209,8 @@ function Markdown({ content }: { content: string }) {
   const lines = content.split("\n");
   return (
     <div className="flex flex-col gap-3 text-sm leading-relaxed text-foreground">
-      {lines.map((line, i) => (
-        <p key={i} className="text-pretty">
+      {lines.map((line) => (
+        <p key={line} className="text-pretty">
           {renderInline(line)}
         </p>
       ))}

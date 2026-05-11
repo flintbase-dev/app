@@ -1,20 +1,26 @@
-import {
-  ArrowDownRight,
-  ArrowLeft,
-  Copy,
-  Mail,
-  Share2,
-  Users,
-} from "lucide-react";
+import { ArrowDownRight, ArrowLeft, Mail, Share2, Users } from "lucide-react";
+import { headers } from "next/headers";
 import Link from "next/link";
-
+import { CopyButton } from "@/components/site/copy-button";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { AFF, fmtMoney, fmtNum } from "@/lib/console/mock";
+import { transferAffQuotaAction } from "@/lib/console/actions";
+import { loadTopupData } from "@/lib/console/data";
+import { fmtMoney, fmtNum } from "@/lib/console/format";
 import { cn } from "@/lib/utils";
 
-export default function InvitePage() {
+export default async function InvitePage() {
+  const { status, user, affCode } = await loadTopupData();
+  const requestHeaders = await headers();
+  const host =
+    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host") ?? "";
+  const proto = requestHeaders.get("x-forwarded-proto") ?? "http";
+  const origin = host ? `${proto}://${host}` : "";
+  const code = affCode || user.affCode;
+  const link = `${origin}/login?screen_hint=sign-up&aff=${encodeURIComponent(code)}`;
+  const shareText = `Join Flint with my invite code ${code}: ${link}`;
+
   return (
     <div className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
       <div className="mx-auto w-full max-w-3xl">
@@ -38,22 +44,21 @@ export default function InvitePage() {
           Invite friends to Flint.
         </h1>
         <p className="mt-2 max-w-[60ch] text-sm text-muted-foreground">
-          When a friend signs up with your link and makes their first paid
-          request, you earn $5 credit and they get $5 too. Pending earnings
-          unlock 30 days after the first paid request.
+          When a friend signs up with your link, invite credit is tracked in
+          your account and can be transferred into your wallet.
         </p>
 
         <div className="mt-6 grid gap-3 md:grid-cols-4">
-          <Stat label="Signups" value={fmtNum(AFF.signups)} icon={Users} />
-          <Stat label="Paying" value={fmtNum(AFF.paying)} icon={Users} />
+          <Stat label="Signups" value={fmtNum(user.affCount)} icon={Users} />
+          <Stat label="Paying" value={fmtNum(user.affCount)} icon={Users} />
           <Stat
             label="Pending"
-            value={fmtMoney(AFF.pending)}
+            value={fmtMoney(user.affQuota, status)}
             icon={ArrowDownRight}
           />
           <Stat
             label="Earned"
-            value={fmtMoney(AFF.earnings)}
+            value={fmtMoney(user.affHistoryQuota, status)}
             icon={ArrowDownRight}
           />
         </div>
@@ -66,33 +71,45 @@ export default function InvitePage() {
               </p>
               <div className="mt-2 flex items-center gap-2 rounded-md border border-border bg-muted p-2 pl-3">
                 <code className="flex-1 truncate font-mono text-sm text-foreground">
-                  {AFF.link}
+                  {link}
                 </code>
-                <Button variant="outline" size="sm">
-                  <Copy aria-hidden="true" />
-                  Copy
-                </Button>
+                <CopyButton
+                  value={link}
+                  variant="outline"
+                  size="sm"
+                  showLabel
+                />
               </div>
               <p className="mt-2 font-mono text-xs tabular-nums text-muted-foreground">
-                Code: <span className="text-foreground">{AFF.code}</span>
+                Code: <span className="text-foreground">{code}</span>
               </p>
             </div>
 
             <Separator />
 
             <div className="flex flex-wrap items-center gap-2">
-              <Button variant="outline">
+              <Link
+                href={`mailto:?subject=Join Flint&body=${encodeURIComponent(shareText)}`}
+                className={cn(buttonVariants({ variant: "outline" }))}
+              >
                 <Mail aria-hidden="true" />
                 Share via email
-              </Button>
-              <Button variant="outline">
+              </Link>
+              <Link
+                href={`https://x.com/intent/tweet?text=${encodeURIComponent(shareText)}`}
+                target="_blank"
+                className={cn(buttonVariants({ variant: "outline" }))}
+              >
                 <Share2 aria-hidden="true" />
                 Share on X
-              </Button>
-              <Button variant="outline">
-                <Share2 aria-hidden="true" />
-                Copy share text
-              </Button>
+              </Link>
+              <CopyButton
+                value={shareText}
+                variant="outline"
+                size="default"
+                showLabel
+                label="Copy share text"
+              />
             </div>
           </CardContent>
         </Card>
@@ -106,15 +123,18 @@ export default function InvitePage() {
               <p className="mt-1 text-xs text-muted-foreground">
                 Move{" "}
                 <span className="font-mono tabular-nums text-foreground">
-                  {fmtMoney(AFF.earnings)}
+                  {fmtMoney(user.affQuota, status)}
                 </span>{" "}
                 of vested credit into your wallet balance.
               </p>
             </div>
-            <Button variant="brand">
-              <ArrowDownRight aria-hidden="true" />
-              Transfer
-            </Button>
+            <form action={transferAffQuotaAction}>
+              <input type="hidden" name="quota" value={user.affQuota} />
+              <Button disabled={user.affQuota <= 0} variant="brand">
+                <ArrowDownRight aria-hidden="true" />
+                Transfer
+              </Button>
+            </form>
           </CardContent>
         </Card>
       </div>

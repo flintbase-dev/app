@@ -6,18 +6,20 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { BROADCASTS } from "@/lib/public-content";
+import { loadPublicContent } from "@/lib/console/data";
 import { cn } from "@/lib/utils";
 
-function fmtMonthYear(iso: string): string {
-  return new Date(iso).toLocaleDateString("en-US", {
+function fmtMonthYear(value: number): string {
+  const timestamp = value > 10_000_000_000 ? value : value * 1000;
+  return new Date(timestamp).toLocaleDateString("en-US", {
     year: "numeric",
     month: "long",
   });
 }
 
-export default function BroadcastsPage() {
-  const items = BROADCASTS;
+export default async function BroadcastsPage() {
+  const { broadcasts } = await loadPublicContent();
+  const items = broadcasts.items;
 
   return (
     <div className="isolate flex min-h-dvh flex-1 flex-col antialiased">

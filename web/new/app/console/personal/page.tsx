@@ -1,17 +1,15 @@
 import {
   AlertTriangle,
   Bell,
-  Copy,
-  Eye,
   Globe,
   KeyRound,
   Languages,
-  RefreshCw,
+  Save,
   Shield,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
-
+import { AccessTokenActions } from "@/components/console/access-token-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -26,7 +24,12 @@ import {
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
-import { CURRENT_USER, fmtMoney, fmtNum } from "@/lib/console/mock";
+import {
+  deleteSelfAction,
+  updatePersonalPreferencesAction,
+} from "@/lib/console/actions";
+import { loadPersonalData } from "@/lib/console/data";
+import { fmtMoney, fmtNum, initials } from "@/lib/console/format";
 import { cn } from "@/lib/utils";
 
 const LANGUAGES = [
@@ -48,7 +51,8 @@ const SECTIONS = [
   { id: "danger", label: "Danger zone" },
 ];
 
-export default function PersonalPage() {
+export default async function PersonalPage() {
+  const { user, status } = await loadPersonalData();
   return (
     <div className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
       <div className="mx-auto w-full max-w-[1100px]">
@@ -92,37 +96,45 @@ export default function PersonalPage() {
               <h2 className="mb-3 font-heading text-xl font-medium tracking-tight">
                 Profile
               </h2>
-              <ProfileSection />
+              <ProfileSection user={user} status={status} />
             </section>
             <section id="security" className="scroll-mt-20">
               <h2 className="mb-3 font-heading text-xl font-medium tracking-tight">
                 Security
               </h2>
-              <SecuritySection />
+              <SecuritySection user={user} />
             </section>
-            <section id="preferences" className="scroll-mt-20">
-              <h2 className="mb-3 font-heading text-xl font-medium tracking-tight">
-                Preferences
-              </h2>
-              <PreferencesSection />
-            </section>
-            <section id="notifications" className="scroll-mt-20">
-              <h2 className="mb-3 font-heading text-xl font-medium tracking-tight">
-                Notifications
-              </h2>
-              <NotificationsSection />
-            </section>
-            <section id="privacy" className="scroll-mt-20">
-              <h2 className="mb-3 font-heading text-xl font-medium tracking-tight">
-                Privacy
-              </h2>
-              <PrivacySection />
-            </section>
+            <form action={updatePersonalPreferencesAction} className="contents">
+              <section id="preferences" className="scroll-mt-20">
+                <h2 className="mb-3 font-heading text-xl font-medium tracking-tight">
+                  Preferences
+                </h2>
+                <PreferencesSection user={user} />
+              </section>
+              <section id="notifications" className="scroll-mt-20">
+                <h2 className="mb-3 font-heading text-xl font-medium tracking-tight">
+                  Notifications
+                </h2>
+                <NotificationsSection user={user} />
+              </section>
+              <section id="privacy" className="scroll-mt-20">
+                <h2 className="mb-3 font-heading text-xl font-medium tracking-tight">
+                  Privacy
+                </h2>
+                <PrivacySection user={user} />
+                <div className="mt-4 flex justify-end">
+                  <Button type="submit" variant="brand">
+                    <Save aria-hidden="true" />
+                    Save preferences
+                  </Button>
+                </div>
+              </section>
+            </form>
             <section id="danger" className="scroll-mt-20">
               <h2 className="mb-3 font-heading text-xl font-medium tracking-tight">
                 Danger zone
               </h2>
-              <DangerSection />
+              <DangerSection user={user} />
             </section>
           </div>
         </div>
@@ -131,30 +143,34 @@ export default function PersonalPage() {
   );
 }
 
-function ProfileSection() {
+function ProfileSection({
+  user,
+  status,
+}: {
+  user: Awaited<ReturnType<typeof loadPersonalData>>["user"];
+  status: Awaited<ReturnType<typeof loadPersonalData>>["status"];
+}) {
   return (
     <Card>
       <CardContent className="py-5">
         <div className="flex items-center gap-4">
           <div className="inline-flex size-14 items-center justify-center rounded-full bg-brand-subtle font-mono text-base font-medium text-brand-emphasis">
-            KN
+            {initials(user.displayName)}
           </div>
           <div>
             <p className="text-base font-medium text-foreground">
-              {CURRENT_USER.display_name}
+              {user.displayName}
             </p>
-            <p className="text-sm text-muted-foreground">
-              {CURRENT_USER.email}
-            </p>
+            <p className="text-sm text-muted-foreground">{user.email}</p>
             <div className="mt-2 flex flex-wrap gap-1">
               <Badge variant="outline" className="px-1.5">
-                {CURRENT_USER.auth_method}
+                {user.authMethod}
               </Badge>
               <Badge variant="brand" className="px-1.5">
-                {CURRENT_USER.group}
+                {user.group}
               </Badge>
               <Badge variant="secondary" className="px-1.5">
-                user
+                {user.roleLabel}
               </Badge>
             </div>
           </div>
@@ -165,39 +181,37 @@ function ProfileSection() {
         <dl className="grid grid-cols-[10rem_1fr] gap-y-3 text-sm">
           <DT>Username</DT>
           <DD>
-            <code className="font-mono text-foreground">
-              {CURRENT_USER.username}
-            </code>
+            <code className="font-mono text-foreground">{user.username}</code>
           </DD>
           <DT>User ID</DT>
           <DD>
             <code className="font-mono tabular-nums text-foreground">
-              {CURRENT_USER.id}
+              {user.id}
             </code>
           </DD>
           <DT>WorkOS user</DT>
           <DD>
             <code className="font-mono text-xs text-muted-foreground">
-              {CURRENT_USER.workos_id}
+              {user.workosId}
             </code>
           </DD>
           <DT>Organization</DT>
           <DD>
             <code className="font-mono text-xs text-muted-foreground">
-              {CURRENT_USER.workos_org_id}
+              {user.workosOrganizationId}
             </code>
           </DD>
           <DT>Balance</DT>
           <DD className="font-mono tabular-nums">
-            {fmtMoney(CURRENT_USER.balance)}
+            {fmtMoney(user.balance, status)}
           </DD>
           <DT>Lifetime spend</DT>
           <DD className="font-mono tabular-nums">
-            {fmtMoney(CURRENT_USER.used)}
+            {fmtMoney(user.used, status)}
           </DD>
           <DT>Requests</DT>
           <DD className="font-mono tabular-nums">
-            {fmtNum(CURRENT_USER.request_count)}
+            {fmtNum(user.requestCount)}
           </DD>
         </dl>
       </CardContent>
@@ -205,7 +219,11 @@ function ProfileSection() {
   );
 }
 
-function SecuritySection() {
+function SecuritySection({
+  user,
+}: {
+  user: Awaited<ReturnType<typeof loadPersonalData>>["user"];
+}) {
   return (
     <Card>
       <CardContent className="flex flex-col gap-4 py-5">
@@ -224,19 +242,7 @@ function SecuritySection() {
           </div>
         </div>
         <div className="flex items-center gap-1.5 rounded-md border border-border bg-muted p-1.5 pl-2.5">
-          <code className="flex-1 truncate font-mono text-sm text-foreground">
-            {CURRENT_USER.app_access_token}
-          </code>
-          <Button variant="ghost" size="icon-xs" aria-label="Reveal">
-            <Eye aria-hidden="true" />
-          </Button>
-          <Button variant="ghost" size="icon-xs" aria-label="Copy">
-            <Copy aria-hidden="true" />
-          </Button>
-          <Button variant="outline" size="sm">
-            <RefreshCw aria-hidden="true" />
-            Reset token
-          </Button>
+          <AccessTokenActions token={user.accessToken} />
         </div>
 
         <Separator />
@@ -250,11 +256,9 @@ function SecuritySection() {
                 className="size-4 text-muted-foreground"
               />
               <div>
-                <p className="text-sm text-foreground">
-                  {CURRENT_USER.auth_method}
-                </p>
+                <p className="text-sm text-foreground">{user.authMethod}</p>
                 <p className="text-xs text-muted-foreground">
-                  Identity managed by WorkOS · {CURRENT_USER.email}
+                  Identity managed by WorkOS · {user.email}
                 </p>
               </div>
             </div>
@@ -266,7 +270,11 @@ function SecuritySection() {
   );
 }
 
-function PreferencesSection() {
+function PreferencesSection({
+  user,
+}: {
+  user: Awaited<ReturnType<typeof loadPersonalData>>["user"];
+}) {
   return (
     <Card>
       <CardContent className="flex flex-col gap-5 py-5">
@@ -282,7 +290,7 @@ function PreferencesSection() {
             Affects the console UI and email content.
           </p>
           <ToggleGroup
-            defaultValue={[CURRENT_USER.language]}
+            defaultValue={[user.language]}
             variant="outline"
             spacing={2}
             className="mt-2 flex-wrap"
@@ -298,17 +306,21 @@ function PreferencesSection() {
         <Separator />
 
         <CheckRow
-          name="accept-unset-price"
+          name="accept_unset_model_price_model"
           label="Allow models with no posted price"
           description="Calls to models that don't have a configured price will succeed at the upstream's rate."
-          defaultChecked={CURRENT_USER.accept_unset_model_price_model}
+          defaultChecked={user.acceptUnsetModelPriceModel}
         />
       </CardContent>
     </Card>
   );
 }
 
-function NotificationsSection() {
+function NotificationsSection({
+  user,
+}: {
+  user: Awaited<ReturnType<typeof loadPersonalData>>["user"];
+}) {
   return (
     <Card>
       <CardContent className="flex flex-col gap-5 py-5">
@@ -326,7 +338,8 @@ function NotificationsSection() {
           <div className="mt-2 flex items-center gap-2">
             <Input
               type="number"
-              defaultValue={CURRENT_USER.quota_warning_threshold}
+              name="quota_warning_threshold"
+              defaultValue={user.quotaWarningThreshold}
               step="0.01"
               className="max-w-32"
             />
@@ -339,25 +352,29 @@ function NotificationsSection() {
         <Separator />
 
         <CheckRow
-          name="upstream-updates"
+          name="upstream_model_update_notify_enabled"
           label="Notify me about upstream model updates"
           description="Receive a digest when underlying providers ship new models or change pricing."
-          defaultChecked={CURRENT_USER.upstream_model_update_notify_enabled}
+          defaultChecked={user.upstreamModelUpdateNotifyEnabled}
         />
       </CardContent>
     </Card>
   );
 }
 
-function PrivacySection() {
+function PrivacySection({
+  user,
+}: {
+  user: Awaited<ReturnType<typeof loadPersonalData>>["user"];
+}) {
   return (
     <Card>
       <CardContent className="flex flex-col gap-5 py-5">
         <CheckRow
-          name="record-ip"
+          name="record_ip_log"
           label="Record client IP in usage and error logs"
           description="Disable to keep IPs out of your own audit trail. Doesn't affect security blocks at the edge."
-          defaultChecked={CURRENT_USER.record_ip_log}
+          defaultChecked={user.recordIpLog}
         />
         <Separator />
         <div className="flex items-start gap-2 rounded-md border-l-2 border-info bg-info-bg p-3 text-info-dark">
@@ -378,7 +395,11 @@ function PrivacySection() {
   );
 }
 
-function DangerSection() {
+function DangerSection({
+  user,
+}: {
+  user: Awaited<ReturnType<typeof loadPersonalData>>["user"];
+}) {
   return (
     <Card className="border-destructive/30">
       <CardContent className="py-5">
@@ -396,10 +417,18 @@ function DangerSection() {
               cancelled. WorkOS identity is not affected.
             </p>
           </div>
-          <Button variant="destructive" size="sm">
-            <Trash2 aria-hidden="true" />
-            Delete account
-          </Button>
+          <form action={deleteSelfAction} className="flex items-center gap-2">
+            <input type="hidden" name="username" value={user.username} />
+            <Input
+              name="confirm"
+              placeholder={user.username}
+              className="h-8 w-36"
+            />
+            <Button variant="destructive" size="sm">
+              <Trash2 aria-hidden="true" />
+              Delete account
+            </Button>
+          </form>
         </div>
       </CardContent>
     </Card>
@@ -420,7 +449,7 @@ function CheckRow({
   return (
     <FieldLabel htmlFor={name}>
       <Field orientation="horizontal">
-        <Checkbox id={name} defaultChecked={defaultChecked} />
+        <Checkbox id={name} name={name} defaultChecked={defaultChecked} />
         <FieldContent>
           <FieldTitle>{label}</FieldTitle>
           {description ? (

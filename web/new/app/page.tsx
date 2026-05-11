@@ -13,7 +13,7 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
-import { BASE_URL, DOCS_URL, SYSTEM_NAME } from "@/lib/site";
+import { loadPublicContent } from "@/lib/console/data";
 import { cn } from "@/lib/utils";
 
 const ENDPOINTS: { method: "POST" | "GET"; path: string; label: string }[] = [
@@ -25,7 +25,11 @@ const ENDPOINTS: { method: "POST" | "GET"; path: string; label: string }[] = [
   { method: "POST", path: "/v1/images", label: "Images" },
 ];
 
-export default function Home() {
+export default async function Home() {
+  const { status } = await loadPublicContent();
+  const baseUrl = status.serverAddress || globalDefaultBaseUrl();
+  const docsUrl = status.docsLink;
+  const systemName = status.systemName;
   return (
     <div className="dark scheme-only-dark isolate flex min-h-dvh flex-1 flex-col bg-background text-foreground antialiased">
       <SiteHeader theme="dark" />
@@ -48,7 +52,7 @@ export default function Home() {
               </h1>
 
               <p className="mt-8 max-w-[56ch] text-lg leading-relaxed text-pretty text-muted-foreground">
-                {SYSTEM_NAME} is a developer-first inference platform. One base
+                {systemName} is a developer-first inference platform. One base
                 URL, one API key, every modern model — addressable through the
                 exact endpoints you already use.
               </p>
@@ -65,7 +69,7 @@ export default function Home() {
                   <ArrowRight aria-hidden="true" data-icon="inline-end" />
                 </Link>
                 <a
-                  href={DOCS_URL}
+                  href={docsUrl}
                   target="_blank"
                   rel="noreferrer"
                   className={cn(
@@ -86,10 +90,10 @@ export default function Home() {
                 </div>
                 <div className="flex items-center gap-2 rounded-xl border border-border bg-card p-2 pl-4">
                   <code className="flex-1 truncate font-mono text-sm tabular-nums text-foreground">
-                    {BASE_URL}
+                    {baseUrl}
                   </code>
                   <CopyButton
-                    value={BASE_URL}
+                    value={baseUrl}
                     label="Copy base URL"
                     showLabel
                     variant="ghost"
@@ -115,7 +119,7 @@ export default function Home() {
                 <p className="mt-4 max-w-[48ch] text-base text-pretty text-muted-foreground">
                   Replace your provider&apos;s base URL with{" "}
                   <code className="font-mono text-sm text-foreground">
-                    {BASE_URL}
+                    {baseUrl}
                   </code>
                   . Everything else stays the same.
                 </p>
@@ -154,4 +158,8 @@ export default function Home() {
       <SiteFooter />
     </div>
   );
+}
+
+function globalDefaultBaseUrl(): string {
+  return "https://api.flint.dev";
 }

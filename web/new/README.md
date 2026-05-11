@@ -1,5 +1,15 @@
 This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
+## Backend API
+
+Set `FLINT_BACKEND_BASE_URL` to the backend origin used by the Next.js app, for example:
+
+```bash
+FLINT_BACKEND_BASE_URL=http://localhost:3000
+```
+
+The app appends `/api/graphql` for control-plane GraphQL calls and rewrites `/api/*` plus `/v1/*` to the same backend base.
+
 ## Getting Started
 
 First, run the development server:

@@ -591,7 +591,11 @@ export const FAQ = [
 ];
 
 export const UPTIME = [
-  { name: "Inference (us-east)", status: "operational" as const, uptime: 99.99 },
+  {
+    name: "Inference (us-east)",
+    status: "operational" as const,
+    uptime: 99.99,
+  },
   { name: "Control plane", status: "operational" as const, uptime: 99.98 },
   { name: "Webhooks", status: "operational" as const, uptime: 99.97 },
   {

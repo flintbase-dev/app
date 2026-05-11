@@ -1,12 +1,13 @@
 import { LegalDoc } from "@/components/site/legal-doc";
-import { USER_AGREEMENT } from "@/lib/public-content";
+import { loadPublicContent } from "@/lib/console/data";
 
-export default function UserAgreementPage() {
+export default async function UserAgreementPage() {
+  const { userAgreement } = await loadPublicContent();
   return (
     <LegalDoc
       eyebrow="Legal"
       title="Terms of Service"
-      content={USER_AGREEMENT}
+      content={userAgreement}
       updated="2026-03-12"
       version="v2.4"
     />

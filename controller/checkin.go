@@ -16,7 +16,21 @@ import (
 func GetCheckinStatus(c *gin.Context) {
 	setting := operation_setting.GetCheckinSetting()
 	if !setting.Enabled {
-		common.ApiErrorMsg(c, "签到功能未启用")
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data": gin.H{
+				"enabled":   false,
+				"min_quota": setting.MinQuota,
+				"max_quota": setting.MaxQuota,
+				"stats": gin.H{
+					"total_quota":      0,
+					"total_checkins":   0,
+					"checkin_count":    0,
+					"checked_in_today": false,
+					"records":          []model.CheckinRecord{},
+				},
+			},
+		})
 		return
 	}
 	userId := c.GetString("id")

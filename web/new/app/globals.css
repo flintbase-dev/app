@@ -96,14 +96,14 @@
 
 :root {
   /* Brand — Flint orange */
-  --brand-50: #FEF2EC;
-  --brand-100: #FDD5BC;
-  --brand-200: #FAB48A;
-  --brand-300: #F78F55;
-  --brand-400: #F26B1F;
-  --brand-500: #D45512;
-  --brand-600: #A83E0A;
-  --brand-700: #7C2A05;
+  --brand-50: #fef2ec;
+  --brand-100: #fdd5bc;
+  --brand-200: #fab48a;
+  --brand-300: #f78f55;
+  --brand-400: #f26b1f;
+  --brand-500: #d45512;
+  --brand-600: #a83e0a;
+  --brand-700: #7c2a05;
   --brand-800: #511803;
   --brand-950: #270900;
 
@@ -114,42 +114,42 @@
   --brand-hover: var(--brand-500);
 
   /* Neutral — Obsidian warm-gray */
-  --neutral-50: #F6F4F1;
-  --neutral-100: #E3E0D9;
-  --neutral-200: #C5C2B9;
-  --neutral-300: #9C9A91;
-  --neutral-400: #6F6D65;
-  --neutral-500: #4C4A43;
-  --neutral-600: #33312B;
-  --neutral-700: #201F1A;
+  --neutral-50: #f6f4f1;
+  --neutral-100: #e3e0d9;
+  --neutral-200: #c5c2b9;
+  --neutral-300: #9c9a91;
+  --neutral-400: #6f6d65;
+  --neutral-500: #4c4a43;
+  --neutral-600: #33312b;
+  --neutral-700: #201f1a;
   --neutral-800: #141310;
-  --neutral-950: #0F0E0D;
+  --neutral-950: #0f0e0d;
 
   /* Semantic — info / success / warning / danger */
-  --info: #2D6DB8;
-  --info-bg: #EEF4FB;
-  --info-dark: #0D305A;
+  --info: #2d6db8;
+  --info-bg: #eef4fb;
+  --info-dark: #0d305a;
 
-  --success: #3B6D18;
-  --success-bg: #EEF5E8;
+  --success: #3b6d18;
+  --success-bg: #eef5e8;
   --success-dark: #163006;
 
-  --warning: #C08C0A;
-  --warning-bg: #FEF8E6;
-  --warning-dark: #291B00;
+  --warning: #c08c0a;
+  --warning-bg: #fef8e6;
+  --warning-dark: #291b00;
 
-  --danger: #BC2C2C;
-  --danger-bg: #FDEEEE;
-  --danger-dark: #2A0404;
+  --danger: #bc2c2c;
+  --danger-bg: #fdeeee;
+  --danger-dark: #2a0404;
 
   /* Surfaces & text — light mode */
-  --background: #FFFFFF;
+  --background: #ffffff;
   --foreground: var(--neutral-950);
 
-  --card: #FFFFFF;
+  --card: #ffffff;
   --card-foreground: var(--neutral-950);
 
-  --popover: #FFFFFF;
+  --popover: #ffffff;
   --popover-foreground: var(--neutral-950);
 
   /* Primary kept neutral — brand is opt-in via --brand-* */
@@ -187,7 +187,7 @@
   --sidebar-foreground: var(--neutral-950);
   --sidebar-primary: var(--neutral-950);
   --sidebar-primary-foreground: var(--neutral-50);
-  --sidebar-accent: #FFFFFF;
+  --sidebar-accent: #ffffff;
   --sidebar-accent-foreground: var(--neutral-950);
   --sidebar-border: var(--neutral-100);
   --sidebar-ring: var(--brand-400);

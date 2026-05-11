@@ -2,12 +2,13 @@ import { ChevronRight, KeyRound, MessageSquare } from "lucide-react";
 import Link from "next/link";
 
 import { buttonVariants } from "@/components/ui/button";
-import { CHAT_CLIENTS, TOKENS } from "@/lib/console/mock";
+import { loadChatPickerData } from "@/lib/console/data";
 import { cn } from "@/lib/utils";
 
-const enabledTokens = TOKENS.filter((t) => t.status === 1);
+export default async function ChatPickerPage() {
+  const { clients, tokens } = await loadChatPickerData();
+  const enabledTokens = tokens.items.filter((t) => t.status === 1);
 
-export default function ChatPickerPage() {
   return (
     <div className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
       <div className="mx-auto w-full max-w-3xl">
@@ -24,10 +25,10 @@ export default function ChatPickerPage() {
           </p>
         </div>
 
-        <TokenBanner />
+        <TokenBanner enabledTokens={enabledTokens} />
 
         <ul className="mt-6 divide-y divide-border overflow-hidden rounded-xl border border-border bg-card">
-          {CHAT_CLIENTS.map((c) => (
+          {clients.map((c) => (
             <li key={c.id}>
               <Link
                 href={`/console/chat/${c.id}`}
@@ -55,7 +56,13 @@ export default function ChatPickerPage() {
   );
 }
 
-function TokenBanner() {
+function TokenBanner({
+  enabledTokens,
+}: {
+  enabledTokens: Awaited<
+    ReturnType<typeof loadChatPickerData>
+  >["tokens"]["items"];
+}) {
   if (enabledTokens.length === 0) {
     return (
       <div className="mt-6 rounded-md border-l-2 border-warning bg-warning-bg p-3 text-warning-dark">
@@ -83,7 +90,7 @@ function TokenBanner() {
         </code>
         <span className="text-muted-foreground">
           {" "}
-          · {enabledTokens[0].key_preview}
+          · {enabledTokens[0].keyPreview}
         </span>
       </p>
       <Link
