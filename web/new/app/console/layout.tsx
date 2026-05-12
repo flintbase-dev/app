@@ -8,9 +8,15 @@ import {
   Inbox,
   Key,
   LayoutDashboard,
+  Megaphone,
   MessageSquare,
+  RadioTower,
   ScrollText,
+  Settings,
+  SlidersHorizontal,
   Sparkles,
+  TicketPercent,
+  Users,
   Wallet,
 } from "lucide-react";
 import Link from "next/link";
@@ -45,6 +51,41 @@ const NAV_SECTIONS = [
   },
 ];
 
+const ADMIN_ITEMS = [
+  {
+    label: "Channels",
+    href: "/console/channel",
+    icon: RadioTower,
+    minRole: 10,
+  },
+  {
+    label: "Models",
+    href: "/console/models",
+    icon: SlidersHorizontal,
+    minRole: 10,
+  },
+  {
+    label: "Redemptions",
+    href: "/console/redemption",
+    icon: TicketPercent,
+    minRole: 10,
+  },
+  { label: "Users", href: "/console/user", icon: Users, minRole: 10 },
+  {
+    label: "Subscriptions",
+    href: "/console/subscription",
+    icon: CreditCard,
+    minRole: 10,
+  },
+  {
+    label: "Broadcasts",
+    href: "/console/message-management",
+    icon: Megaphone,
+    minRole: 10,
+  },
+  { label: "Settings", href: "/console/setting", icon: Settings, minRole: 100 },
+];
+
 export default function ConsoleLayout({
   children,
 }: {
@@ -65,6 +106,7 @@ async function ConsoleLayoutShell({ children }: { children: React.ReactNode }) {
   }
 
   const { user, status, unread } = layoutData;
+  const adminItems = ADMIN_ITEMS.filter((item) => user.role >= item.minRole);
   return (
     <div className="isolate flex min-h-dvh w-full flex-1 antialiased">
       {/* Sidebar */}
@@ -118,6 +160,37 @@ async function ConsoleLayoutShell({ children }: { children: React.ReactNode }) {
               </ul>
             </div>
           ))}
+
+          {adminItems.length > 0 ? (
+            <div>
+              <p className="mb-1.5 px-2 text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
+                Admin
+              </p>
+              <ul className="flex flex-col gap-0.5">
+                {adminItems.map((it) => {
+                  const Icon = it.icon;
+                  return (
+                    <li key={it.href}>
+                      <a
+                        href={it.href}
+                        className={cn(
+                          "group flex h-8 items-center gap-2 rounded-md px-2 text-sm text-muted-foreground transition-colors",
+                          "hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+                          "aria-[current=page]:bg-sidebar-accent aria-[current=page]:text-foreground",
+                        )}
+                      >
+                        <Icon
+                          aria-hidden="true"
+                          className="size-3.5 shrink-0"
+                        />
+                        <span className="truncate">{it.label}</span>
+                      </a>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          ) : null}
 
           <div className="mt-auto">
             <Separator className="my-3" />

@@ -2,8 +2,8 @@
 #
 # Usage:
 #   1. docker compose -f docker-compose.dev.yml up -d
-#   2. cd web/classic && bun install && bun run dev
-#   3. Open http://localhost:5173 (Vite dev server, API auto-proxied to :3000)
+#   2. cd web/new && npm install && FLINT_BACKEND_BASE_URL=http://localhost:3000 npm run dev -- --port 3001
+#   3. Open http://localhost:3001 (Next dev server, API auto-proxied to :3000)
 #
 # Rebuild backend after Go code changes:
 #   docker compose -f docker-compose.dev.yml up -d --build new-api
@@ -58,6 +58,9 @@ services:
       - WORKOS_ROOT_EMAILS=${WORKOS_ROOT_EMAILS:-}
       - WORKOS_ROOT_USER_IDS=${WORKOS_ROOT_USER_IDS:-}
       - WORKOS_API_BASE_URL=${WORKOS_API_BASE_URL:-}
+      - WEB_NEW_BASE_URL=http://host.docker.internal:3001
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       redis:
         condition: service_started

@@ -1,5 +1,5 @@
 # Backend-only build for frontend development
-# Skips frontend build, uses a placeholder for the embedded classic frontend
+# Skips frontend builds and uses placeholders for embedded assets.
 
 FROM golang:1.26.1-alpine AS builder
 

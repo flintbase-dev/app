@@ -161,6 +161,25 @@ func main() {
 	})
 	server.Use(sessions.Sessions("session", store))
 
+	var port = os.Getenv("PORT")
+	if port == "" {
+		port = strconv.Itoa(*common.Port)
+	}
+
+	var newFrontendURL string
+	var stopNewFrontend func()
+	frontendBaseURL := os.Getenv("FRONTEND_BASE_URL")
+	if frontendBaseURL == "" || common.IsMasterNode {
+		newFrontendURL, stopNewFrontend, err = router.StartNewFrontendRuntime(port)
+		if err != nil {
+			common.FatalLog("failed to start web/new frontend runtime: " + err.Error())
+			return
+		}
+		if stopNewFrontend != nil {
+			defer stopNewFrontend()
+		}
+	}
+
 	InjectUmamiAnalytics()
 	InjectGoogleAnalytics()
 
@@ -168,11 +187,8 @@ func main() {
 	router.SetRouter(server, router.WebAssets{
 		ClassicBuildFS:   classicBuildFS,
 		ClassicIndexPage: classicIndexPage,
+		NewFrontendURL:   newFrontendURL,
 	})
-	var port = os.Getenv("PORT")
-	if port == "" {
-		port = strconv.Itoa(*common.Port)
-	}
 
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)

@@ -190,7 +190,7 @@ func ModelRequestRateLimit() func(c *gin.Context) {
 		}
 
 		// 根据存储类型选择并执行限流处理器
-		if common.RedisEnabled {
+		if common.RedisAvailable() {
 			redisRateLimitHandler(duration, totalMaxCount, successMaxCount)(c)
 		} else {
 			memoryRateLimitHandler(duration, totalMaxCount, successMaxCount)(c)

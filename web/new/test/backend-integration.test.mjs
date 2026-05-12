@@ -60,6 +60,24 @@ test("console layout redirects unauthenticated sessions to login", () => {
   assert.match(layout, /no access token provided/);
 });
 
+test("admin sidebar links leave Next routing for classic-only pages", () => {
+  const layout = read("app/console/layout.tsx");
+  for (const path of [
+    "/console/channel",
+    "/console/models",
+    "/console/redemption",
+    "/console/user",
+    "/console/subscription",
+    "/console/message-management",
+    "/console/setting",
+  ]) {
+    assert.match(layout, new RegExp(`href: "${path}"`));
+  }
+  const adminBlock = layout.slice(layout.indexOf("{adminItems.length"));
+  assert.match(adminBlock, /<a\s+href={it\.href}/);
+  assert.doesNotMatch(adminBlock, /<Link\s+href={it\.href}/);
+});
+
 test("WorkOS frontend callback forwards authorization code to backend callback", () => {
   const callback = read("app/workos/callback/page.tsx");
   assert.match(callback, /URLSearchParams\(\{ code, state \}\)/);

@@ -9,7 +9,7 @@ let serverProcess;
 let tray = null;
 let serverErrorLogs = [];
 const PORT = 3000;
-const DEV_FRONTEND_PORT = 5173; // Vite dev server port
+const DEV_FRONTEND_PORT = 3001; // Next dev server port
 
 // 保存日志到文件并打开
 function saveAndOpenErrorLog() {
@@ -230,20 +230,20 @@ function startServer() {
       console.log('Development mode: skipping server startup');
       console.log('Please make sure you have started:');
       console.log('  1. Go backend: go run main.go (port 3000)');
-      console.log('  2. Frontend dev server: cd web/classic && bun run dev (port 5173)');
+      console.log('  2. Frontend dev server: cd web/new && FLINT_BACKEND_BASE_URL=http://localhost:3000 npm run dev -- --port 3001');
       console.log('');
       console.log('Checking if servers are running...');
       
       // First check if both servers are accessible
       checkServerAvailability(DEV_FRONTEND_PORT)
         .then(() => {
-          console.log('✓ Frontend dev server is accessible on port 5173');
+          console.log(`✓ Frontend dev server is accessible on port ${DEV_FRONTEND_PORT}`);
           resolve();
         })
         .catch((err) => {
           console.error(`✗ Cannot connect to frontend dev server on port ${DEV_FRONTEND_PORT}`);
           console.error('Please make sure the frontend dev server is running:');
-          console.error('  cd web/classic && bun run dev');
+          console.error('  cd web/new && FLINT_BACKEND_BASE_URL=http://localhost:3000 npm run dev -- --port 3001');
           reject(err);
         });
       return;

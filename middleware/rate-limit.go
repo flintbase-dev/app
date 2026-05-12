@@ -74,16 +74,14 @@ func memoryRateLimiter(c *gin.Context, maxRequestNum int, duration int64, mark s
 }
 
 func rateLimitFactory(maxRequestNum int, duration int64, mark string) func(c *gin.Context) {
-	if common.RedisEnabled {
-		return func(c *gin.Context) {
+	// It's safe to call multi times.
+	inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
+	return func(c *gin.Context) {
+		if common.RedisAvailable() {
 			redisRateLimiter(c, maxRequestNum, duration, mark)
+			return
 		}
-	} else {
-		// It's safe to call multi times.
-		inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
-		return func(c *gin.Context) {
-			memoryRateLimiter(c, maxRequestNum, duration, mark)
-		}
+		memoryRateLimiter(c, maxRequestNum, duration, mark)
 	}
 }
 
@@ -120,18 +118,6 @@ func UploadRateLimit() func(c *gin.Context) {
 // instead of client IP, making it resistant to proxy rotation attacks.
 // Must be used AFTER authentication middleware (UserAuth).
 func userRateLimitFactory(maxRequestNum int, duration int64, mark string) func(c *gin.Context) {
-	if common.RedisEnabled {
-		return func(c *gin.Context) {
-			userId := c.GetString("id")
-			if common.IsEmptyID(userId) {
-				c.Status(http.StatusUnauthorized)
-				c.Abort()
-				return
-			}
-			key := fmt.Sprintf("rateLimit:%s:user:%s", mark, userId)
-			userRedisRateLimiter(c, maxRequestNum, duration, key)
-		}
-	}
 	// It's safe to call multi times.
 	inMemoryRateLimiter.Init(common.RateLimitKeyExpirationDuration)
 	return func(c *gin.Context) {
@@ -139,6 +125,11 @@ func userRateLimitFactory(maxRequestNum int, duration int64, mark string) func(c
 		if common.IsEmptyID(userId) {
 			c.Status(http.StatusUnauthorized)
 			c.Abort()
+			return
+		}
+		if common.RedisAvailable() {
+			key := fmt.Sprintf("rateLimit:%s:user:%s", mark, userId)
+			userRedisRateLimiter(c, maxRequestNum, duration, key)
 			return
 		}
 		key := fmt.Sprintf("%s:user:%s", mark, userId)
