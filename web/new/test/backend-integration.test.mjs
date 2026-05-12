@@ -238,6 +238,8 @@ test("console layout redirects unauthenticated sessions to login", () => {
   assert.match(layout, /redirect\(`\/login\?return_to=/);
   assert.match(layout, /isUnauthorizedConsoleError/);
   assert.match(layout, /no access token provided/);
+  assert.match(layout, /未登录/);
+  assert.match(layout, /未登入/);
 });
 
 test("protected POST forms use route-handler redirects after mutation", () => {
@@ -306,6 +308,21 @@ test("admin sidebar links leave Next routing for classic-only pages", () => {
   const adminBlock = layout.slice(layout.indexOf("{adminItems.length"));
   assert.match(adminBlock, /<a\s+href={it\.href}/);
   assert.doesNotMatch(adminBlock, /<Link\s+href={it\.href}/);
+});
+
+test("classic route guards restore session-cookie users before login redirect", () => {
+  const auth = readRepo("web/classic/src/helpers/auth.jsx");
+  assert.match(
+    auth,
+    /API\.query\('self', \{\}, \{ skipErrorHandler: true \}\)/,
+  );
+  assert.match(
+    auth,
+    /localStorage\.setItem\('user', JSON\.stringify\(data\)\)/,
+  );
+  assert.match(auth, /userDispatch\(\{ type: 'login', payload: data \}\)/);
+  assert.match(auth, /setLoading\(true\)/);
+  assert.match(auth, /<Navigate to='\/login'/);
 });
 
 test("WorkOS frontend callback forwards authorization code to backend callback", () => {

@@ -17,9 +17,11 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React from 'react';
-import { Navigate } from 'react-router-dom';
-import { history } from './history';
+import React, { useContext, useEffect, useState } from 'react';
+import { Navigate, useLocation } from 'react-router-dom';
+import Loading from '../components/common/ui/Loading';
+import { UserContext } from '../context/User';
+import { API, updateAPI } from './api';
 
 export function authHeader() {
   // return authorization header with jwt token
@@ -42,25 +44,97 @@ export const AuthRedirect = ({ children }) => {
   return children;
 };
 
+function readStoredUser() {
+  const raw = localStorage.getItem('user');
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw);
+  } catch (e) {
+    localStorage.removeItem('user');
+    return null;
+  }
+}
+
+function isAdminUser(user) {
+  return user && typeof user.role === 'number' && user.role >= 10;
+}
+
+function useSessionUser() {
+  const [userState, userDispatch] = useContext(UserContext);
+  const [user, setUser] = useState(() => userState?.user || readStoredUser());
+  const [loading, setLoading] = useState(
+    () => !userState?.user && !readStoredUser(),
+  );
+
+  useEffect(() => {
+    const existingUser = userState?.user || readStoredUser();
+    if (existingUser) {
+      setUser(existingUser);
+      setLoading(false);
+      return undefined;
+    }
+
+    let cancelled = false;
+    setLoading(true);
+
+    const loadSessionUser = async () => {
+      try {
+        const res = await API.query('self', {}, { skipErrorHandler: true });
+        const { success, data } = res.data;
+        if (!success || !data) {
+          throw new Error('session not authenticated');
+        }
+        if (cancelled) return;
+        localStorage.setItem('user', JSON.stringify(data));
+        userDispatch({ type: 'login', payload: data });
+        updateAPI();
+        setUser(data);
+        setLoading(false);
+      } catch (error) {
+        if (cancelled) return;
+        localStorage.removeItem('user');
+        userDispatch({ type: 'logout' });
+        updateAPI();
+        setUser(null);
+        setLoading(false);
+      }
+    };
+
+    loadSessionUser();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [userDispatch, userState?.user]);
+
+  return { user, loading };
+}
+
 function PrivateRoute({ children }) {
-  if (!localStorage.getItem('user')) {
-    return <Navigate to='/login' state={{ from: history.location }} />;
+  const location = useLocation();
+  const { user, loading } = useSessionUser();
+
+  if (loading) {
+    return <Loading />;
+  }
+  if (!user) {
+    return <Navigate to='/login' state={{ from: location }} />;
   }
   return children;
 }
 
 export function AdminRoute({ children }) {
-  const raw = localStorage.getItem('user');
-  if (!raw) {
-    return <Navigate to='/login' state={{ from: history.location }} />;
+  const location = useLocation();
+  const { user, loading } = useSessionUser();
+
+  if (loading) {
+    return <Loading />;
   }
-  try {
-    const user = JSON.parse(raw);
-    if (user && typeof user.role === 'number' && user.role >= 10) {
-      return children;
-    }
-  } catch (e) {
-    // ignore
+  if (!user) {
+    return <Navigate to='/login' state={{ from: location }} />;
+  }
+  if (isAdminUser(user)) {
+    return children;
   }
   return <Navigate to='/forbidden' replace />;
 }

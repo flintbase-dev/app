@@ -284,6 +284,9 @@ function isUnauthorizedConsoleError(error: unknown): boolean {
   return (
     message.includes("unauthorized") ||
     message.includes("not logged in") ||
-    message.includes("no access token provided")
+    message.includes("no access token provided") ||
+    message.includes("未登录") ||
+    message.includes("未登入") ||
+    message.includes("未提供 access token")
   );
 }
