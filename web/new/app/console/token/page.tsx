@@ -41,11 +41,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import {
-  deleteTokenAction,
-  deleteTokensAction,
-  toggleTokenStatusAction,
-} from "@/lib/console/actions";
 import { loadTokenList } from "@/lib/console/data";
 import { fmtMoney, fmtRelative } from "@/lib/console/format";
 import { cn } from "@/lib/utils";
@@ -83,7 +78,7 @@ export default async function TokenPage({
           <FilterButton href="/console/token?q=enabled" label="Status" />
           <FilterButton href="/console/token?q=default" label="Group" />
           <TokenBulkCopyButton ids={tokens.items.map((token) => token.id)} />
-          <form action={deleteTokensAction}>
+          <form action="/console/token/actions/delete-batch" method="post">
             {tokens.items.map((token) => (
               <input key={token.id} type="hidden" name="ids" value={token.id} />
             ))}
@@ -256,7 +251,10 @@ export default async function TokenPage({
                       >
                         <Pencil aria-hidden="true" />
                       </Link>
-                      <form action={toggleTokenStatusAction}>
+                      <form
+                        action="/console/token/actions/toggle"
+                        method="post"
+                      >
                         <input type="hidden" name="id" value={t.id} />
                         <input type="hidden" name="status" value={t.status} />
                         <Button
@@ -272,7 +270,10 @@ export default async function TokenPage({
                         mode="connection"
                         connectionBase={status.serverAddress}
                       />
-                      <form action={deleteTokenAction}>
+                      <form
+                        action="/console/token/actions/delete"
+                        method="post"
+                      >
                         <input type="hidden" name="id" value={t.id} />
                         <Button
                           variant="ghost"

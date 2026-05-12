@@ -240,6 +240,56 @@ test("console layout redirects unauthenticated sessions to login", () => {
   assert.match(layout, /no access token provided/);
 });
 
+test("protected POST forms use route-handler redirects after mutation", () => {
+  const createPage = read("app/console/token/new/page.tsx");
+  const tokenPage = read("app/console/token/page.tsx");
+  const tokenEditPage = read("app/console/token/[id]/page.tsx");
+  const redeemPage = read("app/console/topup/redeem/page.tsx");
+  const actions = read("lib/console/actions.ts");
+  const graphql = read("lib/api/graphql.ts");
+  const redirects = read("lib/console/route-redirect.ts");
+
+  assert.match(createPage, /action="\/console\/token\/actions\/create"/);
+  assert.doesNotMatch(createPage, /createTokenAction/);
+  assert.match(tokenPage, /action="\/console\/token\/actions\/delete-batch"/);
+  assert.doesNotMatch(tokenPage, /deleteTokensAction/);
+  assert.match(tokenPage, /action="\/console\/token\/actions\/toggle"/);
+  assert.doesNotMatch(tokenPage, /toggleTokenStatusAction/);
+  assert.match(tokenPage, /action="\/console\/token\/actions\/delete"/);
+  assert.doesNotMatch(tokenPage, /deleteTokenAction/);
+  assert.match(tokenEditPage, /action="\/console\/token\/actions\/update"/);
+  assert.doesNotMatch(tokenEditPage, /updateTokenAction/);
+  assert.match(tokenEditPage, /action="\/console\/token\/actions\/toggle"/);
+  assert.doesNotMatch(tokenEditPage, /toggleTokenStatusAction/);
+  assert.match(tokenEditPage, /action="\/console\/token\/actions\/delete"/);
+  assert.doesNotMatch(tokenEditPage, /deleteTokenAction/);
+  assert.match(redeemPage, /action="\/console\/topup\/redeem\/actions"/);
+  assert.doesNotMatch(redeemPage, /redeemCodeAction/);
+  assert.doesNotMatch(actions, /createTokenAction|updateTokenAction/);
+  assert.doesNotMatch(
+    actions,
+    /toggleTokenStatusAction|deleteTokenAction|deleteTokensAction/,
+  );
+  assert.doesNotMatch(actions, /redeemCodeAction/);
+
+  for (const route of [
+    "app/console/token/actions/create/route.ts",
+    "app/console/token/actions/delete/route.ts",
+    "app/console/token/actions/delete-batch/route.ts",
+    "app/console/token/actions/toggle/route.ts",
+    "app/console/token/actions/update/route.ts",
+    "app/console/topup/redeem/actions/route.ts",
+  ]) {
+    const source = read(route);
+    assert.match(source, /graphqlMutationFromRequest/);
+    assert.match(source, /redirect(?:To|Back)\(request,/);
+  }
+  assert.match(graphql, /graphqlMutationFromRequest/);
+  assert.match(graphql, /request\.headers/);
+  assert.match(redirects, /NextResponse\.redirect/);
+  assert.match(redirects, /, 303\)/);
+});
+
 test("admin sidebar links leave Next routing for classic-only pages", () => {
   const layout = read("app/console/layout.tsx");
   for (const path of [

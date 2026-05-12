@@ -40,6 +40,12 @@ export async function graphqlMutation<T extends Record<string, unknown>>(
   return callGraphQL<T>("mutation", fields);
 }
 
+export async function graphqlMutationFromRequest<
+  T extends Record<string, unknown>,
+>(request: Request, fields: GraphQLOperationField[]): Promise<T> {
+  return callGraphQL<T>("mutation", fields, request.headers);
+}
+
 export async function graphqlOperation<T = unknown>(
   kind: "query" | "mutation",
   operation: string,
@@ -76,12 +82,14 @@ export function assertApiSuccess(payload: unknown): ApiEnvelope {
 async function callGraphQL<T extends Record<string, unknown>>(
   kind: "query" | "mutation",
   fields: GraphQLOperationField[],
+  sourceHeaders?: RequestHeaderSource,
 ): Promise<T> {
   if (fields.length === 0) return {} as T;
   const { query, variables } = buildDocument(kind, fields);
-  const response = await fetch(await getGraphQLEndpoint(), {
+  const requestHeaders = sourceHeaders ?? (await headers());
+  const response = await fetch(getGraphQLEndpoint(requestHeaders), {
     method: "POST",
-    headers: await buildRequestHeaders(),
+    headers: buildRequestHeaders(requestHeaders),
     body: JSON.stringify({ query, variables }),
     cache: "no-store",
   });
@@ -144,7 +152,7 @@ function sanitizeGraphQLName(value: string, fallback: string): string {
   return fallback;
 }
 
-async function getGraphQLEndpoint(): Promise<string> {
+function getGraphQLEndpoint(requestHeaders: RequestHeaderSource): string {
   const explicitBase =
     process.env[BACKEND_BASE_ENV] ||
     process.env[SERVER_API_ENV] ||
@@ -152,7 +160,6 @@ async function getGraphQLEndpoint(): Promise<string> {
     "";
   if (explicitBase) return endpointFromBase(explicitBase);
 
-  const requestHeaders = await headers();
   const host =
     requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
   if (host) {
@@ -169,8 +176,7 @@ function endpointFromBase(rawBase: string): string {
   return `${base}${GRAPHQL_PATH}`;
 }
 
-async function buildRequestHeaders(): Promise<HeadersInit> {
-  const requestHeaders = await headers();
+function buildRequestHeaders(requestHeaders: RequestHeaderSource): HeadersInit {
   const result: Record<string, string> = {
     "content-type": "application/json",
     accept: "application/json",
@@ -195,4 +201,8 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 type GraphQLResponse<T> = {
   data?: T;
   errors?: { message: string }[];
+};
+
+type RequestHeaderSource = {
+  get(name: string): string | null;
 };

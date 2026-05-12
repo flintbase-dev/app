@@ -29,11 +29,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import {
-  deleteTokenAction,
-  toggleTokenStatusAction,
-  updateTokenAction,
-} from "@/lib/console/actions";
 import { loadTokenEditor } from "@/lib/console/data";
 import { fmtMoney, fmtRelative } from "@/lib/console/format";
 import { cn } from "@/lib/utils";
@@ -79,7 +74,7 @@ export default async function EditTokenPage({
             </p>
           </div>
           <div className="flex items-center gap-1">
-            <form action={toggleTokenStatusAction}>
+            <form action="/console/token/actions/toggle" method="post">
               <input type="hidden" name="id" value={token.id} />
               <input type="hidden" name="status" value={token.status} />
               <Button variant="outline" size="sm">
@@ -87,7 +82,7 @@ export default async function EditTokenPage({
                 {token.status === 1 ? "Disable" : "Enable"}
               </Button>
             </form>
-            <form action={deleteTokenAction}>
+            <form action="/console/token/actions/delete" method="post">
               <input type="hidden" name="id" value={token.id} />
               <Button variant="outline" size="sm" className="text-destructive">
                 <Trash2 aria-hidden="true" />
@@ -125,7 +120,11 @@ export default async function EditTokenPage({
           </CardContent>
         </Card>
 
-        <form action={updateTokenAction} className="mt-4 flex flex-col gap-6">
+        <form
+          action="/console/token/actions/update"
+          method="post"
+          className="mt-4 flex flex-col gap-6"
+        >
           <input type="hidden" name="id" value={token.id} />
           <Card>
             <CardContent className="flex flex-col gap-5 py-5">

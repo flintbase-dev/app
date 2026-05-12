@@ -26,7 +26,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { createTokenAction } from "@/lib/console/actions";
 import { loadTokenEditor } from "@/lib/console/data";
 import { cn } from "@/lib/utils";
 
@@ -60,7 +59,11 @@ export default async function CreateTokenPage() {
           — you can copy it from this page or download it as a text file.
         </p>
 
-        <form action={createTokenAction} className="mt-8 flex flex-col gap-6">
+        <form
+          action="/console/token/actions/create"
+          method="post"
+          className="mt-8 flex flex-col gap-6"
+        >
           <input type="hidden" name="status" value={1} />
           {/* Basics */}
           <Card>

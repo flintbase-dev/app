@@ -5,7 +5,6 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Separator } from "@/components/ui/separator";
-import { redeemCodeAction } from "@/lib/console/actions";
 import { loadTopupData } from "@/lib/console/data";
 import { fmtMoney } from "@/lib/console/format";
 import { cn } from "@/lib/utils";
@@ -53,7 +52,11 @@ export default async function RedeemPage() {
 
             <Separator />
 
-            <form action={redeemCodeAction} className="flex flex-col gap-3">
+            <form
+              action="/console/topup/redeem/actions"
+              method="post"
+              className="flex flex-col gap-3"
+            >
               <label
                 htmlFor="redemption-code"
                 className="text-sm font-medium text-foreground"
