@@ -83,6 +83,18 @@ export default async function DashboardPage() {
                   view all
                 </Link>
               </div>
+              {modelUsage.length === 0 ? (
+                <p className="mt-4 text-sm text-muted-foreground">
+                  No model usage yet. Make your first request from the{" "}
+                  <Link
+                    href="/console/playground"
+                    className="text-foreground underline-offset-4 hover:underline"
+                  >
+                    playground
+                  </Link>{" "}
+                  to see your top models here.
+                </p>
+              ) : null}
               <ul className="mt-3 flex flex-col gap-2">
                 {modelUsage.slice(0, 5).map((m) => (
                   <li key={m.model} className="flex items-center gap-3">

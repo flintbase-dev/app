@@ -1,10 +1,12 @@
 import {
   CheckCircle2,
   ChevronDown,
+  KeyRound,
   Pencil,
   Plus,
   Power,
   Search,
+  SearchX,
   Trash2,
   XCircle,
 } from "lucide-react";
@@ -18,6 +20,14 @@ import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import {
   InputGroup,
   InputGroupAddon,
@@ -108,6 +118,63 @@ export default async function TokenPage({
               </TableRow>
             </TableHeader>
             <TableBody>
+              {tokens.items.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={10} className="p-0">
+                    {q ? (
+                      <Empty className="border-0 py-12">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <SearchX aria-hidden="true" />
+                          </EmptyMedia>
+                          <EmptyTitle>No keys match “{q}”</EmptyTitle>
+                          <EmptyDescription>
+                            Try a different name or key prefix, or clear the
+                            search to see every key.
+                          </EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                          <Link
+                            href="/console/token"
+                            className={cn(
+                              buttonVariants({
+                                variant: "outline",
+                                size: "sm",
+                              }),
+                            )}
+                          >
+                            Clear search
+                          </Link>
+                        </EmptyContent>
+                      </Empty>
+                    ) : (
+                      <Empty className="border-0 py-12">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <KeyRound aria-hidden="true" />
+                          </EmptyMedia>
+                          <EmptyTitle>No API keys yet</EmptyTitle>
+                          <EmptyDescription>
+                            Create a key to start calling the Flint API from
+                            your application.
+                          </EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                          <Link
+                            href="/console/token/new"
+                            className={cn(
+                              buttonVariants({ variant: "brand", size: "sm" }),
+                            )}
+                          >
+                            <Plus aria-hidden="true" />
+                            Create your first key
+                          </Link>
+                        </EmptyContent>
+                      </Empty>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ) : null}
               {tokens.items.map((t) => (
                 <TableRow key={t.id}>
                   <TableCell className="pl-4">

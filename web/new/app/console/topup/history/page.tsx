@@ -3,7 +3,9 @@ import {
   CheckCircle2,
   ChevronDown,
   Download,
+  ReceiptText,
   Search,
+  SearchX,
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
@@ -11,6 +13,14 @@ import Link from "next/link";
 import { Badge } from "@/components/ui/badge";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import {
   InputGroup,
   InputGroupAddon,
@@ -120,6 +130,67 @@ export default async function HistoryPage({
               </TableRow>
             </TableHeader>
             <TableBody>
+              {invoices.items.length === 0 ? (
+                <TableRow>
+                  <TableCell colSpan={7} className="p-0">
+                    {keyword || statusFilter || type ? (
+                      <Empty className="border-0 py-12">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <SearchX aria-hidden="true" />
+                          </EmptyMedia>
+                          <EmptyTitle>
+                            No invoices match these filters
+                          </EmptyTitle>
+                          <EmptyDescription>
+                            Try a different search term, status, or type — or
+                            clear filters to see your full history.
+                          </EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                          <Link
+                            href="/console/topup/history"
+                            className={cn(
+                              buttonVariants({
+                                variant: "outline",
+                                size: "sm",
+                              }),
+                            )}
+                          >
+                            Clear filters
+                          </Link>
+                        </EmptyContent>
+                      </Empty>
+                    ) : (
+                      <Empty className="border-0 py-12">
+                        <EmptyHeader>
+                          <EmptyMedia variant="icon">
+                            <ReceiptText aria-hidden="true" />
+                          </EmptyMedia>
+                          <EmptyTitle>No billing history yet</EmptyTitle>
+                          <EmptyDescription>
+                            Top-ups, subscriptions, and redemptions will appear
+                            here once you make your first transaction.
+                          </EmptyDescription>
+                        </EmptyHeader>
+                        <EmptyContent>
+                          <Link
+                            href="/console/topup"
+                            className={cn(
+                              buttonVariants({
+                                variant: "outline",
+                                size: "sm",
+                              }),
+                            )}
+                          >
+                            Go to wallet
+                          </Link>
+                        </EmptyContent>
+                      </Empty>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ) : null}
               {invoices.items.map((b) => (
                 <TableRow key={b.id}>
                   <TableCell className="pl-4">

@@ -1,7 +1,14 @@
-import { CheckCircle2, XCircle, Zap } from "lucide-react";
+import { CheckCircle2, ScrollText, XCircle, Zap } from "lucide-react";
 import Link from "next/link";
 import { CopyButton } from "@/components/site/copy-button";
 import { Badge } from "@/components/ui/badge";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Separator } from "@/components/ui/separator";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { loadLogs } from "@/lib/console/data";
@@ -75,35 +82,63 @@ export default async function LogPage({
       {/* Master/detail fills remaining space */}
       <div className="grid min-h-0 flex-1 grid-cols-1 lg:grid-cols-[1fr_24rem]">
         {/* Left scroll list */}
-        <ul className="min-h-0 divide-y divide-border overflow-y-auto bg-card">
-          {logs.items.map((l, i) => (
-            <li key={l.id}>
-              <button
-                type="button"
-                className={cn(
-                  "flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/40",
-                  i === 0 && "bg-muted/40",
-                )}
-              >
-                <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
-                  {new Date(l.ts * 1000).toISOString().slice(11, 19)}
-                </span>
-                <code className="w-32 truncate font-mono text-xs text-foreground">
-                  {l.model}
-                </code>
-                <code className="flex-1 truncate font-mono text-xs text-muted-foreground">
-                  {l.endpoint}
-                </code>
-                {l.cost ? (
-                  <span className="font-mono text-xs tabular-nums text-foreground">
-                    {fmtMoney(l.cost, logs.status)}
+        {logs.items.length === 0 ? (
+          <div className="flex min-h-0 items-center justify-center overflow-y-auto bg-card p-8">
+            <Empty className="border-0 p-0">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <ScrollText aria-hidden="true" />
+                </EmptyMedia>
+                <EmptyTitle>
+                  {request_id
+                    ? `No request matches “${request_id}”`
+                    : selectedCategory === "error"
+                      ? "No errors logged"
+                      : selectedCategory === "security"
+                        ? "No security events"
+                        : selectedCategory === "activity"
+                          ? "No activity yet"
+                          : "No usage to show"}
+                </EmptyTitle>
+                <EmptyDescription>
+                  {selectedCategory === "usage"
+                    ? "Once your keys start making API calls, requests will stream in here."
+                    : "Nothing to display for this filter — try another tab or a wider time range."}
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
+          </div>
+        ) : (
+          <ul className="min-h-0 divide-y divide-border overflow-y-auto bg-card">
+            {logs.items.map((l, i) => (
+              <li key={l.id}>
+                <button
+                  type="button"
+                  className={cn(
+                    "flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors hover:bg-muted/40",
+                    i === 0 && "bg-muted/40",
+                  )}
+                >
+                  <span className="font-mono text-[11px] tabular-nums text-muted-foreground">
+                    {new Date(l.ts * 1000).toISOString().slice(11, 19)}
                   </span>
-                ) : null}
-                <StatusPill log={l} compact />
-              </button>
-            </li>
-          ))}
-        </ul>
+                  <code className="w-32 truncate font-mono text-xs text-foreground">
+                    {l.model}
+                  </code>
+                  <code className="flex-1 truncate font-mono text-xs text-muted-foreground">
+                    {l.endpoint}
+                  </code>
+                  {l.cost ? (
+                    <span className="font-mono text-xs tabular-nums text-foreground">
+                      {fmtMoney(l.cost, logs.status)}
+                    </span>
+                  ) : null}
+                  <StatusPill log={l} compact />
+                </button>
+              </li>
+            ))}
+          </ul>
+        )}
 
         {/* Right scroll detail */}
         {selected ? (
@@ -216,8 +251,18 @@ export default async function LogPage({
             </div>
           </aside>
         ) : (
-          <aside className="flex min-h-0 flex-col items-center justify-center border-border bg-background p-8 text-sm text-muted-foreground lg:border-l">
-            No logs.
+          <aside className="flex min-h-0 flex-col items-center justify-center border-border bg-background p-8 lg:border-l">
+            <Empty className="border-0 p-0">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <ScrollText aria-hidden="true" />
+                </EmptyMedia>
+                <EmptyTitle>No request selected</EmptyTitle>
+                <EmptyDescription>
+                  Pick a log entry on the left to inspect its request details.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </aside>
         )}
       </div>

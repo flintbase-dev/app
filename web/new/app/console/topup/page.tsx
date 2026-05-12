@@ -1,4 +1,11 @@
-import { Check, CheckCircle2, CreditCard, Minus, XCircle } from "lucide-react";
+import {
+  Check,
+  CheckCircle2,
+  CreditCard,
+  Minus,
+  ReceiptText,
+  XCircle,
+} from "lucide-react";
 import Link from "next/link";
 import { AddCreditsDialog } from "@/components/console/add-credits-dialog";
 import { SubscriptionPayButton } from "@/components/console/payment-actions";
@@ -12,6 +19,13 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
 import {
   Select,
@@ -113,6 +127,24 @@ export default async function TopupPage() {
                     </TableRow>
                   </TableHeader>
                   <TableBody>
+                    {invoices.items.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={5} className="p-0">
+                          <Empty className="border-0 py-10">
+                            <EmptyHeader>
+                              <EmptyMedia variant="icon">
+                                <ReceiptText aria-hidden="true" />
+                              </EmptyMedia>
+                              <EmptyTitle>No invoices yet</EmptyTitle>
+                              <EmptyDescription>
+                                Subscription renewals and top-up receipts will
+                                show up here.
+                              </EmptyDescription>
+                            </EmptyHeader>
+                          </Empty>
+                        </TableCell>
+                      </TableRow>
+                    ) : null}
                     {invoices.items.map((b) => (
                       <TableRow key={b.id}>
                         <TableCell className="pl-4">

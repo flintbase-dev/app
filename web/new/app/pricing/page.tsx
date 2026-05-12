@@ -1,4 +1,11 @@
-import { ArrowUpDown, ChevronDown, Eye, Filter, Search } from "lucide-react";
+import {
+  ArrowUpDown,
+  ChevronDown,
+  Eye,
+  Filter,
+  Search,
+  SearchX,
+} from "lucide-react";
 import Link from "next/link";
 
 import { CopyButton } from "@/components/site/copy-button";
@@ -6,6 +13,14 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import {
+  Empty,
+  EmptyContent,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import {
   InputGroup,
   InputGroupAddon,
@@ -236,6 +251,39 @@ function CatalogTable({
                   </TableRow>
                 </TableHeader>
                 <TableBody>
+                  {models.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={8} className="p-0">
+                        <Empty className="border-0 py-12">
+                          <EmptyHeader>
+                            <EmptyMedia variant="icon">
+                              <SearchX aria-hidden="true" />
+                            </EmptyMedia>
+                            <EmptyTitle>
+                              No models match your filters
+                            </EmptyTitle>
+                            <EmptyDescription>
+                              Try widening your search or clearing one of the
+                              filters to see more models.
+                            </EmptyDescription>
+                          </EmptyHeader>
+                          <EmptyContent>
+                            <Link
+                              href="/pricing"
+                              className={cn(
+                                buttonVariants({
+                                  variant: "outline",
+                                  size: "sm",
+                                }),
+                              )}
+                            >
+                              Reset filters
+                            </Link>
+                          </EmptyContent>
+                        </Empty>
+                      </TableCell>
+                    </TableRow>
+                  ) : null}
                   {models.map((m) => (
                     <TableRow key={m.id}>
                       <TableCell className="pl-4">

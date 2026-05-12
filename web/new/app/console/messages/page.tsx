@@ -1,8 +1,22 @@
-import { Check, CheckCheck, Inbox, Megaphone, Search } from "lucide-react";
+import {
+  Check,
+  CheckCheck,
+  Inbox,
+  MailOpen,
+  Megaphone,
+  Search,
+} from "lucide-react";
 import Link from "next/link";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import {
   InputGroup,
   InputGroupAddon,
@@ -96,6 +110,28 @@ export default async function MessagesPage({
               </TabsList>
             </div>
           </Tabs>
+          {inbox.items.length === 0 ? (
+            <div className="flex min-h-0 flex-1 items-center justify-center p-6">
+              <Empty className="border-0 p-0">
+                <EmptyHeader>
+                  <EmptyMedia variant="icon">
+                    <Inbox aria-hidden="true" />
+                  </EmptyMedia>
+                  <EmptyTitle>
+                    {selectedType === "broadcast"
+                      ? "No broadcasts"
+                      : selectedType === "message"
+                        ? "No personal messages"
+                        : "Your inbox is empty"}
+                  </EmptyTitle>
+                  <EmptyDescription>
+                    New announcements and account notifications will show up
+                    here.
+                  </EmptyDescription>
+                </EmptyHeader>
+              </Empty>
+            </div>
+          ) : null}
           <ul className="min-h-0 flex-1 divide-y divide-border overflow-y-auto">
             {inbox.items.map((m) => (
               <li key={m.id}>
@@ -196,8 +232,18 @@ export default async function MessagesPage({
             </div>
           </article>
         ) : (
-          <article className="flex min-h-0 flex-col items-center justify-center bg-background p-8 text-sm text-muted-foreground">
-            No messages.
+          <article className="flex min-h-0 flex-col items-center justify-center bg-background p-8">
+            <Empty className="border-0 p-0">
+              <EmptyHeader>
+                <EmptyMedia variant="icon">
+                  <MailOpen aria-hidden="true" />
+                </EmptyMedia>
+                <EmptyTitle>No message selected</EmptyTitle>
+                <EmptyDescription>
+                  When you have new messages, the latest one will open here.
+                </EmptyDescription>
+              </EmptyHeader>
+            </Empty>
           </article>
         )}
       </div>

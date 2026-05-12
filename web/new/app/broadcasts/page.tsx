@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Rss } from "lucide-react";
+import { ChevronLeft, ChevronRight, Megaphone, Rss } from "lucide-react";
 import Link from "next/link";
 
 import { Markdown } from "@/components/site/markdown";
@@ -6,6 +6,13 @@ import { SiteFooter } from "@/components/site/site-footer";
 import { SiteHeader } from "@/components/site/site-header";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Empty,
+  EmptyDescription,
+  EmptyHeader,
+  EmptyMedia,
+  EmptyTitle,
+} from "@/components/ui/empty";
 import { loadPublicContent } from "@/lib/console/data";
 import { cn } from "@/lib/utils";
 
@@ -51,48 +58,71 @@ export default async function BroadcastsPage() {
             </aside>
 
             <div className="min-w-0">
-              <ol className="relative border-border lg:border-l lg:pl-10">
-                {items.map((b, i) => (
-                  <li key={b.id} className="relative pb-12 last:pb-0">
-                    <span
-                      aria-hidden="true"
-                      className="absolute top-2 -left-[2.65rem] hidden size-2 rounded-full border-2 border-background bg-brand lg:block"
-                    />
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-[11px] tracking-wide text-muted-foreground">
-                        {fmtMonthYear(b.sent_at)}
-                      </span>
-                      {i === 0 ? <Badge variant="brand">latest</Badge> : null}
-                    </div>
-                    <h2 className="mt-2 max-w-[36ch] font-heading text-xl font-medium tracking-tight text-balance text-foreground">
-                      {b.title}
-                    </h2>
-                    <div className="mt-3 text-sm">
-                      <Markdown content={b.content} />
-                    </div>
-                  </li>
-                ))}
-              </ol>
+              {items.length === 0 ? (
+                <Empty>
+                  <EmptyHeader>
+                    <EmptyMedia variant="icon">
+                      <Megaphone aria-hidden="true" />
+                    </EmptyMedia>
+                    <EmptyTitle>No broadcasts yet</EmptyTitle>
+                    <EmptyDescription>
+                      Operational notices, model releases, and API changes will
+                      be posted here. Subscribe to the RSS feed to be notified.
+                    </EmptyDescription>
+                  </EmptyHeader>
+                </Empty>
+              ) : (
+                <>
+                  <ol className="relative border-border lg:border-l lg:pl-10">
+                    {items.map((b, i) => (
+                      <li key={b.id} className="relative pb-12 last:pb-0">
+                        <span
+                          aria-hidden="true"
+                          className="absolute top-2 -left-[2.65rem] hidden size-2 rounded-full border-2 border-background bg-brand lg:block"
+                        />
+                        <div className="flex items-center gap-2">
+                          <span className="font-mono text-[11px] tracking-wide text-muted-foreground">
+                            {fmtMonthYear(b.sent_at)}
+                          </span>
+                          {i === 0 ? (
+                            <Badge variant="brand">latest</Badge>
+                          ) : null}
+                        </div>
+                        <h2 className="mt-2 max-w-[36ch] font-heading text-xl font-medium tracking-tight text-balance text-foreground">
+                          {b.title}
+                        </h2>
+                        <div className="mt-3 text-sm">
+                          <Markdown content={b.content} />
+                        </div>
+                      </li>
+                    ))}
+                  </ol>
 
-              <div className="mt-6 flex items-center justify-end gap-2">
-                <Button
-                  variant="ghost"
-                  size="icon-sm"
-                  aria-label="Previous page"
-                >
-                  <ChevronLeft aria-hidden="true" />
-                </Button>
-                <span className="font-mono text-xs tabular-nums text-muted-foreground">
-                  Page{" "}
-                  <Link href="#" className="text-foreground">
-                    1
-                  </Link>{" "}
-                  of 1
-                </span>
-                <Button variant="ghost" size="icon-sm" aria-label="Next page">
-                  <ChevronRight aria-hidden="true" />
-                </Button>
-              </div>
+                  <div className="mt-6 flex items-center justify-end gap-2">
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Previous page"
+                    >
+                      <ChevronLeft aria-hidden="true" />
+                    </Button>
+                    <span className="font-mono text-xs tabular-nums text-muted-foreground">
+                      Page{" "}
+                      <Link href="#" className="text-foreground">
+                        1
+                      </Link>{" "}
+                      of 1
+                    </span>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      aria-label="Next page"
+                    >
+                      <ChevronRight aria-hidden="true" />
+                    </Button>
+                  </div>
+                </>
+              )}
             </div>
           </div>
         </div>
