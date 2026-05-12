@@ -46,7 +46,7 @@
 ### 支付设置
 
 - 通用：`ServerAddress`、`TopupGroupRatio`、`payment_setting.amount_options`、`payment_setting.amount_discount`。
-- Stripe：`StripeApiSecret`、`StripeWebhookSecret`、`StripePriceId`、`StripeUnitPrice`、`StripeMinTopUp`、`StripePromotionCodesEnabled`。
+- Stripe：`StripeApiSecret`、`StripeWebhookSecret`、`StripePublishableKey`、`StripeUnitPrice`、`StripeMinTopUp`、`StripePromotionCodesEnabled`；后端统一使用 Stripe API version `2026-04-22.dahlia`。
 
 ### 分组与模型定价设置
 

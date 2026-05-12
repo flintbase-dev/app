@@ -1,46 +1,29 @@
-"use client";
-
 import { Lock } from "lucide-react";
-import { useTransition } from "react";
+import Link from "next/link";
 
-import { Button } from "@/components/ui/button";
-import {
-  createStripeTopupSessionAction,
-  createSubscriptionStripeSessionAction,
-} from "@/lib/console/actions";
+import { buttonVariants } from "@/components/ui/button";
+import { cn } from "@/lib/utils";
 
 export function TopupPayButton({
   amount,
-  paymentMethodType,
   label,
   className,
 }: {
   amount: number;
-  paymentMethodType: "card" | "alipay" | "wechat_pay";
   label: string;
   className?: string;
 }) {
-  const [pending, startTransition] = useTransition();
   return (
-    <Button
-      type="button"
-      size="lg"
-      disabled={pending}
-      className={className}
-      onClick={() => {
-        startTransition(async () => {
-          const session = await createStripeTopupSessionAction({
-            amount,
-            paymentMethodType,
-          });
-          const url = String(session.hosted_invoice_url || "");
-          window.location.assign(url || "/console/topup/checkout/success");
-        });
-      }}
+    <Link
+      href={`/console/topup/checkout?amount=${encodeURIComponent(String(amount))}`}
+      className={cn(
+        buttonVariants({ variant: "brand", size: "lg" }),
+        className,
+      )}
     >
       <Lock aria-hidden="true" />
       {label}
-    </Button>
+    </Link>
   );
 }
 
@@ -55,28 +38,36 @@ export function SubscriptionPayButton({
   planId: string;
   recommended?: boolean;
 }) {
-  const [pending, startTransition] = useTransition();
   return (
-    <Button
-      type="button"
-      variant={recommended ? "brand" : "outline"}
-      size="sm"
-      className="w-full"
-      disabled={pending}
-      onClick={() => {
-        startTransition(async () => {
-          const session = await createSubscriptionStripeSessionAction({
-            fromSubscriptionId,
-            mode,
-            planId,
-            paymentMethodType: "card",
-          });
-          const url = String(session.hosted_invoice_url || "");
-          window.location.assign(url || "/console/topup/checkout/success");
-        });
-      }}
+    <Link
+      href={subscriptionCheckoutHref({ fromSubscriptionId, mode, planId })}
+      className={cn(
+        buttonVariants({
+          variant: recommended ? "brand" : "outline",
+          size: "sm",
+        }),
+        "w-full",
+      )}
     >
-      Switch
-    </Button>
+      {mode === "switch" ? "Switch" : "Buy"}
+    </Link>
   );
+}
+
+function subscriptionCheckoutHref({
+  fromSubscriptionId,
+  mode = "purchase",
+  planId,
+}: {
+  fromSubscriptionId?: string;
+  mode?: "purchase" | "switch";
+  planId: string;
+}) {
+  const params = new URLSearchParams({
+    mode,
+    plan_id: planId,
+  });
+  if (fromSubscriptionId)
+    params.set("from_subscription_id", fromSubscriptionId);
+  return `/console/topup/checkout?${params.toString()}`;
 }

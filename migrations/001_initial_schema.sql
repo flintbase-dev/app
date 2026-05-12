@@ -468,6 +468,7 @@ CREATE TABLE subscription_orders (
     complete_time BIGINT,
     purchase_mode VARCHAR(32) DEFAULT 'purchase',
     from_subscription_id VARCHAR(32) DEFAULT '',
+    stripe_checkout_session_id VARCHAR(128) DEFAULT '',
     stripe_invoice_id VARCHAR(128) DEFAULT '',
     stripe_payment_intent_id VARCHAR(128) DEFAULT '',
     provider_payload TEXT
@@ -477,10 +478,51 @@ CREATE UNIQUE INDEX idx_subscription_orders_trade_no ON subscription_orders (tra
 CREATE INDEX idx_subscription_orders_user_id ON subscription_orders (user_id);
 CREATE INDEX idx_subscription_orders_plan_id ON subscription_orders (plan_id);
 CREATE INDEX idx_subscription_orders_from_subscription_id ON subscription_orders (from_subscription_id);
+CREATE INDEX idx_subscription_orders_stripe_checkout_session_id ON subscription_orders (stripe_checkout_session_id);
 CREATE INDEX idx_subscription_orders_stripe_invoice_id ON subscription_orders (stripe_invoice_id);
 CREATE INDEX idx_subscription_orders_stripe_payment_intent_id ON subscription_orders (stripe_payment_intent_id);
 CREATE UNIQUE INDEX idx_subscription_orders_pending_switch_source ON subscription_orders (from_subscription_id)
     WHERE purchase_mode = 'switch' AND status = 'pending' AND from_subscription_id <> '';
+
+CREATE TABLE stripe_payment_orders (
+    id VARCHAR(32) PRIMARY KEY,
+    user_id VARCHAR(32) NOT NULL DEFAULT '',
+    kind VARCHAR(64) NOT NULL DEFAULT '',
+    business_order_id VARCHAR(128) NOT NULL DEFAULT '',
+    status VARCHAR(32) NOT NULL DEFAULT 'pending',
+    amount_cents BIGINT NOT NULL DEFAULT 0,
+    display_amount DOUBLE PRECISION NOT NULL DEFAULT 0,
+    currency VARCHAR(16) NOT NULL DEFAULT '',
+    credit_units DOUBLE PRECISION NOT NULL DEFAULT 0,
+    topup_units BIGINT NOT NULL DEFAULT 0,
+    payment_method VARCHAR(64) NOT NULL DEFAULT 'stripe',
+    payment_provider VARCHAR(64) NOT NULL DEFAULT 'stripe',
+    stripe_checkout_session_id VARCHAR(128) NOT NULL DEFAULT '',
+    stripe_invoice_id VARCHAR(128) NOT NULL DEFAULT '',
+    stripe_payment_intent_id VARCHAR(128) NOT NULL DEFAULT '',
+    stripe_customer_id VARCHAR(128) NOT NULL DEFAULT '',
+    provider_payload TEXT NOT NULL DEFAULT '',
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL,
+    completed_at BIGINT NOT NULL DEFAULT 0,
+    CHECK (status IN ('pending', 'success', 'failed', 'expired'))
+);
+
+CREATE INDEX idx_stripe_payment_orders_user_id ON stripe_payment_orders (user_id);
+CREATE INDEX idx_stripe_payment_orders_kind ON stripe_payment_orders (kind);
+CREATE INDEX idx_stripe_payment_orders_business_order_id ON stripe_payment_orders (business_order_id);
+CREATE INDEX idx_stripe_payment_orders_status ON stripe_payment_orders (status);
+CREATE INDEX idx_stripe_payment_orders_currency ON stripe_payment_orders (currency);
+CREATE INDEX idx_stripe_payment_orders_payment_provider ON stripe_payment_orders (payment_provider);
+CREATE UNIQUE INDEX idx_stripe_payment_orders_checkout_session ON stripe_payment_orders (stripe_checkout_session_id)
+    WHERE stripe_checkout_session_id <> '';
+CREATE UNIQUE INDEX idx_stripe_payment_orders_invoice_id ON stripe_payment_orders (stripe_invoice_id)
+    WHERE stripe_invoice_id <> '';
+CREATE INDEX idx_stripe_payment_orders_payment_intent_id ON stripe_payment_orders (stripe_payment_intent_id);
+CREATE INDEX idx_stripe_payment_orders_customer_id ON stripe_payment_orders (stripe_customer_id);
+CREATE INDEX idx_stripe_payment_orders_created_at ON stripe_payment_orders (created_at);
+CREATE INDEX idx_stripe_payment_orders_updated_at ON stripe_payment_orders (updated_at);
+CREATE INDEX idx_stripe_payment_orders_completed_at ON stripe_payment_orders (completed_at);
 
 CREATE TABLE stripe_invoice_fulfillments (
     id VARCHAR(32) PRIMARY KEY,

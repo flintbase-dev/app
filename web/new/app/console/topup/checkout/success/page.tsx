@@ -9,7 +9,9 @@ import { cn } from "@/lib/utils";
 export default async function CheckoutSuccessPage() {
   const { invoices, status, user } = await loadTopupData();
   const invoice = invoices.items[0];
-  const amount = invoice?.amount ?? 0;
+  const isSubscription = invoice?.type === "subscription";
+  const creditAmount = invoice?.amount ?? 0;
+  const paidAmount = invoice?.money || creditAmount;
 
   return (
     <div className="flex-1 px-4 py-12 lg:px-6 lg:py-20">
@@ -21,28 +23,48 @@ export default async function CheckoutSuccessPage() {
           />
         </div>
         <p className="mt-6 text-center font-mono text-[11px] font-medium tracking-[0.18em] text-success-dark uppercase">
-          Paid {fmtMoney(amount, status)}
+          Paid {fmtMoney(paidAmount, status)}
         </p>
         <h1 className="mt-2 text-center font-heading text-4xl font-medium tracking-tight text-balance">
-          Payment received
+          {isSubscription
+            ? "Subscription payment received"
+            : "Payment received"}
         </h1>
         <p className="mx-auto mt-3 max-w-[44ch] text-center text-sm text-muted-foreground text-pretty">
-          Your Flint wallet now holds{" "}
-          <span className="font-mono tabular-nums text-foreground">
-            {fmtMoney(user.balance, status)}
-          </span>
-          . A receipt was emailed to{" "}
+          {isSubscription ? (
+            "Your subscription is being updated. A receipt was emailed to "
+          ) : (
+            <>
+              Your Flint wallet now holds{" "}
+              <span className="font-mono tabular-nums text-foreground">
+                {fmtMoney(user.balance, status)}
+              </span>
+              . A receipt was emailed to{" "}
+            </>
+          )}
           <span className="text-foreground">{user.email}</span>.
         </p>
 
         <div className="mt-8 rounded-xl border border-border bg-card">
           <dl className="flex flex-col divide-y divide-border text-sm">
-            <SummaryRow label="Paid" value={fmtMoney(amount, status)} mono />
             <SummaryRow
-              label="Credit added"
-              value={fmtMoney(amount, status)}
+              label="Paid"
+              value={fmtMoney(paidAmount, status)}
               mono
             />
+            {isSubscription ? (
+              <SummaryRow
+                label="Subscription"
+                value={fmtMoney(paidAmount, status)}
+                mono
+              />
+            ) : (
+              <SummaryRow
+                label="Credit added"
+                value={fmtMoney(creditAmount, status)}
+                mono
+              />
+            )}
             <SummaryRow
               label="Method"
               value={invoice?.method || "stripe"}

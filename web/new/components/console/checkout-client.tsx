@@ -1,30 +1,21 @@
 "use client";
 
 import {
-  Elements,
+  BillingAddressElement,
+  CheckoutElementsProvider,
+  ContactDetailsElement,
   PaymentElement,
-  useElements,
-  useStripe,
-} from "@stripe/react-stripe-js";
+  useCheckoutElements,
+} from "@stripe/react-stripe-js/checkout";
 import { loadStripe } from "@stripe/stripe-js";
 import { ArrowLeft, CreditCard, Lock } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState, useTransition } from "react";
 import { Button, buttonVariants } from "@/components/ui/button";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
-  Field,
-  FieldContent,
-  FieldDescription,
-  FieldLabel,
-  FieldTitle,
-} from "@/components/ui/field";
-import { Input } from "@/components/ui/input";
-import { Label } from "@/components/ui/label";
-import { NativeSelect } from "@/components/ui/native-select";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Separator } from "@/components/ui/separator";
-import { createStripeTopupSessionAction } from "@/lib/console/actions";
+  createStripeTopupSessionAction,
+  createSubscriptionStripeSessionAction,
+} from "@/lib/console/actions";
 import { fmtMoney } from "@/lib/console/format";
 import type {
   ConsoleStatus,
@@ -33,57 +24,92 @@ import type {
 } from "@/lib/console/types";
 import { cn } from "@/lib/utils";
 
-type PaymentMethodType = "card" | "alipay" | "wechat_pay";
-
-type StripePaymentSession = {
+type StripeCheckoutSession = {
   publishable_key?: string;
   client_secret?: string;
-  customer_session_client_secret?: string;
+  payment_order_id?: string;
+  checkout_session_id?: string;
   invoice_id?: string;
   invoice_number?: string;
-  hosted_invoice_url?: string;
-  invoice_pdf?: string;
+  return_url?: string;
+  customer_email?: string;
+  customer_id?: string;
+  requires_customer_details?: boolean;
   amount?: number;
   currency?: string;
+};
+
+type CheckoutMode = "topup" | "subscription";
+
+type SubscriptionCheckoutTarget = {
+  planId: string;
+  planTitle: string;
+  planTotal: number;
+  purchaseMode: "purchase" | "switch";
+  fromSubscriptionId?: string;
 };
 
 export function CheckoutClient({
   amount,
   charge,
+  checkoutMode,
   discount,
   newBalance,
   status,
+  subscription,
   topupInfo,
   user,
 }: {
   amount: number;
   charge: number;
+  checkoutMode: CheckoutMode;
   discount: number;
   newBalance: number;
   status: ConsoleStatus;
+  subscription?: SubscriptionCheckoutTarget;
   topupInfo: TopupInfo;
   user: ConsoleUser;
 }) {
-  const [method, setMethod] = useState<PaymentMethodType>("card");
-  const [session, setSession] = useState<StripePaymentSession | null>(null);
+  const [session, setSession] = useState<StripeCheckoutSession | null>(null);
   const [error, setError] = useState("");
   const [pending, startTransition] = useTransition();
 
   useEffect(() => {
+    let cancelled = false;
     setError("");
     setSession(null);
     startTransition(async () => {
       try {
-        const nextSession = await createStripeTopupSessionAction({
-          amount,
-          paymentMethodType: method,
-        });
-        setSession(nextSession as StripePaymentSession);
+        const returnUrl = stripeReturnUrl();
+        const nextSession =
+          checkoutMode === "subscription"
+            ? await createSubscriptionStripeSessionAction({
+                fromSubscriptionId: subscription?.fromSubscriptionId,
+                mode: subscription?.purchaseMode || "purchase",
+                planId: subscription?.planId || "",
+                returnUrl,
+              })
+            : await createStripeTopupSessionAction({
+                amount,
+                returnUrl,
+              });
+        if (!cancelled) setSession(nextSession as StripeCheckoutSession);
       } catch (err) {
-        setError(err instanceof Error ? err.message : "Payment setup failed");
+        if (!cancelled) {
+          setError(err instanceof Error ? err.message : "Payment setup failed");
+        }
       }
     });
-  }, [amount, method]);
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    amount,
+    checkoutMode,
+    subscription?.fromSubscriptionId,
+    subscription?.planId,
+    subscription?.purchaseMode,
+  ]);
 
   const publishableKey =
     session?.publishable_key || topupInfo.stripePublishableKey;
@@ -91,22 +117,21 @@ export function CheckoutClient({
     () => (publishableKey ? loadStripe(publishableKey) : null),
     [publishableKey],
   );
-  const elementsOptions = useMemo(
+  const checkoutOptions = useMemo(
     () =>
       session?.client_secret
         ? {
             clientSecret: session.client_secret,
-            customerSessionClientSecret:
-              method === "card"
-                ? session.customer_session_client_secret || undefined
-                : undefined,
-            appearance: {
-              theme: "stripe" as const,
+            elementsOptions: {
+              appearance: {
+                theme: "stripe" as const,
+              },
             },
           }
         : null,
-    [method, session],
+    [session?.client_secret],
   );
+  const isSubscription = checkoutMode === "subscription";
 
   return (
     <div className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
@@ -126,51 +151,52 @@ export function CheckoutClient({
 
         <div>
           <p className="text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
-            Top up wallet
+            {isSubscription ? "Subscription" : "Top up wallet"}
           </p>
           <h1 className="mt-1 font-heading text-3xl font-medium tracking-tight">
-            Checkout
+            {isSubscription ? "Subscription checkout" : "Checkout"}
           </h1>
           <p className="mt-2 max-w-[60ch] text-sm text-muted-foreground">
-            Adding {fmtMoney(amount, status)} to your Flint wallet. Credit posts
-            immediately on success.
+            {isSubscription
+              ? `Subscribe to ${subscription?.planTitle || "the selected plan"}.`
+              : `Adding ${fmtMoney(amount, status)} to your Flint wallet.`}
           </p>
         </div>
 
-        {stripePromise && elementsOptions ? (
-          <Elements
-            key={`${method}:${session?.client_secret}`}
-            options={elementsOptions}
+        {stripePromise && checkoutOptions ? (
+          <CheckoutElementsProvider
+            key={session?.client_secret}
+            options={checkoutOptions}
             stripe={stripePromise}
           >
             <CheckoutBody
               amount={amount}
               charge={charge}
+              checkoutMode={checkoutMode}
               discount={discount}
               error={error}
-              method={method}
               newBalance={newBalance}
               pending={pending}
               ready
               session={session}
-              setMethod={setMethod}
               status={status}
+              subscription={subscription}
               user={user}
             />
-          </Elements>
+          </CheckoutElementsProvider>
         ) : (
           <CheckoutBody
             amount={amount}
             charge={charge}
+            checkoutMode={checkoutMode}
             discount={discount}
             error={error}
-            method={method}
             newBalance={newBalance}
             pending={pending}
             ready={false}
             session={session}
-            setMethod={setMethod}
             status={status}
+            subscription={subscription}
             user={user}
           />
         )}
@@ -182,50 +208,52 @@ export function CheckoutClient({
 function CheckoutBody({
   amount,
   charge,
+  checkoutMode,
   discount,
   error,
-  method,
   newBalance,
   pending,
   ready,
   session,
-  setMethod,
   status,
+  subscription,
   user,
 }: {
   amount: number;
   charge: number;
+  checkoutMode: CheckoutMode;
   discount: number;
   error: string;
-  method: PaymentMethodType;
   newBalance: number;
   pending: boolean;
   ready: boolean;
-  session: StripePaymentSession | null;
-  setMethod: (method: PaymentMethodType) => void;
+  session: StripeCheckoutSession | null;
   status: ConsoleStatus;
+  subscription?: SubscriptionCheckoutTarget;
   user: ConsoleUser;
 }) {
+  const isSubscription = checkoutMode === "subscription";
+  const totalDue = session?.amount ?? charge;
+  const [paymentComplete, setPaymentComplete] = useState(false);
+
   return (
     <div className="mt-8 grid gap-8 lg:grid-cols-[minmax(0,1fr)_minmax(0,360px)]">
       <div className="flex min-w-0 flex-col gap-8">
-        <Section title="Payment method">
-          <PaymentMethodBlock method={method} setMethod={setMethod} />
-        </Section>
         <Section title="Payment details">
-          <PaymentDetailsBlock
-            error={error}
-            loading={pending || !ready}
-            method={method}
-          />
-        </Section>
-        <Section title="Billing">
-          <div className="flex flex-col gap-3">
-            <BillingAddressBlock user={user} />
-            <Separator className="my-1" />
-            <BusinessToggle />
-            <BusinessFieldsBlock />
-          </div>
+          {ready ? (
+            <PaymentDetailsBlock
+              error={error}
+              onCompleteChange={setPaymentComplete}
+              requiresBillingDetails={Boolean(
+                session?.requires_customer_details,
+              )}
+              requiresContactDetails={Boolean(
+                session?.requires_customer_details && !session?.customer_email,
+              )}
+            />
+          ) : (
+            <PaymentSetupState error={error} pending={pending} />
+          )}
         </Section>
       </div>
 
@@ -234,7 +262,7 @@ function CheckoutBody({
           <div className="flex items-center gap-2 rounded-t-2xl bg-brand px-6 py-3 text-brand-foreground">
             <CreditCard aria-hidden="true" className="size-4" />
             <p className="font-mono text-[11px] font-semibold tracking-[0.18em] uppercase">
-              Flint · Top up
+              {isSubscription ? "Flint · Plan" : "Flint · Top up"}
             </p>
           </div>
           <div className="flex flex-col gap-5 px-6 pt-5 pb-7">
@@ -246,16 +274,16 @@ function CheckoutBody({
                 <p className="font-mono text-xs tabular-nums">
                   {session?.invoice_number ||
                     session?.invoice_id ||
+                    session?.payment_order_id ||
+                    session?.checkout_session_id ||
                     "Preparing"}
                 </p>
               </div>
               <div className="text-right">
                 <p className="text-[10px] tracking-[0.18em] text-background/60 uppercase">
-                  Method
+                  Processor
                 </p>
-                <p className="font-mono text-xs tabular-nums">
-                  {methodLabel(method)}
-                </p>
+                <p className="font-mono text-xs tabular-nums">Stripe</p>
               </div>
             </div>
             <div>
@@ -263,7 +291,7 @@ function CheckoutBody({
                 Total
               </p>
               <p className="mt-0.5 font-mono text-5xl font-medium tabular-nums">
-                {fmtMoney(charge, status)}
+                {fmtMoney(totalDue, status)}
               </p>
             </div>
             <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-xs">
@@ -299,31 +327,66 @@ function CheckoutBody({
               Stub
             </p>
             <dl className="flex flex-col gap-1.5 font-mono text-sm tabular-nums">
-              <StubRow label="Credit added" value={fmtMoney(amount, status)} />
-              {discount ? (
-                <StubRow
-                  label="Discount"
-                  value={`-${fmtMoney(amount - charge, status)}`}
-                  valueClassName="text-success"
-                />
-              ) : null}
+              {isSubscription ? (
+                <>
+                  <StubRow
+                    label="Plan"
+                    value={subscription?.planTitle || "Selected plan"}
+                  />
+                  <StubRow
+                    label="Plan credit"
+                    value={
+                      subscription?.planTotal
+                        ? fmtMoney(subscription.planTotal, status)
+                        : "Unlimited"
+                    }
+                  />
+                  <StubRow
+                    label="Action"
+                    value={
+                      subscription?.purchaseMode === "switch"
+                        ? "Switch plan"
+                        : "New subscription"
+                    }
+                  />
+                </>
+              ) : (
+                <>
+                  <StubRow
+                    label="Credit added"
+                    value={fmtMoney(amount, status)}
+                  />
+                  {discount ? (
+                    <StubRow
+                      label="Discount"
+                      value={`-${fmtMoney(amount - charge, status)}`}
+                      valueClassName="text-success"
+                    />
+                  ) : null}
+                </>
+              )}
               <div className="mt-1 flex items-baseline justify-between gap-3 border-t border-dashed border-background/30 pt-2">
                 <dt className="font-sans text-xs font-medium text-background">
                   You pay
                 </dt>
                 <dd className="font-mono text-base font-medium tabular-nums">
-                  {fmtMoney(charge, status)}
+                  {fmtMoney(totalDue, status)}
                 </dd>
               </div>
-              <StubRow
-                label="Wallet after"
-                value={fmtMoney(newBalance, status)}
-              />
+              {isSubscription ? null : (
+                <StubRow
+                  label="Wallet after"
+                  value={fmtMoney(newBalance, status)}
+                />
+              )}
             </dl>
             {ready ? (
               <ConfirmPaymentButton
-                disabled={!session?.client_secret || pending}
-                label={`Pay ${fmtMoney(charge, status)}`}
+                disabled={
+                  !session?.client_secret || pending || !paymentComplete
+                }
+                label={`Pay ${fmtMoney(totalDue, status)}`}
+                session={session}
               />
             ) : (
               <Button
@@ -333,7 +396,7 @@ function CheckoutBody({
                 type="button"
               >
                 <Lock aria-hidden="true" />
-                {pending ? "Preparing..." : `Pay ${fmtMoney(charge, status)}`}
+                {pending ? "Preparing..." : `Pay ${fmtMoney(totalDue, status)}`}
               </Button>
             )}
             <div
@@ -357,14 +420,12 @@ function CheckoutBody({
   );
 }
 
-function PaymentDetailsBlock({
+function PaymentSetupState({
   error,
-  loading,
-  method,
+  pending,
 }: {
   error: string;
-  loading: boolean;
-  method: PaymentMethodType;
+  pending: boolean;
 }) {
   if (error) {
     return (
@@ -373,21 +434,75 @@ function PaymentDetailsBlock({
       </div>
     );
   }
-  if (loading) {
+  return (
+    <div className="rounded-md border border-border bg-muted p-4 text-sm text-muted-foreground">
+      {pending ? "Preparing secure payment..." : "Preparing payment..."}
+    </div>
+  );
+}
+
+function PaymentDetailsBlock({
+  error,
+  onCompleteChange,
+  requiresBillingDetails,
+  requiresContactDetails,
+}: {
+  error: string;
+  onCompleteChange: (complete: boolean) => void;
+  requiresBillingDetails: boolean;
+  requiresContactDetails: boolean;
+}) {
+  const [paymentComplete, setPaymentComplete] = useState(false);
+  const [contactComplete, setContactComplete] = useState(
+    !requiresContactDetails,
+  );
+  const [billingComplete, setBillingComplete] = useState(
+    !requiresBillingDetails,
+  );
+
+  useEffect(() => {
+    setPaymentComplete(false);
+    setContactComplete(!requiresContactDetails);
+    setBillingComplete(!requiresBillingDetails);
+  }, [requiresBillingDetails, requiresContactDetails]);
+
+  useEffect(() => {
+    onCompleteChange(paymentComplete && contactComplete && billingComplete);
+  }, [billingComplete, contactComplete, onCompleteChange, paymentComplete]);
+
+  if (error) {
     return (
-      <div className="rounded-md border border-border bg-muted p-4 text-sm text-muted-foreground">
-        Preparing secure {methodLabel(method)} payment...
+      <div className="rounded-md border-l-2 border-danger bg-danger-bg p-3 text-sm text-danger-dark">
+        {error}
       </div>
     );
   }
   return (
-    <div className="grid gap-3">
-      <PaymentElement options={{ layout: "accordion" }} />
-      {method === "card" ? (
-        <p className="text-xs text-muted-foreground">
-          Saved cards are available only for card payments.
-        </p>
+    <div className="grid gap-5">
+      {requiresContactDetails ? (
+        <div className="grid gap-2">
+          <p className="text-sm font-medium text-foreground">Contact</p>
+          <ContactDetailsElement
+            onChange={(event) => setContactComplete(event.complete)}
+          />
+        </div>
       ) : null}
+      {requiresBillingDetails ? (
+        <div className="grid gap-2">
+          <p className="text-sm font-medium text-foreground">Billing address</p>
+          <BillingAddressElement
+            onChange={(event) => setBillingComplete(event.complete)}
+            options={{ display: { name: "full" } }}
+          />
+        </div>
+      ) : null}
+      <div className="grid gap-2">
+        <p className="text-sm font-medium text-foreground">Payment method</p>
+        <PaymentElement
+          onChange={(event) => setPaymentComplete(event.complete)}
+          options={{ layout: "accordion" }}
+        />
+      </div>
     </div>
   );
 }
@@ -395,34 +510,47 @@ function PaymentDetailsBlock({
 function ConfirmPaymentButton({
   disabled,
   label,
+  session,
 }: {
   disabled: boolean;
   label: string;
+  session: StripeCheckoutSession | null;
 }) {
-  const stripe = useStripe();
-  const elements = useElements();
+  const checkoutState = useCheckoutElements();
   const [pending, startTransition] = useTransition();
   const [error, setError] = useState("");
+  const checkoutReady = checkoutState.type === "success";
 
   return (
     <div className="flex flex-col gap-2">
       <Button
-        disabled={disabled || pending || !stripe || !elements}
+        disabled={disabled || pending || !checkoutReady}
         size="lg"
         className="w-full bg-background text-foreground hover:bg-background/90"
         onClick={() => {
           setError("");
           startTransition(async () => {
-            if (!stripe || !elements) return;
-            const result = await stripe.confirmPayment({
-              elements,
-              confirmParams: {
-                return_url: `${window.location.origin}/console/topup/checkout/success`,
-              },
-            });
-            if (result.error) {
+            if (checkoutState.type !== "success") return;
+            const confirmArgs = {
+              redirect: "if_required",
+            } as const;
+            const result = await checkoutState.checkout.confirm(confirmArgs);
+            if (result.type === "error") {
               setError(result.error.message || "Payment confirmation failed");
+              return;
             }
+            const sessionStatus = result.session.status;
+            if (
+              sessionStatus.type !== "complete" ||
+              (sessionStatus.paymentStatus !== "paid" &&
+                sessionStatus.paymentStatus !== "no_payment_required")
+            ) {
+              setError(
+                "Payment is not complete yet. Please finish payment first.",
+              );
+              return;
+            }
+            window.location.assign(stripeSuccessPath(session));
           });
         }}
         type="button"
@@ -430,6 +558,9 @@ function ConfirmPaymentButton({
         <Lock aria-hidden="true" />
         {pending ? "Confirming..." : label}
       </Button>
+      {checkoutState.type === "error" ? (
+        <p className="text-xs text-danger-bg">{checkoutState.error.message}</p>
+      ) : null}
       {error ? <p className="text-xs text-danger-bg">{error}</p> : null}
     </div>
   );
@@ -469,216 +600,13 @@ function StubRow({
   );
 }
 
-function PaymentMethodBlock({
-  method,
-  setMethod,
-}: {
-  method: PaymentMethodType;
-  setMethod: (method: PaymentMethodType) => void;
-}) {
-  return (
-    <RadioGroup
-      className="grid gap-2 sm:grid-cols-3"
-      onValueChange={(value) => setMethod(value as PaymentMethodType)}
-      value={method}
-    >
-      <FieldLabel htmlFor="pm-card">
-        <Field orientation="horizontal">
-          <RadioGroupItem id="pm-card" value="card" />
-          <FieldContent>
-            <FieldTitle>
-              <CreditCard aria-hidden="true" className="mr-1.5 size-4" />
-              Card
-            </FieldTitle>
-            <FieldDescription>Visa, MC, Amex</FieldDescription>
-          </FieldContent>
-        </Field>
-      </FieldLabel>
-      <FieldLabel htmlFor="pm-alipay">
-        <Field orientation="horizontal">
-          <RadioGroupItem id="pm-alipay" value="alipay" />
-          <FieldContent>
-            <FieldTitle>
-              <BrandBadge brand="alipay" />
-              Alipay
-            </FieldTitle>
-            <FieldDescription>QR or Alipay app</FieldDescription>
-          </FieldContent>
-        </Field>
-      </FieldLabel>
-      <FieldLabel htmlFor="pm-wechat">
-        <Field orientation="horizontal">
-          <RadioGroupItem id="pm-wechat" value="wechat_pay" />
-          <FieldContent>
-            <FieldTitle>
-              <BrandBadge brand="wechat" />
-              WeChat Pay
-            </FieldTitle>
-            <FieldDescription>Scan in WeChat</FieldDescription>
-          </FieldContent>
-        </Field>
-      </FieldLabel>
-    </RadioGroup>
-  );
+function stripeReturnUrl() {
+  return `${window.location.origin}/console/topup/checkout/success?session_id={CHECKOUT_SESSION_ID}`;
 }
 
-function BillingAddressBlock({ user }: { user: ConsoleUser }) {
-  return (
-    <div className="grid gap-3">
-      <FormRow id="bill-name" label="Full name">
-        <Input
-          id="bill-name"
-          defaultValue={user.displayName}
-          autoComplete="name"
-        />
-      </FormRow>
-      <FormRow id="bill-email" label="Receipt email">
-        <Input
-          id="bill-email"
-          type="email"
-          defaultValue={user.email}
-          autoComplete="email"
-        />
-      </FormRow>
-      <FormRow id="bill-country" label="Country / region">
-        <NativeSelect
-          id="bill-country"
-          defaultValue="US"
-          autoComplete="country"
-          className="w-full"
-        >
-          <option value="US">United States</option>
-          <option value="CN">China (mainland)</option>
-          <option value="HK">Hong Kong SAR</option>
-          <option value="TW">Taiwan</option>
-          <option value="JP">Japan</option>
-          <option value="SG">Singapore</option>
-          <option value="GB">United Kingdom</option>
-          <option value="DE">Germany</option>
-          <option value="FR">France</option>
-          <option value="CA">Canada</option>
-          <option value="AU">Australia</option>
-        </NativeSelect>
-      </FormRow>
-      <FormRow id="bill-line1" label="Address line 1">
-        <Input
-          id="bill-line1"
-          placeholder="Street address"
-          autoComplete="address-line1"
-        />
-      </FormRow>
-      <FormRow id="bill-line2" label="Address line 2" optional>
-        <Input
-          id="bill-line2"
-          placeholder="Apt, suite, unit (optional)"
-          autoComplete="address-line2"
-        />
-      </FormRow>
-      <div className="grid gap-3 sm:grid-cols-3">
-        <FormRow id="bill-city" label="City">
-          <Input id="bill-city" autoComplete="address-level2" />
-        </FormRow>
-        <FormRow id="bill-state" label="State / region">
-          <Input id="bill-state" autoComplete="address-level1" />
-        </FormRow>
-        <FormRow id="bill-postal" label="Postal code">
-          <Input
-            id="bill-postal"
-            autoComplete="postal-code"
-            className="font-mono tabular-nums"
-          />
-        </FormRow>
-      </div>
-    </div>
-  );
-}
-
-function BusinessToggle() {
-  return (
-    <FieldLabel htmlFor="biz-toggle">
-      <Field orientation="horizontal">
-        <Checkbox id="biz-toggle" defaultChecked />
-        <FieldContent>
-          <FieldTitle>Purchasing as a business</FieldTitle>
-          <FieldDescription>
-            Add your business name and tax ID to invoices.
-          </FieldDescription>
-        </FieldContent>
-      </Field>
-    </FieldLabel>
-  );
-}
-
-function BusinessFieldsBlock() {
-  return (
-    <div className="grid gap-3 sm:grid-cols-2">
-      <FormRow id="biz-name" label="Business name">
-        <Input
-          id="biz-name"
-          placeholder="Nordherd Labs Pte. Ltd."
-          autoComplete="organization"
-        />
-      </FormRow>
-      <FormRow id="biz-tax" label="Tax ID / VAT number">
-        <Input
-          id="biz-tax"
-          placeholder="e.g. EU VAT, US EIN, CN USCC"
-          className="font-mono tabular-nums"
-        />
-      </FormRow>
-    </div>
-  );
-}
-
-function FormRow({
-  id,
-  label,
-  optional,
-  children,
-}: {
-  id: string;
-  label: string;
-  optional?: boolean;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <Label htmlFor={id} className="text-xs font-medium text-foreground">
-        {label}
-        {optional ? (
-          <span className="ml-1 font-normal text-muted-foreground">
-            (optional)
-          </span>
-        ) : null}
-      </Label>
-      {children}
-    </div>
-  );
-}
-
-function BrandBadge({ brand }: { brand: "alipay" | "wechat" }) {
-  if (brand === "alipay") {
-    return (
-      <span
-        aria-hidden="true"
-        className="mr-1.5 inline-flex size-4 shrink-0 items-center justify-center rounded-[3px] bg-[#1677ff] text-[9px] font-semibold text-white"
-      >
-        支
-      </span>
-    );
-  }
-  return (
-    <span
-      aria-hidden="true"
-      className="mr-1.5 inline-flex size-4 shrink-0 items-center justify-center rounded-[3px] bg-[#07c160] text-[9px] font-semibold text-white"
-    >
-      微
-    </span>
-  );
-}
-
-function methodLabel(method: PaymentMethodType): string {
-  if (method === "alipay") return "Alipay";
-  if (method === "wechat_pay") return "WeChat Pay";
-  return "Card";
+function stripeSuccessPath(session: StripeCheckoutSession | null) {
+  const sessionId = session?.checkout_session_id || "";
+  return `/console/topup/checkout/success?session_id=${encodeURIComponent(
+    sessionId,
+  )}`;
 }

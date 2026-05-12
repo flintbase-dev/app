@@ -1,7 +1,7 @@
 package controller
 
 func isStripeTopUpEnabled() bool {
-	return validateStripeElementsPaymentConfig() == nil
+	return validateStripeCheckoutPaymentConfig() == nil
 }
 
 func isStripeWebhookConfigured() bool {

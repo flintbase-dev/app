@@ -36,7 +36,6 @@ export default function SettingsPaymentGateway(props) {
     StripeApiSecret: '',
     StripePublishableKey: '',
     StripeWebhookSecret: '',
-    StripePriceId: '',
     StripeUnitPrice: 8.0,
     StripeMinTopUp: 1,
     StripePromotionCodesEnabled: false,
@@ -50,7 +49,6 @@ export default function SettingsPaymentGateway(props) {
         StripeApiSecret: props.options.StripeApiSecret || '',
         StripePublishableKey: props.options.StripePublishableKey || '',
         StripeWebhookSecret: props.options.StripeWebhookSecret || '',
-        StripePriceId: props.options.StripePriceId || '',
         StripeUnitPrice:
           props.options.StripeUnitPrice !== undefined
             ? parseFloat(props.options.StripeUnitPrice)
@@ -87,10 +85,7 @@ export default function SettingsPaymentGateway(props) {
       if (inputs.StripeApiSecret && inputs.StripeApiSecret !== '') {
         options.push({ key: 'StripeApiSecret', value: inputs.StripeApiSecret });
       }
-      if (
-        inputs.StripePublishableKey &&
-        inputs.StripePublishableKey !== ''
-      ) {
+      if (inputs.StripePublishableKey && inputs.StripePublishableKey !== '') {
         options.push({
           key: 'StripePublishableKey',
           value: inputs.StripePublishableKey,
@@ -101,9 +96,6 @@ export default function SettingsPaymentGateway(props) {
           key: 'StripeWebhookSecret',
           value: inputs.StripeWebhookSecret,
         });
-      }
-      if (inputs.StripePriceId !== '') {
-        options.push({ key: 'StripePriceId', value: inputs.StripePriceId });
       }
       if (
         inputs.StripeUnitPrice !== undefined &&
@@ -234,7 +226,7 @@ export default function SettingsPaymentGateway(props) {
                 field='StripePublishableKey'
                 label={t('Publishable Key')}
                 placeholder={t('例如：pk_xxx')}
-                extraText={t('用于 Stripe Elements 前端支付')}
+                extraText={t('用于 Stripe Checkout Elements 前端支付')}
               />
             </Col>
           </Row>
@@ -243,21 +235,13 @@ export default function SettingsPaymentGateway(props) {
             style={{ marginTop: 16 }}
           >
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
-              <Form.Input
-                field='StripePriceId'
-                label={t('商品价格 ID')}
-                placeholder={t('例如：price_xxx')}
-                extraText={t('兼容旧配置；当前 Invoice 支付按站内金额创建账单')}
-              />
-            </Col>
-            <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.InputNumber
                 field='StripeUnitPrice'
                 precision={2}
                 label={t('充值单价')}
                 placeholder={t('例如：8，表示每 1 个充值单位实付 8')}
                 extraText={t(
-                  '按当前全站货币填写；Stripe 价格 ID 的货币需要与全站货币一致',
+                  '按当前全站货币填写；Checkout Session 会按订单金额创建一次性价格',
                 )}
               />
             </Col>

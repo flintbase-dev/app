@@ -29,14 +29,9 @@ func GetTopUpInfo(c *gin.Context) {
 		"pay_methods":            payMethods,
 		"stripe_min_topup":       setting.StripeMinTopUp,
 		"stripe_publishable_key": setting.StripePublishableKey,
-		"stripe_payment_method_types": []string{
-			"card",
-			"alipay",
-			"wechat_pay",
-		},
-		"amount_options": operation_setting.GetPaymentSetting().AmountOptions,
-		"discount":       operation_setting.GetPaymentSetting().AmountDiscount,
-		"topup_link":     common.TopUpLink,
+		"amount_options":         operation_setting.GetPaymentSetting().AmountOptions,
+		"discount":               operation_setting.GetPaymentSetting().AmountDiscount,
+		"topup_link":             common.TopUpLink,
 	}
 	common.ApiSuccess(c, data)
 }

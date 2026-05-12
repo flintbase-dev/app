@@ -707,9 +707,6 @@ function normalizeTopupInfo(value: unknown): TopupInfo {
     enableStripeTopup: toBool(item.enable_stripe_topup),
     stripeMinTopup: toNumber(item.stripe_min_topup, 5),
     stripePublishableKey: toText(item.stripe_publishable_key),
-    stripePaymentMethodTypes: asArray(item.stripe_payment_method_types).map(
-      (method) => toText(method),
-    ),
     amountOptions: asArray(item.amount_options)
       .map((amount) => toNumber(amount))
       .filter((amount) => amount > 0),

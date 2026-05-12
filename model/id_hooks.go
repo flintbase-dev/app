@@ -85,3 +85,8 @@ func (fulfillment *StripeInvoiceFulfillment) BeforeCreate(tx *gorm.DB) error {
 	fillTypedID(&fulfillment.Id, "sif")
 	return nil
 }
+
+func (order *StripePaymentOrder) BeforeCreate(tx *gorm.DB) error {
+	fillTypedID(&order.Id, "spo")
+	return nil
+}

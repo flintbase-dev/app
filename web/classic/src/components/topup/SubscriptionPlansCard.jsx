@@ -90,7 +90,10 @@ const SubscriptionPlansCard = ({
 
   const getSwitchModeInfo = (targetPlan) => {
     if (!targetPlan || !activeSubscriptions?.length) {
-      return { mode: 'purchase', amount: Number(targetPlan?.price_amount || 0) };
+      return {
+        mode: 'purchase',
+        amount: Number(targetPlan?.price_amount || 0),
+      };
     }
     const now = Date.now() / 1000;
     const candidates = activeSubscriptions
@@ -137,6 +140,7 @@ const SubscriptionPlansCard = ({
         plan_id: selectedPlan.plan.id,
         mode: modeInfo.mode,
         from_subscription_id: modeInfo.from_subscription_id || '',
+        return_url: `${window.location.origin}/console/topup?show_history=true&session_id={CHECKOUT_SESSION_ID}`,
       });
       if (res.data?.message === 'success') {
         setPaymentSession(res.data.data);

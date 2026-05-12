@@ -176,6 +176,7 @@ const TopUp = () => {
       const res = await API.mutation('stripePay', {
         amount: parseInt(topUpCount),
         payment_method: 'stripe',
+        return_url: stripeReturnUrl(),
       });
       if (res !== undefined) {
         const { message, data } = res.data;
@@ -197,6 +198,10 @@ const TopUp = () => {
     } finally {
       setPaymentLoading(false);
     }
+  };
+
+  const stripeReturnUrl = () => {
+    return `${window.location.origin}/console/topup?show_history=true&session_id={CHECKOUT_SESSION_ID}`;
   };
 
   const getUserQuota = async () => {

@@ -211,11 +211,12 @@ type SubscriptionOrder struct {
 	CreateTime      int64  `json:"create_time"`
 	CompleteTime    int64  `json:"complete_time"`
 
-	PurchaseMode          string `json:"purchase_mode" gorm:"type:varchar(32);default:'purchase'"`
-	FromSubscriptionId    string `json:"from_subscription_id" gorm:"type:varchar(32);default:'';index"`
-	StripeInvoiceId       string `json:"stripe_invoice_id" gorm:"type:varchar(128);default:'';index"`
-	StripePaymentIntentId string `json:"stripe_payment_intent_id" gorm:"type:varchar(128);default:'';index"`
-	ProviderPayload       string `json:"provider_payload" gorm:"type:text"`
+	PurchaseMode            string `json:"purchase_mode" gorm:"type:varchar(32);default:'purchase'"`
+	FromSubscriptionId      string `json:"from_subscription_id" gorm:"type:varchar(32);default:'';index"`
+	StripeCheckoutSessionId string `json:"stripe_checkout_session_id" gorm:"type:varchar(128);default:'';index"`
+	StripeInvoiceId         string `json:"stripe_invoice_id" gorm:"type:varchar(128);default:'';index"`
+	StripePaymentIntentId   string `json:"stripe_payment_intent_id" gorm:"type:varchar(128);default:'';index"`
+	ProviderPayload         string `json:"provider_payload" gorm:"type:text"`
 }
 
 type CreatePendingSubscriptionOrderParams struct {
@@ -304,6 +305,15 @@ func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
 		return nil
 	}
 	return &order
+}
+
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 // User subscription instance
@@ -699,12 +709,28 @@ func quoteSubscriptionSwitchTx(tx *gorm.DB, userId string, fromSubscriptionId st
 	return diff, &current, currentPlan, nil
 }
 
+type CompleteSubscriptionOrderParams struct {
+	TradeNo                 string
+	ProviderPayload         string
+	ExpectedPaymentProvider string
+	ActualPaymentMethod     string
+	StripePaymentOrderId    string
+	StripeCheckoutSessionId string
+	StripeInvoiceId         string
+	StripePaymentIntentId   string
+	StripeCustomerId        string
+}
+
 // Complete a subscription order (idempotent). Creates a UserSubscription snapshot from the plan.
-// expectedPaymentProvider guards against cross-gateway callback attacks (empty skips the check).
-// actualPaymentMethod updates the order's PaymentMethod to reflect the real payment type used (empty skips update).
-func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string, stripeInvoiceId string) error {
-	if tradeNo == "" {
+// ExpectedPaymentProvider guards against cross-gateway callback attacks (empty skips the check).
+// ActualPaymentMethod updates the order's PaymentMethod to reflect the real payment type used (empty skips update).
+func CompleteSubscriptionOrder(params CompleteSubscriptionOrderParams) error {
+	if params.TradeNo == "" {
 		return errors.New("tradeNo is empty")
+	}
+	stripeInvoiceId := strings.TrimSpace(params.StripeInvoiceId)
+	if params.ExpectedPaymentProvider == PaymentProviderStripe && stripeInvoiceId == "" {
+		return errors.New("stripe invoice id is required")
 	}
 	refCol := `"trade_no"`
 	var logUserId string
@@ -714,10 +740,10 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	var upgradeGroup string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", params.TradeNo).First(&order).Error; err != nil {
 			return ErrSubscriptionOrderNotFound
 		}
-		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
+		if params.ExpectedPaymentProvider != "" && order.PaymentProvider != params.ExpectedPaymentProvider {
 			return ErrPaymentMethodMismatch
 		}
 		if order.Status == common.TopUpStatusSuccess {
@@ -733,8 +759,8 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if !plan.Enabled {
 			// still allow completion for already purchased orders
 		}
-		invoiceId := strings.TrimSpace(stripeInvoiceId)
-		if invoiceId == "" {
+		invoiceId := stripeInvoiceId
+		if invoiceId == "" && params.ExpectedPaymentProvider != PaymentProviderStripe {
 			invoiceId = strings.TrimSpace(order.StripeInvoiceId)
 		}
 		if invoiceId != "" {
@@ -748,13 +774,15 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 				UserId:                order.UserId,
 				SourceType:            "subscription_order",
 				SourceId:              order.TradeNo,
-				StripePaymentIntentId: order.StripePaymentIntentId,
+				StripePaymentIntentId: firstNonEmpty(params.StripePaymentIntentId, order.StripePaymentIntentId),
 				Metadata: map[string]interface{}{
-					"trade_no":       order.TradeNo,
-					"plan_id":        order.PlanId,
-					"purchase_mode":  order.PurchaseMode,
-					"payment_method": actualPaymentMethod,
-					"money":          order.Money,
+					"trade_no":                   order.TradeNo,
+					"plan_id":                    order.PlanId,
+					"purchase_mode":              order.PurchaseMode,
+					"payment_method":             params.ActualPaymentMethod,
+					"money":                      order.Money,
+					"stripe_payment_order_id":    params.StripePaymentOrderId,
+					"stripe_checkout_session_id": firstNonEmpty(params.StripeCheckoutSessionId, order.StripeCheckoutSessionId),
 				},
 			})
 			if err != nil {
@@ -762,6 +790,23 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			}
 			if !created {
 				return errors.New("stripe invoice already fulfilled before subscription order completion")
+			}
+		}
+		if params.StripePaymentOrderId != "" {
+			completed, _, err := CompleteStripePaymentOrderTx(tx, CompleteStripePaymentOrderParams{
+				OrderId:                 params.StripePaymentOrderId,
+				StripeCheckoutSessionId: firstNonEmpty(params.StripeCheckoutSessionId, order.StripeCheckoutSessionId),
+				StripeInvoiceId:         invoiceId,
+				StripePaymentIntentId:   firstNonEmpty(params.StripePaymentIntentId, order.StripePaymentIntentId),
+				StripeCustomerId:        params.StripeCustomerId,
+				PaymentMethod:           params.ActualPaymentMethod,
+				ProviderPayload:         params.ProviderPayload,
+			})
+			if err != nil {
+				return err
+			}
+			if !completed {
+				return nil
 			}
 		}
 		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
@@ -775,11 +820,20 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		}
 		order.Status = common.TopUpStatusSuccess
 		order.CompleteTime = common.GetTimestamp()
-		if providerPayload != "" {
-			order.ProviderPayload = providerPayload
+		if params.ProviderPayload != "" {
+			order.ProviderPayload = params.ProviderPayload
 		}
-		if actualPaymentMethod != "" && order.PaymentMethod != actualPaymentMethod {
-			order.PaymentMethod = actualPaymentMethod
+		if params.StripeCheckoutSessionId != "" {
+			order.StripeCheckoutSessionId = params.StripeCheckoutSessionId
+		}
+		if invoiceId != "" {
+			order.StripeInvoiceId = invoiceId
+		}
+		if params.StripePaymentIntentId != "" {
+			order.StripePaymentIntentId = params.StripePaymentIntentId
+		}
+		if params.ActualPaymentMethod != "" && order.PaymentMethod != params.ActualPaymentMethod {
+			order.PaymentMethod = params.ActualPaymentMethod
 		}
 		if err := tx.Save(&order).Error; err != nil {
 			return err
@@ -803,7 +857,7 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 			Event:        "billing.subscription.completed",
 			Content:      msg,
 			ResourceType: "subscription_order",
-			ResourceId:   tradeNo,
+			ResourceId:   params.TradeNo,
 			Other: map[string]interface{}{
 				"plan_title":     logPlanTitle,
 				"money":          logMoney,
@@ -836,12 +890,15 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 	})
 }
 
-func UpdateSubscriptionOrderStripeRefs(tradeNo string, invoiceId string, paymentIntentId string) error {
+func UpdateSubscriptionOrderStripeRefs(tradeNo string, checkoutSessionId string, invoiceId string, paymentIntentId string) error {
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
 	}
 	updates := map[string]interface{}{
-		"stripe_invoice_id": invoiceId,
+		"stripe_checkout_session_id": checkoutSessionId,
+	}
+	if invoiceId != "" {
+		updates["stripe_invoice_id"] = invoiceId
 	}
 	if paymentIntentId != "" {
 		updates["stripe_payment_intent_id"] = paymentIntentId

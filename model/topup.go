@@ -25,16 +25,20 @@ var (
 )
 
 type StripeInvoiceTopUpParams struct {
-	UserId          string
-	InvoiceId       string
-	PaymentIntentId string
-	CustomerId      string
-	PaymentMethod   string
-	CreditUnits     float64
-	TopUpUnits      int64
-	PaidAmount      float64
-	Currency        string
-	CallerIp        string
+	PaymentOrderId    string
+	UserId            string
+	InvoiceId         string
+	StripeInvoiceId   string
+	CheckoutSessionId string
+	PaymentIntentId   string
+	CustomerId        string
+	PaymentMethod     string
+	ProviderPayload   string
+	CreditUnits       float64
+	TopUpUnits        int64
+	PaidAmount        float64
+	Currency          string
+	CallerIp          string
 }
 
 func CompleteStripeInvoiceTopUp(params StripeInvoiceTopUpParams) (bool, error) {
@@ -43,6 +47,9 @@ func CompleteStripeInvoiceTopUp(params StripeInvoiceTopUpParams) (bool, error) {
 	}
 	if strings.TrimSpace(params.InvoiceId) == "" {
 		return false, errors.New("invalid invoice id")
+	}
+	if strings.TrimSpace(params.StripeInvoiceId) == "" {
+		return false, errors.New("stripe invoice id is required")
 	}
 	if params.CreditUnits <= 0 {
 		return false, errors.New("invalid credit amount")
@@ -54,22 +61,53 @@ func CompleteStripeInvoiceTopUp(params StripeInvoiceTopUpParams) (bool, error) {
 
 	var balanceAfter int
 	var created bool
+	var paymentOrder *StripePaymentOrder
+	sourceType := "topup.stripe_checkout"
+	sourceId := strings.TrimSpace(params.CheckoutSessionId)
+	if sourceId == "" {
+		sourceType = "topup.stripe_invoice"
+		sourceId = params.InvoiceId
+	}
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var err error
+		if params.PaymentOrderId != "" {
+			var completed bool
+			completed, paymentOrder, err = CompleteStripePaymentOrderTx(tx, CompleteStripePaymentOrderParams{
+				OrderId:                 params.PaymentOrderId,
+				StripeCheckoutSessionId: params.CheckoutSessionId,
+				StripeInvoiceId:         params.StripeInvoiceId,
+				StripePaymentIntentId:   params.PaymentIntentId,
+				StripeCustomerId:        params.CustomerId,
+				PaymentMethod:           params.PaymentMethod,
+				ProviderPayload:         params.ProviderPayload,
+			})
+			if err != nil {
+				return err
+			}
+			if !completed {
+				created = false
+				return nil
+			}
+			sourceId = paymentOrder.Id
+			sourceType = "topup.stripe_order"
+		}
 		created, err = CreateStripeInvoiceFulfillmentTx(tx, StripeInvoiceFulfillmentParams{
-			InvoiceId:             params.InvoiceId,
+			InvoiceId:             params.StripeInvoiceId,
 			Kind:                  "topup",
 			UserId:                params.UserId,
-			SourceType:            "topup.stripe_invoice",
-			SourceId:              params.InvoiceId,
+			SourceType:            sourceType,
+			SourceId:              sourceId,
 			StripePaymentIntentId: params.PaymentIntentId,
 			Metadata: map[string]interface{}{
-				"payment_method": params.PaymentMethod,
-				"credit_units":   params.CreditUnits,
-				"topup_units":    params.TopUpUnits,
-				"paid_amount":    params.PaidAmount,
-				"currency":       params.Currency,
-				"customer_id":    params.CustomerId,
+				"payment_method":          params.PaymentMethod,
+				"credit_units":            params.CreditUnits,
+				"topup_units":             params.TopUpUnits,
+				"paid_amount":             params.PaidAmount,
+				"currency":                params.Currency,
+				"customer_id":             params.CustomerId,
+				"stripe_invoice_id":       params.StripeInvoiceId,
+				"checkout_session_id":     params.CheckoutSessionId,
+				"stripe_payment_order_id": params.PaymentOrderId,
 			},
 		})
 		if err != nil || !created {
@@ -83,20 +121,23 @@ func CompleteStripeInvoiceTopUp(params StripeInvoiceTopUpParams) (bool, error) {
 		balanceAfter, err = GrantUserCreditsTx(tx, CreditGrantParams{
 			UserId:     params.UserId,
 			Amount:     quota,
-			SourceType: "topup.stripe_invoice",
-			SourceId:   params.InvoiceId,
+			SourceType: sourceType,
+			SourceId:   sourceId,
 			RequestId:  common.NewRequestID(),
-			Reason:     "stripe invoice topup completed",
+			Reason:     "stripe checkout topup completed",
 			Metadata: map[string]interface{}{
-				"invoice_id":        params.InvoiceId,
-				"payment_intent_id": params.PaymentIntentId,
-				"payment_method":    params.PaymentMethod,
-				"payment_provider":  PaymentProviderStripe,
-				"credit_units":      params.CreditUnits,
-				"topup_units":       params.TopUpUnits,
-				"paid_amount":       params.PaidAmount,
-				"currency":          params.Currency,
-				"customer_id":       params.CustomerId,
+				"fulfillment_id":          params.InvoiceId,
+				"invoice_id":              params.StripeInvoiceId,
+				"checkout_session_id":     params.CheckoutSessionId,
+				"stripe_payment_order_id": params.PaymentOrderId,
+				"payment_intent_id":       params.PaymentIntentId,
+				"payment_method":          params.PaymentMethod,
+				"payment_provider":        PaymentProviderStripe,
+				"credit_units":            params.CreditUnits,
+				"topup_units":             params.TopUpUnits,
+				"paid_amount":             params.PaidAmount,
+				"currency":                params.Currency,
+				"customer_id":             params.CustomerId,
 			},
 		})
 		return err
@@ -113,7 +154,7 @@ func CompleteStripeInvoiceTopUp(params StripeInvoiceTopUpParams) (bool, error) {
 	RecordTopupLog(
 		params.UserId,
 		params.InvoiceId,
-		fmt.Sprintf("Stripe Invoice 充值成功，充值金额: %v，支付金额：%.2f %s", logger.FormatQuota(quota), params.PaidAmount, strings.ToUpper(params.Currency)),
+		fmt.Sprintf("Stripe 充值成功，充值金额: %v，支付金额：%.2f %s", logger.FormatQuota(quota), params.PaidAmount, strings.ToUpper(params.Currency)),
 		params.CallerIp,
 		params.PaymentMethod,
 		PaymentProviderStripe,

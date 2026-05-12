@@ -509,7 +509,7 @@ const AddEditSubscriptionModal = ({
                         {t('第三方支付配置')}
                       </Text>
                       <div className='text-xs text-gray-600'>
-                        {t('Stripe 商品ID（可选）')}
+                        {t('Stripe 一次性 Price ID（可选）')}
                       </div>
                     </div>
                   </div>
@@ -518,7 +518,7 @@ const AddEditSubscriptionModal = ({
                     <Col span={24}>
                       <Form.Input
                         field='stripe_price_id'
-                        label='Stripe PriceId'
+                        label='Stripe one-off Price ID'
                         placeholder='price_...'
                         showClear
                       />

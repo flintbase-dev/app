@@ -118,7 +118,6 @@ export type TopupInfo = {
   enableStripeTopup: boolean;
   stripeMinTopup: number;
   stripePublishableKey: string;
-  stripePaymentMethodTypes: string[];
   amountOptions: number[];
   discount: Record<string, number>;
   topupLink: string;

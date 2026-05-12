@@ -707,7 +707,7 @@ function AddCreditsDialog({
             <ArrowRight aria-hidden="true" />
           </Link>
           <p className="text-center text-xs text-muted-foreground">
-            You&rsquo;ll choose Card, Alipay, or WeChat Pay on the next step.
+            Payment methods are shown by Stripe at checkout.
           </p>
         </div>
       </DialogContent>

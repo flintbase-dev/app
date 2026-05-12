@@ -252,7 +252,7 @@ export async function transferAffQuotaAction(formData: FormData) {
 
 export async function createStripeTopupSessionAction(input: {
   amount: number;
-  paymentMethodType: "card" | "alipay" | "wechat_pay";
+  returnUrl: string;
 }) {
   const payload = await graphqlMutation<{ stripePay: unknown }>([
     {
@@ -260,7 +260,7 @@ export async function createStripeTopupSessionAction(input: {
       input: {
         amount: input.amount,
         payment_method: "stripe",
-        payment_method_type: input.paymentMethodType,
+        return_url: input.returnUrl,
       },
     },
   ]);
@@ -272,7 +272,7 @@ export async function createSubscriptionStripeSessionAction(input: {
   planId: string;
   mode?: "purchase" | "switch";
   fromSubscriptionId?: string;
-  paymentMethodType?: "card" | "alipay" | "wechat_pay";
+  returnUrl: string;
 }) {
   const payload = await graphqlMutation<{ subscriptionStripePay: unknown }>([
     {
@@ -281,7 +281,7 @@ export async function createSubscriptionStripeSessionAction(input: {
         plan_id: input.planId,
         mode: input.mode || "purchase",
         from_subscription_id: input.fromSubscriptionId || "",
-        payment_method_type: input.paymentMethodType || "card",
+        return_url: input.returnUrl,
       },
     },
   ]);

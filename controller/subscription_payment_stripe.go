@@ -16,7 +16,7 @@ type SubscriptionStripePayRequest struct {
 	PlanId             string `json:"plan_id"`
 	Mode               string `json:"mode"`
 	FromSubscriptionId string `json:"from_subscription_id"`
-	PaymentMethodType  string `json:"payment_method_type"`
+	ReturnURL          string `json:"return_url"`
 }
 
 func SubscriptionRequestStripePay(c *gin.Context) {
@@ -25,7 +25,12 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
-	if err := validateStripeElementsPaymentConfig(); err != nil {
+	if err := validateStripeCheckoutPaymentConfig(); err != nil {
+		common.ApiErrorMsg(c, err.Error())
+		return
+	}
+	returnURL, err := normalizeStripeReturnURL(req.ReturnURL)
+	if err != nil {
 		common.ApiErrorMsg(c, err.Error())
 		return
 	}
@@ -87,14 +92,30 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		description = fmt.Sprintf("Subscription switch difference: %s", plan.Title)
 		itemDescription = description
 	}
+	paymentOrder, err := model.CreatePendingStripePaymentOrder(model.CreatePendingStripePaymentOrderParams{
+		UserId:          user.Id,
+		Kind:            kind,
+		BusinessOrderId: referenceId,
+		AmountCents:     amountCents,
+		DisplayAmount:   order.Money,
+		Currency:        stripeCurrency(),
+		PaymentMethod:   model.PaymentMethodStripe,
+		PaymentProvider: model.PaymentProviderStripe,
+	})
+	if err != nil {
+		_ = model.FailSubscriptionOrder(referenceId, model.PaymentProviderStripe, err.Error())
+		common.ApiErrorMsg(c, "创建支付订单失败")
+		return
+	}
 	metadata := stripeBaseMetadata(kind, user.Id)
+	metadata[stripeMetadataPaymentOrderIDKey] = paymentOrder.Id
 	metadata[stripeMetadataOrderTradeNoKey] = referenceId
 	metadata[stripeMetadataPlanIDKey] = plan.Id
 	if order.FromSubscriptionId != "" {
 		metadata[stripeMetadataFromSubscriptionIDKey] = order.FromSubscriptionId
 	}
 
-	session, err := createStripeInvoicePayment(c.Request.Context(), stripeInvoicePaymentInput{
+	session, err := createStripeCheckoutPayment(c.Request.Context(), stripeCheckoutPaymentInput{
 		User:                   user,
 		AmountCents:            amountCents,
 		DisplayAmount:          order.Money,
@@ -102,35 +123,42 @@ func SubscriptionRequestStripePay(c *gin.Context) {
 		Description:            description,
 		InvoiceItemDescription: itemDescription,
 		Metadata:               metadata,
-		PaymentMethodType:      normalizeStripeInvoicePaymentMethodType(req.PaymentMethodType),
+		ReturnURL:              returnURL,
 	})
 	if err != nil {
-		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅 Invoice 创建失败 trade_no=%s plan_id=%s error=%q", referenceId, plan.Id, err.Error()))
+		logger.LogError(c.Request.Context(), fmt.Sprintf("Stripe 订阅 Checkout Session 创建失败 trade_no=%s plan_id=%s error=%q", referenceId, plan.Id, err.Error()))
+		_ = model.FailStripePaymentOrder(paymentOrder.Id, err.Error())
 		_ = model.FailSubscriptionOrder(referenceId, model.PaymentProviderStripe, err.Error())
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "拉起支付失败"})
 		return
 	}
-	_ = model.UpdateSubscriptionOrderStripeRefs(referenceId, session.InvoiceId, session.PaymentIntentId)
+	session.PaymentOrderId = paymentOrder.Id
+	_ = model.UpdateStripePaymentOrderCheckoutRefs(paymentOrder.Id, session.CheckoutSessionId, session.InvoiceId, session.PaymentIntentId)
+	_ = model.UpdateSubscriptionOrderStripeRefs(referenceId, session.CheckoutSessionId, session.InvoiceId, session.PaymentIntentId)
 
 	c.JSON(http.StatusOK, gin.H{
 		"message": "success",
 		"data": gin.H{
-			"publishable_key":                  session.PublishableKey,
-			"client_secret":                    session.ClientSecret,
-			"customer_session_client_secret":   session.CustomerSessionClientSecret,
-			"invoice_id":                       session.InvoiceId,
-			"invoice_number":                   session.InvoiceNumber,
-			"payment_intent_id":                session.PaymentIntentId,
-			"hosted_invoice_url":               session.HostedInvoiceURL,
-			"invoice_pdf":                      session.InvoicePDF,
-			"amount":                           session.Amount,
-			"amount_cents":                     session.AmountCents,
-			"currency":                         session.Currency,
-			"trade_no":                         referenceId,
-			"mode":                             purchaseMode,
-			"from_subscription_id":             order.FromSubscriptionId,
-			"plan_id":                          plan.Id,
-			"stripe_payment_method_types_hint": []string{"card", "alipay", "wechat_pay"},
+			"publishable_key":           session.PublishableKey,
+			"client_secret":             session.ClientSecret,
+			"payment_order_id":          session.PaymentOrderId,
+			"checkout_session_id":       session.CheckoutSessionId,
+			"customer_id":               session.CustomerId,
+			"invoice_id":                session.InvoiceId,
+			"invoice_number":            session.InvoiceNumber,
+			"payment_intent_id":         session.PaymentIntentId,
+			"hosted_invoice_url":        session.HostedInvoiceURL,
+			"invoice_pdf":               session.InvoicePDF,
+			"return_url":                session.ReturnURL,
+			"customer_email":            session.CustomerEmail,
+			"requires_customer_details": session.RequiresCustomerDetails,
+			"amount":                    session.Amount,
+			"amount_cents":              session.AmountCents,
+			"currency":                  session.Currency,
+			"trade_no":                  referenceId,
+			"mode":                      purchaseMode,
+			"from_subscription_id":      order.FromSubscriptionId,
+			"plan_id":                   plan.Id,
 		},
 	})
 }
