@@ -51,9 +51,9 @@ const SystemSetting = () => {
     WorkerValidKey: '',
     WorkerAllowHttpImageRequestEnabled: '',
     Footer: '',
-    TurnstileCheckEnabled: '',
-    TurnstileSiteKey: '',
-    TurnstileSecretKey: '',
+    HCaptchaCheckEnabled: '',
+    HCaptchaSiteKey: '',
+    HCaptchaSecretKey: '',
     ServerAddress: '',
     // SSRF防护配置
     'fetch_setting.enable_ssrf_protection': true,
@@ -118,7 +118,7 @@ const SystemSetting = () => {
               setAllowedPorts(['80', '443', '8080', '8443']);
             }
             break;
-          case 'TurnstileCheckEnabled':
+          case 'HCaptchaCheckEnabled':
           case 'WorkerAllowHttpImageRequestEnabled':
             item.value = toBoolean(item.value);
             break;
@@ -310,19 +310,19 @@ const SystemSetting = () => {
     }
   };
 
-  const submitTurnstile = async () => {
+  const submitHCaptcha = async () => {
     const options = [];
 
-    if (originInputs['TurnstileSiteKey'] !== inputs.TurnstileSiteKey) {
-      options.push({ key: 'TurnstileSiteKey', value: inputs.TurnstileSiteKey });
+    if (originInputs['HCaptchaSiteKey'] !== inputs.HCaptchaSiteKey) {
+      options.push({ key: 'HCaptchaSiteKey', value: inputs.HCaptchaSiteKey });
     }
     if (
-      originInputs['TurnstileSecretKey'] !== inputs.TurnstileSecretKey &&
-      inputs.TurnstileSecretKey !== ''
+      originInputs['HCaptchaSecretKey'] !== inputs.HCaptchaSecretKey &&
+      inputs.HCaptchaSecretKey !== ''
     ) {
       options.push({
-        key: 'TurnstileSecretKey',
-        value: inputs.TurnstileSecretKey,
+        key: 'HCaptchaSecretKey',
+        value: inputs.HCaptchaSecretKey,
       });
     }
 
@@ -703,28 +703,28 @@ const SystemSetting = () => {
                 </Form.Section>
               </Card>
               <Card>
-                <Form.Section text={t('配置 Turnstile')}>
+                <Form.Section text={t('配置 hCaptcha')}>
                   <Text>{t('用以支持用户校验')}</Text>
                   <Row
                     gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
                   >
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
-                        field='TurnstileSiteKey'
-                        label={t('Turnstile Site Key')}
+                        field='HCaptchaSiteKey'
+                        label={t('hCaptcha Site Key')}
                       />
                     </Col>
                     <Col xs={24} sm={24} md={12} lg={12} xl={12}>
                       <Form.Input
-                        field='TurnstileSecretKey'
-                        label={t('Turnstile Secret Key')}
+                        field='HCaptchaSecretKey'
+                        label={t('hCaptcha Secret Key')}
                         type='password'
                         placeholder={t('敏感信息不会发送到前端显示')}
                       />
                     </Col>
                   </Row>
-                  <Button onClick={submitTurnstile}>
-                    {t('保存 Turnstile 设置')}
+                  <Button onClick={submitHCaptcha}>
+                    {t('保存 hCaptcha 设置')}
                   </Button>
                 </Form.Section>
               </Card>

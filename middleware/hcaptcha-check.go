@@ -10,32 +10,35 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-type turnstileCheckResponse struct {
+var hCaptchaSiteVerifyURL = "https://api.hcaptcha.com/siteverify"
+
+type hCaptchaCheckResponse struct {
 	Success bool `json:"success"`
 }
 
-func TurnstileCheck() gin.HandlerFunc {
+func HCaptchaCheck() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		if common.TurnstileCheckEnabled {
+		if common.HCaptchaCheckEnabled {
 			session := sessions.Default(c)
-			turnstileChecked := session.Get("turnstile")
-			if turnstileChecked != nil {
+			hCaptchaChecked := session.Get("hcaptcha")
+			if hCaptchaChecked != nil {
 				c.Next()
 				return
 			}
-			response := c.Query("turnstile")
+			response := c.Query("hcaptcha")
 			if response == "" {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
-					"message": "Turnstile token 为空",
+					"message": "hCaptcha token 为空",
 				})
 				c.Abort()
 				return
 			}
-			rawRes, err := http.PostForm("https://challenges.cloudflare.com/turnstile/v0/siteverify", url.Values{
-				"secret":   {common.TurnstileSecretKey},
+			rawRes, err := http.PostForm(hCaptchaSiteVerifyURL, url.Values{
+				"secret":   {common.HCaptchaSecretKey},
 				"response": {response},
 				"remoteip": {c.ClientIP()},
+				"sitekey":  {common.HCaptchaSiteKey},
 			})
 			if err != nil {
 				common.SysLog(err.Error())
@@ -47,7 +50,7 @@ func TurnstileCheck() gin.HandlerFunc {
 				return
 			}
 			defer rawRes.Body.Close()
-			var res turnstileCheckResponse
+			var res hCaptchaCheckResponse
 			err = json.NewDecoder(rawRes.Body).Decode(&res)
 			if err != nil {
 				common.SysLog(err.Error())
@@ -61,12 +64,12 @@ func TurnstileCheck() gin.HandlerFunc {
 			if !res.Success {
 				c.JSON(http.StatusOK, gin.H{
 					"success": false,
-					"message": "Turnstile 校验失败，请刷新重试！",
+					"message": "hCaptcha 校验失败，请刷新重试！",
 				})
 				c.Abort()
 				return
 			}
-			session.Set("turnstile", true)
+			session.Set("hcaptcha", true)
 			err = session.Save()
 			if err != nil {
 				c.JSON(http.StatusOK, gin.H{

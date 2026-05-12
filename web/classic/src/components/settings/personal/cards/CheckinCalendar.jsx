@@ -36,14 +36,14 @@ import {
   ChevronDown,
   ChevronUp,
 } from 'lucide-react';
-import Turnstile from 'react-turnstile';
+import HCaptchaWidget from '../../../common/HCaptchaWidget';
 import { API, showError, showSuccess, renderQuota } from '../../../../helpers';
 
-const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
+const CheckinCalendar = ({ t, status, hCaptchaEnabled, hCaptchaSiteKey }) => {
   const [loading, setLoading] = useState(false);
   const [checkinLoading, setCheckinLoading] = useState(false);
-  const [turnstileModalVisible, setTurnstileModalVisible] = useState(false);
-  const [turnstileWidgetKey, setTurnstileWidgetKey] = useState(0);
+  const [hCaptchaModalVisible, setHCaptchaModalVisible] = useState(false);
+  const [hCaptchaWidgetKey, setHCaptchaWidgetKey] = useState(0);
   const [checkinData, setCheckinData] = useState({
     enabled: false,
     stats: {
@@ -115,14 +115,14 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
 
   const postCheckin = async (token) => {
     return API.mutation('checkin', {
-      params: token ? { turnstile: token } : {},
+      params: token ? { hcaptcha: token } : {},
     });
   };
 
-  const shouldTriggerTurnstile = (message) => {
-    if (!turnstileEnabled) return false;
+  const shouldTriggerHCaptcha = (message) => {
+    if (!hCaptchaEnabled) return false;
     if (typeof message !== 'string') return true;
-    return message.includes('Turnstile');
+    return message.includes('hCaptcha');
   };
 
   const doCheckin = async (token) => {
@@ -136,18 +136,18 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
         );
         // 刷新签到状态
         fetchCheckinStatus(currentMonth);
-        setTurnstileModalVisible(false);
+        setHCaptchaModalVisible(false);
       } else {
-        if (!token && shouldTriggerTurnstile(message)) {
-          if (!turnstileSiteKey) {
-            showError('Turnstile is enabled but site key is empty.');
+        if (!token && shouldTriggerHCaptcha(message)) {
+          if (!hCaptchaSiteKey) {
+            showError('hCaptcha is enabled but site key is empty.');
             return;
           }
-          setTurnstileModalVisible(true);
+          setHCaptchaModalVisible(true);
           return;
         }
-        if (token && shouldTriggerTurnstile(message)) {
-          setTurnstileWidgetKey((v) => v + 1);
+        if (token && shouldTriggerHCaptcha(message)) {
+          setHCaptchaWidgetKey((v) => v + 1);
         }
         showError(message || t('签到失败'));
       }
@@ -215,23 +215,23 @@ const CheckinCalendar = ({ t, status, turnstileEnabled, turnstileSiteKey }) => {
     <Card className='!rounded-2xl'>
       <Modal
         title='Security Check'
-        visible={turnstileModalVisible}
+        visible={hCaptchaModalVisible}
         footer={null}
         centered
         onCancel={() => {
-          setTurnstileModalVisible(false);
-          setTurnstileWidgetKey((v) => v + 1);
+          setHCaptchaModalVisible(false);
+          setHCaptchaWidgetKey((v) => v + 1);
         }}
       >
         <div className='flex justify-center py-2'>
-          <Turnstile
-            key={turnstileWidgetKey}
-            sitekey={turnstileSiteKey}
+          <HCaptchaWidget
+            key={hCaptchaWidgetKey}
+            sitekey={hCaptchaSiteKey}
             onVerify={(token) => {
               doCheckin(token);
             }}
             onExpire={() => {
-              setTurnstileWidgetKey((v) => v + 1);
+              setHCaptchaWidgetKey((v) => v + 1);
             }}
           />
         </div>

@@ -75,7 +75,6 @@ export default defineConfig({
             'react-dropzone',
             'react-fireworks',
             'react-toastify',
-            'react-turnstile',
           ],
           i18n: [
             'i18next',

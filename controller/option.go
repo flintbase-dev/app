@@ -16,7 +16,7 @@ import (
 )
 
 func isVisiblePublicKeyOption(key string) bool {
-	return false
+	return key == "HCaptchaSiteKey"
 }
 
 func GetOptions(c *gin.Context) {
@@ -79,11 +79,11 @@ func UpdateOption(c *gin.Context) {
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
 	switch option.Key {
-	case "TurnstileCheckEnabled":
-		if option.Value == "true" && common.TurnstileSiteKey == "" {
+	case "HCaptchaCheckEnabled":
+		if option.Value == "true" && (common.HCaptchaSiteKey == "" || common.HCaptchaSecretKey == "") {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
-				"message": "无法启用 Turnstile 校验，请先填入 Turnstile 校验相关配置信息！",
+				"message": "无法启用 hCaptcha 校验，请先填入 hCaptcha 校验相关配置信息！",
 			})
 
 			return

@@ -82,7 +82,7 @@
 - SSRF 防护：开关、私有 IP 访问、域名过滤模式和列表、IP 过滤模式和列表、允许端口、域名解析后 IP 过滤。
 - WorkOS 身份：展示 WorkOS Client ID 和 Redirect URI；这些值当前来自环境/后端状态，不在本页编辑。
 - Postmark：API 地址、Message Stream、发件人邮箱、Server Token。
-- Turnstile：Site Key 和 Secret Key。
+- hCaptcha：Site Key 和 Secret Key。
 
 ### 其他设置
 

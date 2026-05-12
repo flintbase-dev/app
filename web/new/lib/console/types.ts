@@ -17,6 +17,8 @@ export type ConsoleStatus = DisplayContext & {
   stripeUnitPrice: number;
   setup: boolean;
   checkinEnabled: boolean;
+  hCaptchaCheck: boolean;
+  hCaptchaSiteKey: string;
   apiInfoEnabled: boolean;
   faqEnabled: boolean;
   apiInfo: { label: string; url: string }[];

@@ -566,8 +566,8 @@ func disableCache() apiOperationOption {
 	return withMiddlewares(middleware.DisableCache())
 }
 
-func turnstileCheck() apiOperationOption {
-	return withMiddlewares(middleware.TurnstileCheck())
+func hcaptchaCheck() apiOperationOption {
+	return withMiddlewares(middleware.HCaptchaCheck())
 }
 
 var graphqlAPIOperations = []apiOperation{
@@ -611,7 +611,7 @@ var graphqlAPIOperations = []apiOperation{
 	apiMutation("deleteSelf", controller.DeleteSelf, userActivity("user_self")),
 	apiMutation("updateUserSetting", controller.UpdateUserSetting, userActivity("user_self")),
 	apiQuery("checkinStatus", controller.GetCheckinStatus, userActivity("user_self")),
-	apiMutation("checkin", controller.DoCheckin, userActivity("user_self"), turnstileCheck()),
+	apiMutation("checkin", controller.DoCheckin, userActivity("user_self"), hcaptchaCheck()),
 
 	apiQuery("users", controller.GetAllUsers, adminAudit("user")),
 	apiQuery("adminBroadcasts", controller.AdminListBroadcasts, adminAudit("broadcast")),

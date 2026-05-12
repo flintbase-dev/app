@@ -19,6 +19,7 @@ func TestGetOptionsHidesSensitiveKeys(t *testing.T) {
 	original := common.OptionMap
 	common.OptionMap = map[string]string{
 		"SystemName":          "Flintbase",
+		"HCaptchaSiteKey":     "public-site-key",
 		"PostmarkServerToken": "secret-token",
 	}
 	common.OptionMapRWMutex.Unlock()
@@ -40,9 +41,14 @@ func TestGetOptionsHidesSensitiveKeys(t *testing.T) {
 	require.True(t, payload["success"].(bool))
 
 	items := payload["data"].([]interface{})
-	require.Len(t, items, 1)
-	option := items[0].(map[string]interface{})
-	require.Equal(t, "SystemName", option["key"])
+	require.Len(t, items, 2)
+	optionKeys := make(map[string]string, len(items))
+	for _, item := range items {
+		option := item.(map[string]interface{})
+		optionKeys[option["key"].(string)] = option["value"].(string)
+	}
+	require.Equal(t, "Flintbase", optionKeys["SystemName"])
+	require.Equal(t, "public-site-key", optionKeys["HCaptchaSiteKey"])
 }
 
 func TestUpdateOptionWithRevisionPersistsAuditTrail(t *testing.T) {

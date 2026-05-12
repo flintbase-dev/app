@@ -549,6 +549,8 @@ export function normalizeStatus(value: unknown): ConsoleStatus {
     docsLink: toText(item.docs_link, "https://docs.flint.dev"),
     setup: toBool(item.setup),
     checkinEnabled: toBool(item.checkin_enabled),
+    hCaptchaCheck: toBool(item.hcaptcha_check),
+    hCaptchaSiteKey: toText(item.hcaptcha_site_key),
     apiInfoEnabled: toBool(item.api_info_enabled, true),
     faqEnabled: toBool(item.faq_enabled, true),
     apiInfo,

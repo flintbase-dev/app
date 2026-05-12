@@ -12,8 +12,8 @@
 | Backend registry | `router/graphql_api.go` |
 | Frontend manifest | `web/classic/src/helpers/apiOperations.js` |
 | Generator | `web/classic/scripts/generate-graphql-api-doc.mjs` |
-| Source hash | `c801b294115c265d` |
-| Operations | `148` total, `69` queries, `79` mutations |
+| Source hash | `a7254061b0dd9010` |
+| Operations | `149` total, `70` queries, `79` mutations |
 | Frontend parity | `verified` |
 
 ## 调用契约
@@ -55,6 +55,7 @@ type Query {
   affCode(input: JSON, params: JSON): JSON
   topupInfo(input: JSON, params: JSON): JSON
   userTopups(input: JSON, params: JSON): JSON
+  stripeCheckoutResult(input: JSON, params: JSON): JSON
   checkinStatus(input: JSON, params: JSON): JSON
   users(input: JSON, params: JSON): JSON
   adminBroadcasts(input: JSON, params: JSON): JSON
@@ -111,6 +112,7 @@ type Mutation {
   topup(input: JSON, params: JSON): JSON
   stripePay(input: JSON, params: JSON): JSON
   stripeAmount(input: JSON, params: JSON): JSON
+  stripeBillingPortal(input: JSON, params: JSON): JSON
   affTransfer(input: JSON, params: JSON): JSON
   updateSelf(input: JSON, params: JSON): JSON
   deleteSelf(input: JSON, params: JSON): JSON
@@ -118,7 +120,6 @@ type Mutation {
   checkin(input: JSON, params: JSON): JSON
   createBroadcast(input: JSON, params: JSON): JSON
   deleteBroadcast(input: JSON, params: JSON): JSON
-  completeTopup(input: JSON, params: JSON): JSON
   manageUser(input: JSON, params: JSON): JSON
   updateUser(input: JSON, params: JSON): JSON
   deleteUser(input: JSON, params: JSON): JSON
@@ -231,51 +232,52 @@ query Setup($input: JSON, $params: JSON) {
 | `affCode` | `user` | `UserAuth`, `ActivityMutation(user_self)` | `activity:user_self` | - | `controller.GetAffCode` | `userActivity("user_self")` | `router/graphql_api.go:601` |
 | `topupInfo` | `user` | `UserAuth`, `ActivityMutation(user_self)` | `activity:user_self` | - | `controller.GetTopUpInfo` | `userActivity("user_self")` | `router/graphql_api.go:602` |
 | `userTopups` | `user` | `UserAuth`, `ActivityMutation(user_self)` | `activity:user_self` | - | `controller.GetUserTopUps` | `userActivity("user_self")` | `router/graphql_api.go:603` |
-| `checkinStatus` | `user` | `UserAuth`, `ActivityMutation(user_self)` | `activity:user_self` | - | `controller.GetCheckinStatus` | `userActivity("user_self")` | `router/graphql_api.go:611` |
-| `users` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | - | `controller.GetAllUsers` | `adminAudit("user")` | `router/graphql_api.go:614` |
-| `adminBroadcasts` | `admin` | `AdminAuth`, `AuditMutation(broadcast)` | `audit:broadcast` | - | `controller.AdminListBroadcasts` | `adminAudit("broadcast")` | `router/graphql_api.go:615` |
-| `adminTopups` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | - | `controller.GetAllTopUps` | `adminAudit("user")` | `router/graphql_api.go:618` |
-| `searchUsers` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | - | `controller.SearchUsers` | `adminAudit("user")` | `router/graphql_api.go:620` |
-| `user` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | `id` | `controller.GetUser` | `adminAudit("user")`, `withResourceParams("id")` | `router/graphql_api.go:621` |
-| `subscriptionPlans` | `user` | `UserAuth`, `ActivityMutation(subscription)` | `activity:subscription` | - | `controller.GetSubscriptionPlans` | `userActivity("subscription")` | `router/graphql_api.go:626` |
-| `subscriptionSelf` | `user` | `UserAuth`, `ActivityMutation(subscription)` | `activity:subscription` | - | `controller.GetSubscriptionSelf` | `userActivity("subscription")` | `router/graphql_api.go:627` |
-| `adminSubscriptionPlans` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | - | `controller.AdminListSubscriptionPlans` | `adminAudit("subscription")` | `router/graphql_api.go:630` |
-| `userSubscriptions` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | `id` | `controller.AdminListUserSubscriptions` | `adminAudit("subscription")`, `withResourceParams("id")` | `router/graphql_api.go:635` |
-| `options` | `root` | `RootAuth`, `AuditMutation(option)` | `audit:option` | - | `controller.GetOptions` | `rootAudit("option")` | `router/graphql_api.go:640` |
-| `optionRevisions` | `root` | `RootAuth`, `AuditMutation(option)` | `audit:option` | - | `controller.GetOptionRevisions` | `rootAudit("option")` | `router/graphql_api.go:641` |
-| `channelAffinityCache` | `root` | `RootAuth`, `AuditMutation(option)` | `audit:option` | - | `controller.GetChannelAffinityCacheStats` | `rootAudit("option")` | `router/graphql_api.go:643` |
-| `performanceStats` | `root` | `RootAuth`, `AuditMutation(performance)` | `audit:performance` | - | `controller.GetPerformanceStats` | `rootAudit("performance")` | `router/graphql_api.go:646` |
-| `syncableChannels` | `root` | `RootAuth`, `AuditMutation(ratio_sync)` | `audit:ratio_sync` | - | `controller.GetSyncableChannels` | `rootAudit("ratio_sync")` | `router/graphql_api.go:650` |
-| `channels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.GetAllChannels` | `adminAudit("channel")` | `router/graphql_api.go:653` |
-| `searchChannels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.SearchChannels` | `adminAudit("channel")` | `router/graphql_api.go:654` |
-| `channelModels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.ChannelListModels` | `adminAudit("channel")` | `router/graphql_api.go:655` |
-| `enabledChannelModels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.EnabledListModels` | `adminAudit("channel")` | `router/graphql_api.go:656` |
-| `channel` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | `id` | `controller.GetChannel` | `adminAudit("channel")`, `withResourceParams("id")` | `router/graphql_api.go:657` |
-| `tagModels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.GetTagModels` | `adminAudit("channel")` | `router/graphql_api.go:675` |
-| `tokens` | `user` | `UserAuth`, `ActivityMutation(token)` | `activity:token` | - | `controller.GetAllTokens` | `userActivity("token")` | `router/graphql_api.go:683` |
-| `searchTokens` | `user` | `UserAuth`, `ActivityMutation(token)`, `SearchRateLimit` | `activity:token` | - | `controller.SearchTokens` | `userActivity("token")`, `searchRateLimit()` | `router/graphql_api.go:684` |
-| `token` | `user` | `UserAuth`, `ActivityMutation(token)` | `activity:token` | `id` | `controller.GetToken` | `userActivity("token")`, `withResourceParams("id")` | `router/graphql_api.go:685` |
-| `redemptions` | `admin` | `AdminAuth`, `AuditMutation(redemption)` | `audit:redemption` | - | `controller.GetAllRedemptions` | `adminAudit("redemption")` | `router/graphql_api.go:693` |
-| `searchRedemptions` | `admin` | `AdminAuth`, `AuditMutation(redemption)` | `audit:redemption` | - | `controller.SearchRedemptions` | `adminAudit("redemption")` | `router/graphql_api.go:694` |
-| `redemption` | `admin` | `AdminAuth`, `AuditMutation(redemption)` | `audit:redemption` | `id` | `controller.GetRedemption` | `adminAudit("redemption")`, `withResourceParams("id")` | `router/graphql_api.go:695` |
-| `logs` | `admin` | `AuditMutation(log)`, `AdminAuth` | `audit:log` | - | `controller.GetAllLogs` | `logAuditWithAuth(middleware.AdminAuth())` | `router/graphql_api.go:701` |
-| `logsStat` | `admin` | `AuditMutation(log)`, `AdminAuth` | `audit:log` | - | `controller.GetLogsStat` | `logAuditWithAuth(middleware.AdminAuth())` | `router/graphql_api.go:703` |
-| `logsSelfStat` | `user` | `AuditMutation(log)`, `UserAuth` | `audit:log` | - | `controller.GetLogsSelfStat` | `logAuditWithAuth(middleware.UserAuth())` | `router/graphql_api.go:704` |
-| `channelAffinityUsageCache` | `admin` | `AuditMutation(log)`, `AdminAuth` | `audit:log` | - | `controller.GetChannelAffinityUsageCacheStats` | `logAuditWithAuth(middleware.AdminAuth())` | `router/graphql_api.go:705` |
-| `userLogs` | `user` | `AuditMutation(log)`, `UserAuth` | `audit:log` | - | `controller.GetUserLogs` | `logAuditWithAuth(middleware.UserAuth())` | `router/graphql_api.go:706` |
-| `quotaDates` | `admin` | `AdminAuth` | - | - | `controller.GetAllQuotaDates` | `adminAuth()` | `router/graphql_api.go:707` |
-| `quotaDatesByUser` | `admin` | `AdminAuth` | - | - | `controller.GetQuotaDatesByUser` | `adminAuth()` | `router/graphql_api.go:708` |
-| `quotaDatesSelf` | `user` | `UserAuth` | - | - | `controller.GetUserQuotaDates` | `userAuth()` | `router/graphql_api.go:709` |
-| `groups` | `admin` | `AdminAuth` | - | - | `controller.GetGroups` | `adminAuth()` | `router/graphql_api.go:710` |
-| `prefillGroups` | `admin` | `AdminAuth`, `AuditMutation(prefill_group)` | `audit:prefill_group` | - | `controller.GetPrefillGroups` | `adminAudit("prefill_group")` | `router/graphql_api.go:712` |
-| `vendors` | `admin` | `AdminAuth`, `AuditMutation(vendor)` | `audit:vendor` | - | `controller.GetAllVendors` | `adminAudit("vendor")` | `router/graphql_api.go:716` |
-| `searchVendors` | `admin` | `AdminAuth`, `AuditMutation(vendor)` | `audit:vendor` | - | `controller.SearchVendors` | `adminAudit("vendor")` | `router/graphql_api.go:717` |
-| `vendor` | `admin` | `AdminAuth`, `AuditMutation(vendor)` | `audit:vendor` | `id` | `controller.GetVendorMeta` | `adminAudit("vendor")`, `withResourceParams("id")` | `router/graphql_api.go:718` |
-| `syncUpstreamPreview` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | - | `controller.SyncUpstreamPreview` | `adminAudit("model")` | `router/graphql_api.go:722` |
-| `missingModels` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | - | `controller.GetMissingModels` | `adminAudit("model")` | `router/graphql_api.go:724` |
-| `modelsMeta` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | - | `controller.GetAllModelsMeta` | `adminAudit("model")` | `router/graphql_api.go:725` |
-| `searchModelsMeta` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | - | `controller.SearchModelsMeta` | `adminAudit("model")` | `router/graphql_api.go:726` |
-| `modelMeta` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | `id` | `controller.GetModelMeta` | `adminAudit("model")`, `withResourceParams("id")` | `router/graphql_api.go:727` |
+| `stripeCheckoutResult` | `user` | `UserAuth`, `ActivityMutation(user_self)`, `CriticalRateLimit` | `activity:user_self` | - | `controller.RequestStripeCheckoutResult` | `userActivity("user_self")`, `criticalRateLimit()` | `router/graphql_api.go:607` |
+| `checkinStatus` | `user` | `UserAuth`, `ActivityMutation(user_self)` | `activity:user_self` | - | `controller.GetCheckinStatus` | `userActivity("user_self")` | `router/graphql_api.go:613` |
+| `users` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | - | `controller.GetAllUsers` | `adminAudit("user")` | `router/graphql_api.go:616` |
+| `adminBroadcasts` | `admin` | `AdminAuth`, `AuditMutation(broadcast)` | `audit:broadcast` | - | `controller.AdminListBroadcasts` | `adminAudit("broadcast")` | `router/graphql_api.go:617` |
+| `adminTopups` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | - | `controller.GetAllTopUps` | `adminAudit("user")` | `router/graphql_api.go:620` |
+| `searchUsers` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | - | `controller.SearchUsers` | `adminAudit("user")` | `router/graphql_api.go:621` |
+| `user` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | `id` | `controller.GetUser` | `adminAudit("user")`, `withResourceParams("id")` | `router/graphql_api.go:622` |
+| `subscriptionPlans` | `user` | `UserAuth`, `ActivityMutation(subscription)` | `activity:subscription` | - | `controller.GetSubscriptionPlans` | `userActivity("subscription")` | `router/graphql_api.go:627` |
+| `subscriptionSelf` | `user` | `UserAuth`, `ActivityMutation(subscription)` | `activity:subscription` | - | `controller.GetSubscriptionSelf` | `userActivity("subscription")` | `router/graphql_api.go:628` |
+| `adminSubscriptionPlans` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | - | `controller.AdminListSubscriptionPlans` | `adminAudit("subscription")` | `router/graphql_api.go:631` |
+| `userSubscriptions` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | `id` | `controller.AdminListUserSubscriptions` | `adminAudit("subscription")`, `withResourceParams("id")` | `router/graphql_api.go:636` |
+| `options` | `root` | `RootAuth`, `AuditMutation(option)` | `audit:option` | - | `controller.GetOptions` | `rootAudit("option")` | `router/graphql_api.go:641` |
+| `optionRevisions` | `root` | `RootAuth`, `AuditMutation(option)` | `audit:option` | - | `controller.GetOptionRevisions` | `rootAudit("option")` | `router/graphql_api.go:642` |
+| `channelAffinityCache` | `root` | `RootAuth`, `AuditMutation(option)` | `audit:option` | - | `controller.GetChannelAffinityCacheStats` | `rootAudit("option")` | `router/graphql_api.go:644` |
+| `performanceStats` | `root` | `RootAuth`, `AuditMutation(performance)` | `audit:performance` | - | `controller.GetPerformanceStats` | `rootAudit("performance")` | `router/graphql_api.go:647` |
+| `syncableChannels` | `root` | `RootAuth`, `AuditMutation(ratio_sync)` | `audit:ratio_sync` | - | `controller.GetSyncableChannels` | `rootAudit("ratio_sync")` | `router/graphql_api.go:651` |
+| `channels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.GetAllChannels` | `adminAudit("channel")` | `router/graphql_api.go:654` |
+| `searchChannels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.SearchChannels` | `adminAudit("channel")` | `router/graphql_api.go:655` |
+| `channelModels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.ChannelListModels` | `adminAudit("channel")` | `router/graphql_api.go:656` |
+| `enabledChannelModels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.EnabledListModels` | `adminAudit("channel")` | `router/graphql_api.go:657` |
+| `channel` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | `id` | `controller.GetChannel` | `adminAudit("channel")`, `withResourceParams("id")` | `router/graphql_api.go:658` |
+| `tagModels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.GetTagModels` | `adminAudit("channel")` | `router/graphql_api.go:676` |
+| `tokens` | `user` | `UserAuth`, `ActivityMutation(token)` | `activity:token` | - | `controller.GetAllTokens` | `userActivity("token")` | `router/graphql_api.go:684` |
+| `searchTokens` | `user` | `UserAuth`, `ActivityMutation(token)`, `SearchRateLimit` | `activity:token` | - | `controller.SearchTokens` | `userActivity("token")`, `searchRateLimit()` | `router/graphql_api.go:685` |
+| `token` | `user` | `UserAuth`, `ActivityMutation(token)` | `activity:token` | `id` | `controller.GetToken` | `userActivity("token")`, `withResourceParams("id")` | `router/graphql_api.go:686` |
+| `redemptions` | `admin` | `AdminAuth`, `AuditMutation(redemption)` | `audit:redemption` | - | `controller.GetAllRedemptions` | `adminAudit("redemption")` | `router/graphql_api.go:694` |
+| `searchRedemptions` | `admin` | `AdminAuth`, `AuditMutation(redemption)` | `audit:redemption` | - | `controller.SearchRedemptions` | `adminAudit("redemption")` | `router/graphql_api.go:695` |
+| `redemption` | `admin` | `AdminAuth`, `AuditMutation(redemption)` | `audit:redemption` | `id` | `controller.GetRedemption` | `adminAudit("redemption")`, `withResourceParams("id")` | `router/graphql_api.go:696` |
+| `logs` | `admin` | `AuditMutation(log)`, `AdminAuth` | `audit:log` | - | `controller.GetAllLogs` | `logAuditWithAuth(middleware.AdminAuth())` | `router/graphql_api.go:702` |
+| `logsStat` | `admin` | `AuditMutation(log)`, `AdminAuth` | `audit:log` | - | `controller.GetLogsStat` | `logAuditWithAuth(middleware.AdminAuth())` | `router/graphql_api.go:704` |
+| `logsSelfStat` | `user` | `AuditMutation(log)`, `UserAuth` | `audit:log` | - | `controller.GetLogsSelfStat` | `logAuditWithAuth(middleware.UserAuth())` | `router/graphql_api.go:705` |
+| `channelAffinityUsageCache` | `admin` | `AuditMutation(log)`, `AdminAuth` | `audit:log` | - | `controller.GetChannelAffinityUsageCacheStats` | `logAuditWithAuth(middleware.AdminAuth())` | `router/graphql_api.go:706` |
+| `userLogs` | `user` | `AuditMutation(log)`, `UserAuth` | `audit:log` | - | `controller.GetUserLogs` | `logAuditWithAuth(middleware.UserAuth())` | `router/graphql_api.go:707` |
+| `quotaDates` | `admin` | `AdminAuth` | - | - | `controller.GetAllQuotaDates` | `adminAuth()` | `router/graphql_api.go:708` |
+| `quotaDatesByUser` | `admin` | `AdminAuth` | - | - | `controller.GetQuotaDatesByUser` | `adminAuth()` | `router/graphql_api.go:709` |
+| `quotaDatesSelf` | `user` | `UserAuth` | - | - | `controller.GetUserQuotaDates` | `userAuth()` | `router/graphql_api.go:710` |
+| `groups` | `admin` | `AdminAuth` | - | - | `controller.GetGroups` | `adminAuth()` | `router/graphql_api.go:711` |
+| `prefillGroups` | `admin` | `AdminAuth`, `AuditMutation(prefill_group)` | `audit:prefill_group` | - | `controller.GetPrefillGroups` | `adminAudit("prefill_group")` | `router/graphql_api.go:713` |
+| `vendors` | `admin` | `AdminAuth`, `AuditMutation(vendor)` | `audit:vendor` | - | `controller.GetAllVendors` | `adminAudit("vendor")` | `router/graphql_api.go:717` |
+| `searchVendors` | `admin` | `AdminAuth`, `AuditMutation(vendor)` | `audit:vendor` | - | `controller.SearchVendors` | `adminAudit("vendor")` | `router/graphql_api.go:718` |
+| `vendor` | `admin` | `AdminAuth`, `AuditMutation(vendor)` | `audit:vendor` | `id` | `controller.GetVendorMeta` | `adminAudit("vendor")`, `withResourceParams("id")` | `router/graphql_api.go:719` |
+| `syncUpstreamPreview` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | - | `controller.SyncUpstreamPreview` | `adminAudit("model")` | `router/graphql_api.go:723` |
+| `missingModels` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | - | `controller.GetMissingModels` | `adminAudit("model")` | `router/graphql_api.go:725` |
+| `modelsMeta` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | - | `controller.GetAllModelsMeta` | `adminAudit("model")` | `router/graphql_api.go:726` |
+| `searchModelsMeta` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | - | `controller.SearchModelsMeta` | `adminAudit("model")` | `router/graphql_api.go:727` |
+| `modelMeta` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | `id` | `controller.GetModelMeta` | `adminAudit("model")`, `withResourceParams("id")` | `router/graphql_api.go:728` |
 
 ## Mutations
 
@@ -289,75 +291,75 @@ query Setup($input: JSON, $params: JSON) {
 | `topup` | `user` | `UserAuth`, `ActivityMutation(user_self)`, `CriticalRateLimit` | `activity:user_self` | - | `controller.TopUp` | `userActivity("user_self")`, `criticalRateLimit()` | `router/graphql_api.go:604` |
 | `stripePay` | `user` | `UserAuth`, `ActivityMutation(user_self)`, `CriticalRateLimit` | `activity:user_self` | - | `controller.RequestStripePay` | `userActivity("user_self")`, `criticalRateLimit()` | `router/graphql_api.go:605` |
 | `stripeAmount` | `user` | `UserAuth`, `ActivityMutation(user_self)` | `activity:user_self` | - | `controller.RequestStripeAmount` | `userActivity("user_self")` | `router/graphql_api.go:606` |
-| `affTransfer` | `user` | `UserAuth`, `ActivityMutation(user_self)` | `activity:user_self` | - | `controller.TransferAffQuota` | `userActivity("user_self")` | `router/graphql_api.go:607` |
-| `updateSelf` | `user` | `UserAuth`, `ActivityMutation(user_self)` | `activity:user_self` | - | `controller.UpdateSelf` | `userActivity("user_self")` | `router/graphql_api.go:608` |
-| `deleteSelf` | `user` | `UserAuth`, `ActivityMutation(user_self)` | `activity:user_self` | - | `controller.DeleteSelf` | `userActivity("user_self")` | `router/graphql_api.go:609` |
-| `updateUserSetting` | `user` | `UserAuth`, `ActivityMutation(user_self)` | `activity:user_self` | - | `controller.UpdateUserSetting` | `userActivity("user_self")` | `router/graphql_api.go:610` |
-| `checkin` | `user` | `UserAuth`, `ActivityMutation(user_self)`, `TurnstileCheck` | `activity:user_self` | - | `controller.DoCheckin` | `userActivity("user_self")`, `turnstileCheck()` | `router/graphql_api.go:612` |
-| `createBroadcast` | `admin` | `AdminAuth`, `AuditMutation(broadcast)` | `audit:broadcast` | - | `controller.AdminCreateBroadcast` | `adminAudit("broadcast")` | `router/graphql_api.go:616` |
-| `deleteBroadcast` | `admin` | `AdminAuth`, `AuditMutation(broadcast)` | `audit:broadcast` | `id` | `controller.AdminDeleteBroadcast` | `adminAudit("broadcast")`, `withResourceParams("id")` | `router/graphql_api.go:617` |
-| `completeTopup` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | - | `controller.AdminCompleteTopUp` | `adminAudit("user")` | `router/graphql_api.go:619` |
-| `manageUser` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | - | `controller.ManageUser` | `adminAudit("user")` | `router/graphql_api.go:622` |
-| `updateUser` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | - | `controller.UpdateUser` | `adminAudit("user")` | `router/graphql_api.go:623` |
-| `deleteUser` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | `id` | `controller.DeleteUser` | `adminAudit("user")`, `withResourceParams("id")` | `router/graphql_api.go:624` |
-| `updateSubscriptionPreference` | `user` | `UserAuth`, `ActivityMutation(subscription)` | `activity:subscription` | - | `controller.UpdateSubscriptionPreference` | `userActivity("subscription")` | `router/graphql_api.go:628` |
-| `subscriptionStripePay` | `user` | `UserAuth`, `ActivityMutation(subscription)`, `CriticalRateLimit` | `activity:subscription` | - | `controller.SubscriptionRequestStripePay` | `userActivity("subscription")`, `criticalRateLimit()` | `router/graphql_api.go:629` |
-| `createSubscriptionPlan` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | - | `controller.AdminCreateSubscriptionPlan` | `adminAudit("subscription")` | `router/graphql_api.go:631` |
-| `updateSubscriptionPlan` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | `id` | `controller.AdminUpdateSubscriptionPlan` | `adminAudit("subscription")`, `withResourceParams("id")` | `router/graphql_api.go:632` |
-| `updateSubscriptionPlanStatus` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | `id` | `controller.AdminUpdateSubscriptionPlanStatus` | `adminAudit("subscription")`, `withResourceParams("id")` | `router/graphql_api.go:633` |
-| `bindSubscription` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | - | `controller.AdminBindSubscription` | `adminAudit("subscription")` | `router/graphql_api.go:634` |
-| `createUserSubscription` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | `id` | `controller.AdminCreateUserSubscription` | `adminAudit("subscription")`, `withResourceParams("id")` | `router/graphql_api.go:636` |
-| `invalidateUserSubscription` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | `id` | `controller.AdminInvalidateUserSubscription` | `adminAudit("subscription")`, `withResourceParams("id")` | `router/graphql_api.go:637` |
-| `deleteUserSubscription` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | `id` | `controller.AdminDeleteUserSubscription` | `adminAudit("subscription")`, `withResourceParams("id")` | `router/graphql_api.go:638` |
-| `updateOption` | `root` | `RootAuth`, `AuditMutation(option)` | `audit:option` | - | `controller.UpdateOption` | `rootAudit("option")` | `router/graphql_api.go:642` |
-| `clearChannelAffinityCache` | `root` | `RootAuth`, `AuditMutation(option)` | `audit:option` | - | `controller.ClearChannelAffinityCache` | `rootAudit("option")` | `router/graphql_api.go:644` |
-| `resetModelPrices` | `root` | `RootAuth`, `AuditMutation(option)` | `audit:option` | - | `controller.ResetModelPrices` | `rootAudit("option")` | `router/graphql_api.go:645` |
-| `clearDiskCache` | `root` | `RootAuth`, `AuditMutation(performance)` | `audit:performance` | - | `controller.ClearDiskCache` | `rootAudit("performance")` | `router/graphql_api.go:647` |
-| `resetPerformanceStats` | `root` | `RootAuth`, `AuditMutation(performance)` | `audit:performance` | - | `controller.ResetPerformanceStats` | `rootAudit("performance")` | `router/graphql_api.go:648` |
-| `forceGC` | `root` | `RootAuth`, `AuditMutation(performance)` | `audit:performance` | - | `controller.ForceGC` | `rootAudit("performance")` | `router/graphql_api.go:649` |
-| `fetchUpstreamRatios` | `root` | `RootAuth`, `AuditMutation(ratio_sync)` | `audit:ratio_sync` | - | `controller.FetchUpstreamRatios` | `rootAudit("ratio_sync")` | `router/graphql_api.go:651` |
-| `channelKey` | `admin + root` | `AdminAuth`, `AuditMutation(channel)`, `RootAuth`, `CriticalRateLimit`, `DisableCache` | `audit:channel` | `id` | `controller.GetChannelKey` | `adminAudit("channel")`, `rootAuth()`, `criticalRateLimit()`, `disableCache()`, `withResourceParams("id")` | `router/graphql_api.go:658` |
-| `testAllChannels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.TestAllChannels` | `adminAudit("channel")` | `router/graphql_api.go:659` |
-| `testChannel` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | `id` | `controller.TestChannel` | `adminAudit("channel")`, `withResourceParams("id")` | `router/graphql_api.go:660` |
-| `updateAllChannelBalance` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.UpdateAllChannelsBalance` | `adminAudit("channel")` | `router/graphql_api.go:661` |
-| `updateChannelBalance` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | `id` | `controller.UpdateChannelBalance` | `adminAudit("channel")`, `withResourceParams("id")` | `router/graphql_api.go:662` |
-| `createChannel` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.AddChannel` | `adminAudit("channel")` | `router/graphql_api.go:663` |
-| `updateChannel` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.UpdateChannel` | `adminAudit("channel")` | `router/graphql_api.go:664` |
-| `deleteDisabledChannels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.DeleteDisabledChannel` | `adminAudit("channel")` | `router/graphql_api.go:665` |
-| `disableTagChannels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.DisableTagChannels` | `adminAudit("channel")` | `router/graphql_api.go:666` |
-| `enableTagChannels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.EnableTagChannels` | `adminAudit("channel")` | `router/graphql_api.go:667` |
-| `editTagChannels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.EditTagChannels` | `adminAudit("channel")` | `router/graphql_api.go:668` |
-| `deleteChannel` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | `id` | `controller.DeleteChannel` | `adminAudit("channel")`, `withResourceParams("id")` | `router/graphql_api.go:669` |
-| `deleteChannels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.DeleteChannelBatch` | `adminAudit("channel")` | `router/graphql_api.go:670` |
-| `fixChannelsAbilities` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.FixChannelsAbilities` | `adminAudit("channel")` | `router/graphql_api.go:671` |
-| `fetchUpstreamModels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | `id` | `controller.FetchUpstreamModels` | `adminAudit("channel")`, `withResourceParams("id")` | `router/graphql_api.go:672` |
-| `fetchModels` | `admin + root` | `AdminAuth`, `AuditMutation(channel)`, `RootAuth` | `audit:channel` | - | `controller.FetchModels` | `adminAudit("channel")`, `rootAuth()` | `router/graphql_api.go:673` |
-| `batchSetChannelTag` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.BatchSetChannelTag` | `adminAudit("channel")` | `router/graphql_api.go:674` |
-| `copyChannel` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | `id` | `controller.CopyChannel` | `adminAudit("channel")`, `withResourceParams("id")` | `router/graphql_api.go:676` |
-| `manageMultiKeys` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.ManageMultiKeys` | `adminAudit("channel")` | `router/graphql_api.go:677` |
-| `applyChannelUpstreamUpdates` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.ApplyChannelUpstreamModelUpdates` | `adminAudit("channel")` | `router/graphql_api.go:678` |
-| `applyAllChannelUpstreamUpdates` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.ApplyAllChannelUpstreamModelUpdates` | `adminAudit("channel")` | `router/graphql_api.go:679` |
-| `detectChannelUpstreamUpdates` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.DetectChannelUpstreamModelUpdates` | `adminAudit("channel")` | `router/graphql_api.go:680` |
-| `detectAllChannelUpstreamUpdates` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.DetectAllChannelUpstreamModelUpdates` | `adminAudit("channel")` | `router/graphql_api.go:681` |
-| `tokenKey` | `user` | `UserAuth`, `ActivityMutation(token)`, `CriticalRateLimit`, `DisableCache` | `activity:token` | `id` | `controller.GetTokenKey` | `userActivity("token")`, `criticalRateLimit()`, `disableCache()`, `withResourceParams("id")` | `router/graphql_api.go:686` |
-| `createToken` | `user` | `UserAuth`, `ActivityMutation(token)` | `activity:token` | - | `controller.AddToken` | `userActivity("token")` | `router/graphql_api.go:687` |
-| `updateToken` | `user` | `UserAuth`, `ActivityMutation(token)` | `activity:token` | - | `controller.UpdateToken` | `userActivity("token")` | `router/graphql_api.go:688` |
-| `deleteToken` | `user` | `UserAuth`, `ActivityMutation(token)` | `activity:token` | `id` | `controller.DeleteToken` | `userActivity("token")`, `withResourceParams("id")` | `router/graphql_api.go:689` |
-| `deleteTokens` | `user` | `UserAuth`, `ActivityMutation(token)` | `activity:token` | - | `controller.DeleteTokenBatch` | `userActivity("token")` | `router/graphql_api.go:690` |
-| `tokenKeysBatch` | `user` | `UserAuth`, `ActivityMutation(token)`, `CriticalRateLimit`, `DisableCache` | `activity:token` | - | `controller.GetTokenKeysBatch` | `userActivity("token")`, `criticalRateLimit()`, `disableCache()` | `router/graphql_api.go:691` |
-| `createRedemption` | `admin` | `AdminAuth`, `AuditMutation(redemption)` | `audit:redemption` | - | `controller.AddRedemption` | `adminAudit("redemption")` | `router/graphql_api.go:696` |
-| `updateRedemption` | `admin` | `AdminAuth`, `AuditMutation(redemption)` | `audit:redemption` | - | `controller.UpdateRedemption` | `adminAudit("redemption")` | `router/graphql_api.go:697` |
-| `deleteInvalidRedemptions` | `admin` | `AdminAuth`, `AuditMutation(redemption)` | `audit:redemption` | - | `controller.DeleteInvalidRedemption` | `adminAudit("redemption")` | `router/graphql_api.go:698` |
-| `deleteRedemption` | `admin` | `AdminAuth`, `AuditMutation(redemption)` | `audit:redemption` | `id` | `controller.DeleteRedemption` | `adminAudit("redemption")`, `withResourceParams("id")` | `router/graphql_api.go:699` |
-| `deleteHistoryLogs` | `admin` | `AuditMutation(log)`, `AdminAuth` | `audit:log` | - | `controller.DeleteHistoryLogs` | `logAuditWithAuth(middleware.AdminAuth())` | `router/graphql_api.go:702` |
-| `createPrefillGroup` | `admin` | `AdminAuth`, `AuditMutation(prefill_group)` | `audit:prefill_group` | - | `controller.CreatePrefillGroup` | `adminAudit("prefill_group")` | `router/graphql_api.go:713` |
-| `updatePrefillGroup` | `admin` | `AdminAuth`, `AuditMutation(prefill_group)` | `audit:prefill_group` | - | `controller.UpdatePrefillGroup` | `adminAudit("prefill_group")` | `router/graphql_api.go:714` |
-| `deletePrefillGroup` | `admin` | `AdminAuth`, `AuditMutation(prefill_group)` | `audit:prefill_group` | `id` | `controller.DeletePrefillGroup` | `adminAudit("prefill_group")`, `withResourceParams("id")` | `router/graphql_api.go:715` |
-| `createVendor` | `admin` | `AdminAuth`, `AuditMutation(vendor)` | `audit:vendor` | - | `controller.CreateVendorMeta` | `adminAudit("vendor")` | `router/graphql_api.go:719` |
-| `updateVendor` | `admin` | `AdminAuth`, `AuditMutation(vendor)` | `audit:vendor` | - | `controller.UpdateVendorMeta` | `adminAudit("vendor")` | `router/graphql_api.go:720` |
-| `deleteVendor` | `admin` | `AdminAuth`, `AuditMutation(vendor)` | `audit:vendor` | `id` | `controller.DeleteVendorMeta` | `adminAudit("vendor")`, `withResourceParams("id")` | `router/graphql_api.go:721` |
-| `syncUpstreamModels` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | - | `controller.SyncUpstreamModels` | `adminAudit("model")` | `router/graphql_api.go:723` |
-| `createModelMeta` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | - | `controller.CreateModelMeta` | `adminAudit("model")` | `router/graphql_api.go:728` |
-| `updateModelMeta` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | - | `controller.UpdateModelMeta` | `adminAudit("model")` | `router/graphql_api.go:729` |
-| `deleteModelMeta` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | `id` | `controller.DeleteModelMeta` | `adminAudit("model")`, `withResourceParams("id")` | `router/graphql_api.go:730` |
+| `stripeBillingPortal` | `user` | `UserAuth`, `ActivityMutation(user_self)`, `CriticalRateLimit` | `activity:user_self` | - | `controller.RequestStripeBillingPortal` | `userActivity("user_self")`, `criticalRateLimit()` | `router/graphql_api.go:608` |
+| `affTransfer` | `user` | `UserAuth`, `ActivityMutation(user_self)` | `activity:user_self` | - | `controller.TransferAffQuota` | `userActivity("user_self")` | `router/graphql_api.go:609` |
+| `updateSelf` | `user` | `UserAuth`, `ActivityMutation(user_self)` | `activity:user_self` | - | `controller.UpdateSelf` | `userActivity("user_self")` | `router/graphql_api.go:610` |
+| `deleteSelf` | `user` | `UserAuth`, `ActivityMutation(user_self)` | `activity:user_self` | - | `controller.DeleteSelf` | `userActivity("user_self")` | `router/graphql_api.go:611` |
+| `updateUserSetting` | `user` | `UserAuth`, `ActivityMutation(user_self)` | `activity:user_self` | - | `controller.UpdateUserSetting` | `userActivity("user_self")` | `router/graphql_api.go:612` |
+| `checkin` | `user` | `UserAuth`, `ActivityMutation(user_self)`, `HCaptchaCheck` | `activity:user_self` | - | `controller.DoCheckin` | `userActivity("user_self")`, `hcaptchaCheck()` | `router/graphql_api.go:614` |
+| `createBroadcast` | `admin` | `AdminAuth`, `AuditMutation(broadcast)` | `audit:broadcast` | - | `controller.AdminCreateBroadcast` | `adminAudit("broadcast")` | `router/graphql_api.go:618` |
+| `deleteBroadcast` | `admin` | `AdminAuth`, `AuditMutation(broadcast)` | `audit:broadcast` | `id` | `controller.AdminDeleteBroadcast` | `adminAudit("broadcast")`, `withResourceParams("id")` | `router/graphql_api.go:619` |
+| `manageUser` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | - | `controller.ManageUser` | `adminAudit("user")` | `router/graphql_api.go:623` |
+| `updateUser` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | - | `controller.UpdateUser` | `adminAudit("user")` | `router/graphql_api.go:624` |
+| `deleteUser` | `admin` | `AdminAuth`, `AuditMutation(user)` | `audit:user` | `id` | `controller.DeleteUser` | `adminAudit("user")`, `withResourceParams("id")` | `router/graphql_api.go:625` |
+| `updateSubscriptionPreference` | `user` | `UserAuth`, `ActivityMutation(subscription)` | `activity:subscription` | - | `controller.UpdateSubscriptionPreference` | `userActivity("subscription")` | `router/graphql_api.go:629` |
+| `subscriptionStripePay` | `user` | `UserAuth`, `ActivityMutation(subscription)`, `CriticalRateLimit` | `activity:subscription` | - | `controller.SubscriptionRequestStripePay` | `userActivity("subscription")`, `criticalRateLimit()` | `router/graphql_api.go:630` |
+| `createSubscriptionPlan` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | - | `controller.AdminCreateSubscriptionPlan` | `adminAudit("subscription")` | `router/graphql_api.go:632` |
+| `updateSubscriptionPlan` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | `id` | `controller.AdminUpdateSubscriptionPlan` | `adminAudit("subscription")`, `withResourceParams("id")` | `router/graphql_api.go:633` |
+| `updateSubscriptionPlanStatus` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | `id` | `controller.AdminUpdateSubscriptionPlanStatus` | `adminAudit("subscription")`, `withResourceParams("id")` | `router/graphql_api.go:634` |
+| `bindSubscription` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | - | `controller.AdminBindSubscription` | `adminAudit("subscription")` | `router/graphql_api.go:635` |
+| `createUserSubscription` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | `id` | `controller.AdminCreateUserSubscription` | `adminAudit("subscription")`, `withResourceParams("id")` | `router/graphql_api.go:637` |
+| `invalidateUserSubscription` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | `id` | `controller.AdminInvalidateUserSubscription` | `adminAudit("subscription")`, `withResourceParams("id")` | `router/graphql_api.go:638` |
+| `deleteUserSubscription` | `admin` | `AdminAuth`, `AuditMutation(subscription)` | `audit:subscription` | `id` | `controller.AdminDeleteUserSubscription` | `adminAudit("subscription")`, `withResourceParams("id")` | `router/graphql_api.go:639` |
+| `updateOption` | `root` | `RootAuth`, `AuditMutation(option)` | `audit:option` | - | `controller.UpdateOption` | `rootAudit("option")` | `router/graphql_api.go:643` |
+| `clearChannelAffinityCache` | `root` | `RootAuth`, `AuditMutation(option)` | `audit:option` | - | `controller.ClearChannelAffinityCache` | `rootAudit("option")` | `router/graphql_api.go:645` |
+| `resetModelPrices` | `root` | `RootAuth`, `AuditMutation(option)` | `audit:option` | - | `controller.ResetModelPrices` | `rootAudit("option")` | `router/graphql_api.go:646` |
+| `clearDiskCache` | `root` | `RootAuth`, `AuditMutation(performance)` | `audit:performance` | - | `controller.ClearDiskCache` | `rootAudit("performance")` | `router/graphql_api.go:648` |
+| `resetPerformanceStats` | `root` | `RootAuth`, `AuditMutation(performance)` | `audit:performance` | - | `controller.ResetPerformanceStats` | `rootAudit("performance")` | `router/graphql_api.go:649` |
+| `forceGC` | `root` | `RootAuth`, `AuditMutation(performance)` | `audit:performance` | - | `controller.ForceGC` | `rootAudit("performance")` | `router/graphql_api.go:650` |
+| `fetchUpstreamRatios` | `root` | `RootAuth`, `AuditMutation(ratio_sync)` | `audit:ratio_sync` | - | `controller.FetchUpstreamRatios` | `rootAudit("ratio_sync")` | `router/graphql_api.go:652` |
+| `channelKey` | `admin + root` | `AdminAuth`, `AuditMutation(channel)`, `RootAuth`, `CriticalRateLimit`, `DisableCache` | `audit:channel` | `id` | `controller.GetChannelKey` | `adminAudit("channel")`, `rootAuth()`, `criticalRateLimit()`, `disableCache()`, `withResourceParams("id")` | `router/graphql_api.go:659` |
+| `testAllChannels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.TestAllChannels` | `adminAudit("channel")` | `router/graphql_api.go:660` |
+| `testChannel` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | `id` | `controller.TestChannel` | `adminAudit("channel")`, `withResourceParams("id")` | `router/graphql_api.go:661` |
+| `updateAllChannelBalance` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.UpdateAllChannelsBalance` | `adminAudit("channel")` | `router/graphql_api.go:662` |
+| `updateChannelBalance` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | `id` | `controller.UpdateChannelBalance` | `adminAudit("channel")`, `withResourceParams("id")` | `router/graphql_api.go:663` |
+| `createChannel` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.AddChannel` | `adminAudit("channel")` | `router/graphql_api.go:664` |
+| `updateChannel` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.UpdateChannel` | `adminAudit("channel")` | `router/graphql_api.go:665` |
+| `deleteDisabledChannels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.DeleteDisabledChannel` | `adminAudit("channel")` | `router/graphql_api.go:666` |
+| `disableTagChannels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.DisableTagChannels` | `adminAudit("channel")` | `router/graphql_api.go:667` |
+| `enableTagChannels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.EnableTagChannels` | `adminAudit("channel")` | `router/graphql_api.go:668` |
+| `editTagChannels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.EditTagChannels` | `adminAudit("channel")` | `router/graphql_api.go:669` |
+| `deleteChannel` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | `id` | `controller.DeleteChannel` | `adminAudit("channel")`, `withResourceParams("id")` | `router/graphql_api.go:670` |
+| `deleteChannels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.DeleteChannelBatch` | `adminAudit("channel")` | `router/graphql_api.go:671` |
+| `fixChannelsAbilities` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.FixChannelsAbilities` | `adminAudit("channel")` | `router/graphql_api.go:672` |
+| `fetchUpstreamModels` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | `id` | `controller.FetchUpstreamModels` | `adminAudit("channel")`, `withResourceParams("id")` | `router/graphql_api.go:673` |
+| `fetchModels` | `admin + root` | `AdminAuth`, `AuditMutation(channel)`, `RootAuth` | `audit:channel` | - | `controller.FetchModels` | `adminAudit("channel")`, `rootAuth()` | `router/graphql_api.go:674` |
+| `batchSetChannelTag` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.BatchSetChannelTag` | `adminAudit("channel")` | `router/graphql_api.go:675` |
+| `copyChannel` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | `id` | `controller.CopyChannel` | `adminAudit("channel")`, `withResourceParams("id")` | `router/graphql_api.go:677` |
+| `manageMultiKeys` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.ManageMultiKeys` | `adminAudit("channel")` | `router/graphql_api.go:678` |
+| `applyChannelUpstreamUpdates` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.ApplyChannelUpstreamModelUpdates` | `adminAudit("channel")` | `router/graphql_api.go:679` |
+| `applyAllChannelUpstreamUpdates` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.ApplyAllChannelUpstreamModelUpdates` | `adminAudit("channel")` | `router/graphql_api.go:680` |
+| `detectChannelUpstreamUpdates` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.DetectChannelUpstreamModelUpdates` | `adminAudit("channel")` | `router/graphql_api.go:681` |
+| `detectAllChannelUpstreamUpdates` | `admin` | `AdminAuth`, `AuditMutation(channel)` | `audit:channel` | - | `controller.DetectAllChannelUpstreamModelUpdates` | `adminAudit("channel")` | `router/graphql_api.go:682` |
+| `tokenKey` | `user` | `UserAuth`, `ActivityMutation(token)`, `CriticalRateLimit`, `DisableCache` | `activity:token` | `id` | `controller.GetTokenKey` | `userActivity("token")`, `criticalRateLimit()`, `disableCache()`, `withResourceParams("id")` | `router/graphql_api.go:687` |
+| `createToken` | `user` | `UserAuth`, `ActivityMutation(token)` | `activity:token` | - | `controller.AddToken` | `userActivity("token")` | `router/graphql_api.go:688` |
+| `updateToken` | `user` | `UserAuth`, `ActivityMutation(token)` | `activity:token` | - | `controller.UpdateToken` | `userActivity("token")` | `router/graphql_api.go:689` |
+| `deleteToken` | `user` | `UserAuth`, `ActivityMutation(token)` | `activity:token` | `id` | `controller.DeleteToken` | `userActivity("token")`, `withResourceParams("id")` | `router/graphql_api.go:690` |
+| `deleteTokens` | `user` | `UserAuth`, `ActivityMutation(token)` | `activity:token` | - | `controller.DeleteTokenBatch` | `userActivity("token")` | `router/graphql_api.go:691` |
+| `tokenKeysBatch` | `user` | `UserAuth`, `ActivityMutation(token)`, `CriticalRateLimit`, `DisableCache` | `activity:token` | - | `controller.GetTokenKeysBatch` | `userActivity("token")`, `criticalRateLimit()`, `disableCache()` | `router/graphql_api.go:692` |
+| `createRedemption` | `admin` | `AdminAuth`, `AuditMutation(redemption)` | `audit:redemption` | - | `controller.AddRedemption` | `adminAudit("redemption")` | `router/graphql_api.go:697` |
+| `updateRedemption` | `admin` | `AdminAuth`, `AuditMutation(redemption)` | `audit:redemption` | - | `controller.UpdateRedemption` | `adminAudit("redemption")` | `router/graphql_api.go:698` |
+| `deleteInvalidRedemptions` | `admin` | `AdminAuth`, `AuditMutation(redemption)` | `audit:redemption` | - | `controller.DeleteInvalidRedemption` | `adminAudit("redemption")` | `router/graphql_api.go:699` |
+| `deleteRedemption` | `admin` | `AdminAuth`, `AuditMutation(redemption)` | `audit:redemption` | `id` | `controller.DeleteRedemption` | `adminAudit("redemption")`, `withResourceParams("id")` | `router/graphql_api.go:700` |
+| `deleteHistoryLogs` | `admin` | `AuditMutation(log)`, `AdminAuth` | `audit:log` | - | `controller.DeleteHistoryLogs` | `logAuditWithAuth(middleware.AdminAuth())` | `router/graphql_api.go:703` |
+| `createPrefillGroup` | `admin` | `AdminAuth`, `AuditMutation(prefill_group)` | `audit:prefill_group` | - | `controller.CreatePrefillGroup` | `adminAudit("prefill_group")` | `router/graphql_api.go:714` |
+| `updatePrefillGroup` | `admin` | `AdminAuth`, `AuditMutation(prefill_group)` | `audit:prefill_group` | - | `controller.UpdatePrefillGroup` | `adminAudit("prefill_group")` | `router/graphql_api.go:715` |
+| `deletePrefillGroup` | `admin` | `AdminAuth`, `AuditMutation(prefill_group)` | `audit:prefill_group` | `id` | `controller.DeletePrefillGroup` | `adminAudit("prefill_group")`, `withResourceParams("id")` | `router/graphql_api.go:716` |
+| `createVendor` | `admin` | `AdminAuth`, `AuditMutation(vendor)` | `audit:vendor` | - | `controller.CreateVendorMeta` | `adminAudit("vendor")` | `router/graphql_api.go:720` |
+| `updateVendor` | `admin` | `AdminAuth`, `AuditMutation(vendor)` | `audit:vendor` | - | `controller.UpdateVendorMeta` | `adminAudit("vendor")` | `router/graphql_api.go:721` |
+| `deleteVendor` | `admin` | `AdminAuth`, `AuditMutation(vendor)` | `audit:vendor` | `id` | `controller.DeleteVendorMeta` | `adminAudit("vendor")`, `withResourceParams("id")` | `router/graphql_api.go:722` |
+| `syncUpstreamModels` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | - | `controller.SyncUpstreamModels` | `adminAudit("model")` | `router/graphql_api.go:724` |
+| `createModelMeta` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | - | `controller.CreateModelMeta` | `adminAudit("model")` | `router/graphql_api.go:729` |
+| `updateModelMeta` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | - | `controller.UpdateModelMeta` | `adminAudit("model")` | `router/graphql_api.go:730` |
+| `deleteModelMeta` | `admin` | `AdminAuth`, `AuditMutation(model)` | `audit:model` | `id` | `controller.DeleteModelMeta` | `adminAudit("model")`, `withResourceParams("id")` | `router/graphql_api.go:731` |
 

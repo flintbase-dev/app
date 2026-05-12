@@ -35,7 +35,7 @@ var OptionMapRWMutex sync.RWMutex
 var ItemsPerPage = 10
 var MaxRecentItems = 1000
 
-var TurnstileCheckEnabled = false
+var HCaptchaCheckEnabled = false
 
 var DebugEnabled bool
 var MemoryCacheEnabled bool
@@ -50,8 +50,8 @@ var PostmarkFrom = ""
 var PostmarkServerToken = ""
 var PostmarkMessageStream = "outbound"
 
-var TurnstileSiteKey = ""
-var TurnstileSecretKey = ""
+var HCaptchaSiteKey = ""
+var HCaptchaSecretKey = ""
 
 var QuotaForNewUser = 0
 var QuotaForInviter = 0

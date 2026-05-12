@@ -15,7 +15,7 @@ const frontendManifestPath = path.join(
   frontendRoot,
   'src/helpers/apiOperations.js',
 );
-const outputPath = path.join(appRoot, 'docs/new-ui/graphql-api.md');
+const outputPath = path.join(appRoot, 'web/new/docs/graphql-api.md');
 const command = 'cd web/classic && node ./scripts/generate-graphql-api-doc.mjs';
 const checkOnly = process.argv.includes('--check');
 
@@ -227,8 +227,8 @@ function parseOption(option) {
     add('guards', 'SearchRateLimit');
   } else if (option === 'disableCache()') {
     add('guards', 'DisableCache');
-  } else if (option === 'turnstileCheck()') {
-    add('guards', 'TurnstileCheck');
+  } else if (option === 'hcaptchaCheck()') {
+    add('guards', 'HCaptchaCheck');
   } else if (option.startsWith('withResourceParams(')) {
     for (const name of extractStringArgs(option)) {
       add('resourceParams', name);
@@ -505,10 +505,12 @@ if (checkOnly) {
     ? fs.readFileSync(outputPath, 'utf8')
     : '';
   if (existing !== markdown) {
-    console.error('docs/new-ui/graphql-api.md is out of date. Run: ' + command);
+    console.error(
+      'web/new/docs/graphql-api.md is out of date. Run: ' + command,
+    );
     process.exit(1);
   }
-  console.log('docs/new-ui/graphql-api.md is up to date');
+  console.log('web/new/docs/graphql-api.md is up to date');
 } else {
   fs.writeFileSync(outputPath, markdown);
   console.log(`Generated ${path.relative(appRoot, outputPath)}`);

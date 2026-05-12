@@ -35,10 +35,10 @@ const PersonalSetting = () => {
   const [inputs, setInputs] = useState({
     self_account_deletion_confirmation: '',
   });
-  const [, setStatus] = useState({});
+  const [status, setStatus] = useState({});
   const [showAccountDeleteModal, setShowAccountDeleteModal] = useState(false);
-  const [turnstileEnabled, setTurnstileEnabled] = useState(false);
-  const [turnstileSiteKey, setTurnstileSiteKey] = useState('');
+  const [hCaptchaEnabled, setHCaptchaEnabled] = useState(false);
+  const [hCaptchaSiteKey, setHCaptchaSiteKey] = useState('');
   const [, setSystemToken] = useState('');
   const [notificationSettings, setNotificationSettings] = useState({
     warningThreshold: 100000,
@@ -55,12 +55,12 @@ const PersonalSetting = () => {
         if (success && data) {
           setStatus(data);
           setStatusData(data);
-          if (data.turnstile_check) {
-            setTurnstileEnabled(true);
-            setTurnstileSiteKey(data.turnstile_site_key);
+          if (data.hcaptcha_check) {
+            setHCaptchaEnabled(true);
+            setHCaptchaSiteKey(data.hcaptcha_site_key);
           } else {
-            setTurnstileEnabled(false);
-            setTurnstileSiteKey('');
+            setHCaptchaEnabled(false);
+            setHCaptchaSiteKey('');
           }
         }
       } catch (e) {
@@ -201,7 +201,12 @@ const PersonalSetting = () => {
         }
         saveNotificationSettings={saveNotificationSettings}
       />
-      <CheckinCalendar t={t} />
+      <CheckinCalendar
+        t={t}
+        status={status}
+        hCaptchaEnabled={hCaptchaEnabled}
+        hCaptchaSiteKey={hCaptchaSiteKey}
+      />
 
       <AccountDeleteModal
         t={t}
@@ -211,9 +216,9 @@ const PersonalSetting = () => {
         handleInputChange={handleInputChange}
         deleteAccount={deleteAccount}
         userState={userState}
-        turnstileEnabled={turnstileEnabled}
-        turnstileSiteKey={turnstileSiteKey}
-        setTurnstileToken={() => {}}
+        hCaptchaEnabled={hCaptchaEnabled}
+        hCaptchaSiteKey={hCaptchaSiteKey}
+        setHCaptchaToken={() => {}}
       />
     </div>
   );

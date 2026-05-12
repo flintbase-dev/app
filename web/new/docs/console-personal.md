@@ -16,11 +16,11 @@
 - 支持价格偏好：是否接受未设置价格的模型。
 - 支持隐私偏好：消费日志和错误日志是否记录客户端 IP。
 - 如果当前用户具备边栏设置权限，支持个人侧边栏模块开关，并受管理员全局侧边栏配置约束。
-- 当前代码包含每日签到组件能力；该组件依赖 `status.checkin_enabled`、`checkinStatus`、`checkin` 和 Turnstile 配置。当前挂载未传入这些 props，新版实现如保留签到功能需要显式接入。
+- 当前代码包含每日签到组件能力；该组件依赖 `status.checkin_enabled`、`checkinStatus`、`checkin` 和 hCaptcha 配置。当前挂载未传入这些 props，新版实现如保留签到功能需要显式接入。
 
 ## API
 
-- `status` query：加载公开状态，用于 Turnstile、签到等功能开关。
+- `status` query：加载公开状态，用于 hCaptcha、签到等功能开关。
 - `self` query：加载当前用户资料、权限和个人侧边栏配置。
 - `generateAccessToken` mutation：重置当前用户系统访问令牌。
 - `deleteSelf` mutation：删除当前用户账号。
@@ -31,13 +31,13 @@
   - `accept_unset_model_price_model`
   - `record_ip_log`
 - `checkinStatus` query：签到状态，参数 `month`，格式 `YYYY-MM`。
-- `checkin` mutation：执行签到；Turnstile 开启时通过 `params.turnstile` 传验证码。
+- `checkin` mutation：执行签到；hCaptcha 开启时通过 `params.hcaptcha` 传验证码。
 
 ## 本地状态
 
 - `user`：localStorage 中的当前用户资料，也是 `UserContext` 恢复来源。
 - `i18nextLng`：当前语言。
-- `status`：公开状态缓存，用于服务配置和 Turnstile 配置。
+- `status`：公开状态缓存，用于服务配置和 hCaptcha 配置。
 - `sidebar_modules`：保存在用户资料中的个人侧边栏配置 JSON。
 
 ## 用户设置字段
