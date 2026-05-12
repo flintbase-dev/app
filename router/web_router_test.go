@@ -1,6 +1,7 @@
 package router
 
 import (
+	"compress/gzip"
 	"embed"
 	"io"
 	"net/http"
@@ -122,6 +123,49 @@ func TestWebRouterClassicCookieDoesNotHijackFileRequests(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, response.StatusCode)
 	require.Equal(t, "new:/_next/static/app.js", body)
+}
+
+func TestWebRouterRequestsIdentityEncodingFromNewFrontend(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstreamEncoding := make(chan string, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamEncoding <- r.Header.Get("Accept-Encoding")
+		if strings.Contains(r.Header.Get("Accept-Encoding"), "gzip") {
+			w.Header().Set("Content-Encoding", "gzip")
+			gz := gzip.NewWriter(w)
+			_, _ = gz.Write([]byte("new:" + r.URL.Path))
+			_ = gz.Close()
+			return
+		}
+		_, _ = w.Write([]byte("new:" + r.URL.Path))
+	}))
+	defer upstream.Close()
+
+	router := gin.New()
+	SetWebRouter(router, WebAssets{
+		ClassicBuildFS:   testClassicFS,
+		ClassicIndexPage: testClassicIndex,
+		NewFrontendURL:   upstream.URL,
+	})
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	request, err := http.NewRequest(http.MethodGet, server.URL+"/console", nil)
+	require.NoError(t, err)
+	request.Header.Set("Accept-Encoding", "gzip, br")
+	response, err := http.DefaultClient.Do(request)
+	require.NoError(t, err)
+	defer response.Body.Close()
+
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	require.Equal(t, "identity", <-upstreamEncoding)
+	require.Equal(t, "gzip", response.Header.Get("Content-Encoding"))
+	gr, err := gzip.NewReader(response.Body)
+	require.NoError(t, err)
+	defer gr.Close()
+	body, err := io.ReadAll(gr)
+	require.NoError(t, err)
+	require.Equal(t, "new:/console", string(body))
 }
 
 func TestPrepareWebNewStandaloneAssetsLinksBuildAssets(t *testing.T) {

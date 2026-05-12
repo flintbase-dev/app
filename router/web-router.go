@@ -72,6 +72,11 @@ func newFrontendProxy(rawURL string) *httputil.ReverseProxy {
 		return nil
 	}
 	proxy := httputil.NewSingleHostReverseProxy(target)
+	originalDirector := proxy.Director
+	proxy.Director = func(req *http.Request) {
+		originalDirector(req)
+		req.Header.Set("Accept-Encoding", "identity")
+	}
 	proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
 		common.SysError("web/new frontend proxy error: " + err.Error())
 		http.Error(w, "web/new frontend is unavailable", http.StatusBadGateway)
