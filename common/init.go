@@ -6,7 +6,6 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -18,14 +17,13 @@ var (
 	Port         = flag.Int("port", 3000, "the listening port")
 	PrintVersion = flag.Bool("version", false, "print version and exit")
 	PrintHelp    = flag.Bool("help", false, "print help and exit")
-	LogDir       = flag.String("log-dir", "./logs", "specify the log directory")
 )
 
 func printHelp() {
 	fmt.Println("NewAPI(Based OneAPI) " + Version + " - The next-generation LLM gateway and AI asset management system supports multiple languages.")
 	fmt.Println("Original Project: OneAPI by JustSong - https://github.com/songquanpeng/one-api")
 	fmt.Println("Maintainer: QuantumNous - https://github.com/QuantumNous/new-api")
-	fmt.Println("Usage: newapi [--port <port>] [--log-dir <log directory>] [--version] [--help]")
+	fmt.Println("Usage: newapi [--port <port>] [--version] [--help]")
 }
 
 func InitEnv() {
@@ -61,23 +59,6 @@ func InitEnv() {
 	} else {
 		CryptoSecret = SessionSecret
 	}
-	if os.Getenv("SQLITE_PATH") != "" {
-		SQLitePath = os.Getenv("SQLITE_PATH")
-	}
-	if *LogDir != "" {
-		var err error
-		*LogDir, err = filepath.Abs(*LogDir)
-		if err != nil {
-			log.Fatal(err)
-		}
-		if _, err := os.Stat(*LogDir); os.IsNotExist(err) {
-			err = os.Mkdir(*LogDir, 0777)
-			if err != nil {
-				log.Fatal(err)
-			}
-		}
-	}
-
 	// Initialize variables from constants.go that were using environment variables
 	DebugEnabled = os.Getenv("DEBUG") == "true"
 	MemoryCacheEnabled = os.Getenv("MEMORY_CACHE_ENABLED") == "true"
@@ -107,18 +88,17 @@ func InitEnv() {
 
 	// Initialize string variables with GetEnvOrDefaultString
 	GeminiSafetySetting = GetEnvOrDefaultString("GEMINI_SAFETY_SETTING", "BLOCK_NONE")
-	CohereSafetySetting = GetEnvOrDefaultString("COHERE_SAFETY_SETTING", "NONE")
 
 	// Initialize rate limit variables
-	GlobalApiRateLimitEnable = GetEnvOrDefaultBool("GLOBAL_API_RATE_LIMIT_ENABLE", true)
+	GlobalApiRateLimitEnable = GetEnvOrDefaultBool("GLOBAL_API_RATE_LIMIT_ENABLE", false)
 	GlobalApiRateLimitNum = GetEnvOrDefault("GLOBAL_API_RATE_LIMIT", 180)
 	GlobalApiRateLimitDuration = int64(GetEnvOrDefault("GLOBAL_API_RATE_LIMIT_DURATION", 180))
 
-	GlobalWebRateLimitEnable = GetEnvOrDefaultBool("GLOBAL_WEB_RATE_LIMIT_ENABLE", true)
+	GlobalWebRateLimitEnable = GetEnvOrDefaultBool("GLOBAL_WEB_RATE_LIMIT_ENABLE", false)
 	GlobalWebRateLimitNum = GetEnvOrDefault("GLOBAL_WEB_RATE_LIMIT", 60)
 	GlobalWebRateLimitDuration = int64(GetEnvOrDefault("GLOBAL_WEB_RATE_LIMIT_DURATION", 180))
 
-	CriticalRateLimitEnable = GetEnvOrDefaultBool("CRITICAL_RATE_LIMIT_ENABLE", true)
+	CriticalRateLimitEnable = GetEnvOrDefaultBool("CRITICAL_RATE_LIMIT_ENABLE", false)
 	CriticalRateLimitNum = GetEnvOrDefault("CRITICAL_RATE_LIMIT", 20)
 	CriticalRateLimitDuration = int64(GetEnvOrDefault("CRITICAL_RATE_LIMIT_DURATION", 20*60))
 
@@ -130,7 +110,6 @@ func InitEnv() {
 
 func initConstantEnv() {
 	constant.StreamingTimeout = GetEnvOrDefault("STREAMING_TIMEOUT", 300)
-	constant.DifyDebug = GetEnvOrDefaultBool("DIFY_DEBUG", true)
 	constant.MaxFileDownloadMB = GetEnvOrDefault("MAX_FILE_DOWNLOAD_MB", 64)
 	constant.StreamScannerMaxBufferMB = GetEnvOrDefault("STREAM_SCANNER_MAX_BUFFER_MB", 128)
 	// MaxRequestBodyMB 请求体最大大小（解压后），用于防止超大请求/zip bomb导致内存暴涨
@@ -140,7 +119,6 @@ func initConstantEnv() {
 	constant.CountToken = GetEnvOrDefaultBool("CountToken", true)
 	constant.GetMediaToken = GetEnvOrDefaultBool("GET_MEDIA_TOKEN", true)
 	constant.GetMediaTokenNotStream = GetEnvOrDefaultBool("GET_MEDIA_TOKEN_NOT_STREAM", false)
-	constant.UpdateTask = GetEnvOrDefaultBool("UPDATE_TASK", true)
 	constant.AzureDefaultAPIVersion = GetEnvOrDefaultString("AZURE_DEFAULT_API_VERSION", "2025-04-01-preview")
 	constant.NotifyLimitCount = GetEnvOrDefault("NOTIFY_LIMIT_COUNT", 2)
 	constant.NotificationLimitDurationMinute = GetEnvOrDefault("NOTIFICATION_LIMIT_DURATION_MINUTE", 10)
@@ -148,23 +126,6 @@ func initConstantEnv() {
 	constant.GenerateDefaultToken = GetEnvOrDefaultBool("GENERATE_DEFAULT_TOKEN", false)
 	// 是否启用错误日志
 	constant.ErrorLogEnabled = GetEnvOrDefaultBool("ERROR_LOG_ENABLED", false)
-	// 任务轮询时查询的最大数量
-	constant.TaskQueryLimit = GetEnvOrDefault("TASK_QUERY_LIMIT", 1000)
-	// 异步任务超时时间（分钟），超过此时间未完成的任务将被标记为失败并退款。0 表示禁用。
-	constant.TaskTimeoutMinutes = GetEnvOrDefault("TASK_TIMEOUT_MINUTES", 1440)
-
-	soraPatchStr := GetEnvOrDefaultString("TASK_PRICE_PATCH", "")
-	if soraPatchStr != "" {
-		var taskPricePatches []string
-		soraPatches := strings.Split(soraPatchStr, ",")
-		for _, patch := range soraPatches {
-			trimmedPatch := strings.TrimSpace(patch)
-			if trimmedPatch != "" {
-				taskPricePatches = append(taskPricePatches, trimmedPatch)
-			}
-		}
-		constant.TaskPricePatches = taskPricePatches
-	}
 
 	// Initialize trusted redirect domains for URL validation
 	trustedDomainsStr := GetEnvOrDefaultString("TRUSTED_REDIRECT_DOMAINS", "")

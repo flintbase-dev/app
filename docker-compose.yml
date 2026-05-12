@@ -1,98 +1,154 @@
-# New-API Docker Compose Configuration
-# 
-# Quick Start:
-#   1. docker-compose up -d
-#   2. Access at http://localhost:3000
-#
-# Using MySQL instead of PostgreSQL:
-#   1. Comment out the postgres service and SQL_DSN line 15
-#   2. Uncomment the mysql service and SQL_DSN line 16
-#   3. Uncomment mysql in depends_on (line 28)
-#   4. Uncomment mysql_data in volumes section (line 64)
-#
-# ⚠️  IMPORTANT: Change all default passwords before deploying to production!
+name: ${COMPOSE_PROJECT_NAME:-flintbase}
 
-version: '3.4' # For compatibility with older Docker versions
+x-logging: &default-logging
+  driver: json-file
+  options:
+    max-size: "20m"
+    max-file: "5"
+
+x-app-environment: &app-environment
+  PORT: "3000"
+  GIN_MODE: release
+  DEBUG: "false"
+  TZ: "${TZ:-UTC}"
+  NODE_TYPE: master
+  NODE_NAME: "${NODE_NAME:-flintbase-prod-1}"
+  SESSION_SECRET: "${SESSION_SECRET:?set_SESSION_SECRET}"
+  CRYPTO_SECRET: "${CRYPTO_SECRET:?set_CRYPTO_SECRET}"
+  SQL_DSN: "postgresql://${POSTGRES_USER:?set_POSTGRES_USER}:${POSTGRES_PASSWORD:?set_POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?set_POSTGRES_DB}?sslmode=disable"
+  LOG_CLICKHOUSE_DSN: "clickhouse://${CLICKHOUSE_USER:?set_CLICKHOUSE_USER}:${CLICKHOUSE_PASSWORD:?set_CLICKHOUSE_PASSWORD}@clickhouse:9000/${CLICKHOUSE_DB:?set_CLICKHOUSE_DB}"
+  REDIS_CONN_STRING: "redis://:${REDIS_PASSWORD:?set_REDIS_PASSWORD}@redis:6379/0"
+  ERROR_LOG_ENABLED: "${ERROR_LOG_ENABLED:-true}"
+  BATCH_UPDATE_ENABLED: "${BATCH_UPDATE_ENABLED:-true}"
+  BATCH_UPDATE_INTERVAL: "${BATCH_UPDATE_INTERVAL:-5}"
+  SYNC_FREQUENCY: "${SYNC_FREQUENCY:-60}"
+  WORKOS_API_KEY: "${WORKOS_API_KEY:?set_WORKOS_API_KEY}"
+  WORKOS_CLIENT_ID: "${WORKOS_CLIENT_ID:?set_WORKOS_CLIENT_ID}"
+  WORKOS_REDIRECT_URI: "${WORKOS_REDIRECT_URI:?set_WORKOS_REDIRECT_URI}"
+  WORKOS_ROOT_EMAILS: "${WORKOS_ROOT_EMAILS:?set_WORKOS_ROOT_EMAILS}"
+  WORKOS_ROOT_USER_IDS: "${WORKOS_ROOT_USER_IDS:-}"
+  WORKOS_API_BASE_URL: "${WORKOS_API_BASE_URL:-https://api.workos.com}"
+  TRUSTED_REDIRECT_DOMAINS: "${TRUSTED_REDIRECT_DOMAINS:-}"
 
 services:
-  new-api:
-    image: calciumion/new-api:latest
-    container_name: new-api
-    restart: always
-    command: --log-dir /app/logs
-    ports:
-      - "3000:3000"
-    volumes:
-      - ./data:/data
-      - ./logs:/app/logs
+  db-migrate:
+    image: "${FLINTBASE_IMAGE:?set_FLINTBASE_IMAGE}"
+    pull_policy: always
+    restart: "no"
+    entrypoint: ["/new-api-migrator"]
     environment:
-      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api # ⚠️ IMPORTANT: Change the password in production!
-#      - SQL_DSN=root:123456@tcp(mysql:3306)/new-api  # Point to the mysql service, uncomment if using MySQL
-      - REDIS_CONN_STRING=redis://:123456@redis:6379 # ⚠️ IMPORTANT: Change the password in production!
-      - TZ=Asia/Shanghai
-      - ERROR_LOG_ENABLED=true # 是否启用错误日志记录 (Whether to enable error log recording)
-      - BATCH_UPDATE_ENABLED=true  # 是否启用批量更新 (Whether to enable batch update)
-      - NODE_NAME=new-api-node-1  # 节点名称，用于审计日志中标识节点身份；多节点/容器部署时建议设置 (Node name used in audit logs; recommended when running multiple instances or in containers)
-#      - STREAMING_TIMEOUT=300  # 流模式无响应超时时间，单位秒，默认120秒，如果出现空补全可以尝试改为更大值 （Streaming timeout in seconds, default is 120s. Increase if experiencing empty completions）
-#      - SESSION_SECRET=random_string  # 多机部署时设置，必须修改这个随机字符串！！ （multi-node deployment, set this to a random string!!!!!!!）
-#      - SYNC_FREQUENCY=60  # Uncomment if regular database syncing is needed
-#      - GOOGLE_ANALYTICS_ID=G-XXXXXXXXXX  # Google Analytics 的测量 ID (Google Analytics Measurement ID)
-#      - UMAMI_WEBSITE_ID=xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx  # Umami 网站 ID (Umami Website ID)
-#      - UMAMI_SCRIPT_URL=https://analytics.umami.is/script.js  # Umami 脚本 URL，默认为官方地址 (Umami Script URL, defaults to official URL)
-
+      SQL_DSN: "postgresql://${POSTGRES_USER:?set_POSTGRES_USER}:${POSTGRES_PASSWORD:?set_POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB:?set_POSTGRES_DB}?sslmode=disable"
+      MIGRATION_DIR: /migrations
+      MIGRATION_TIMEOUT: "${MIGRATION_TIMEOUT:-300}"
+      RUN_DB_BOOTSTRAP: "true"
+      TZ: "${TZ:-UTC}"
     depends_on:
-      - redis
-      - postgres
-#      - mysql  # Uncomment if using MySQL
+      postgres:
+        condition: service_healthy
     networks:
-      - new-api-network
+      - backend
+    logging: *default-logging
+
+  app:
+    image: "${FLINTBASE_IMAGE:?set_FLINTBASE_IMAGE}"
+    pull_policy: always
+    restart: unless-stopped
+    ports:
+      - "${FLINTBASE_HTTP_BIND:-127.0.0.1}:${FLINTBASE_HTTP_PORT:-3000}:3000"
+    volumes:
+      - app_data:/data
+    environment: *app-environment
+    depends_on:
+      db-migrate:
+        condition: service_completed_successfully
+      postgres:
+        condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "wget -q -O - http://localhost:3000/api/status | grep -o '\"success\":\\s*true' || exit 1"]
+      test:
+        - CMD-SHELL
+        - 'wget -q -O - --header="Content-Type: application/json" --post-data="{\"query\":\"query { status }\"}" http://127.0.0.1:3000/api/graphql | grep -q "\"success\":true"'
       interval: 30s
       timeout: 10s
-      retries: 3
-
-  redis:
-    image: redis:latest
-    container_name: redis
-    restart: always
-    command: ["redis-server", "--requirepass", "123456"]  # ⚠️ IMPORTANT: Change this password in production!
+      retries: 5
+      start_period: 30s
     networks:
-      - new-api-network
+      - backend
+    logging: *default-logging
 
   postgres:
-    image: postgres:15
-    container_name: postgres
-    restart: always
+    image: postgres:15-alpine
+    restart: unless-stopped
     environment:
-      POSTGRES_USER: root
-      POSTGRES_PASSWORD: 123456  # ⚠️ IMPORTANT: Change this password in production!
-      POSTGRES_DB: new-api
+      POSTGRES_USER: "${POSTGRES_USER:?set_POSTGRES_USER}"
+      POSTGRES_PASSWORD: "${POSTGRES_PASSWORD:?set_POSTGRES_PASSWORD}"
+      POSTGRES_DB: "${POSTGRES_DB:?set_POSTGRES_DB}"
     volumes:
-      - pg_data:/var/lib/postgresql/data
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'pg_isready -U "$${POSTGRES_USER}" -d "$${POSTGRES_DB}"'
+      interval: 10s
+      timeout: 5s
+      retries: 10
     networks:
-      - new-api-network
-#    ports:
-#      - "5432:5432"  # Uncomment if you need to access PostgreSQL from outside Docker
+      - backend
+    logging: *default-logging
 
-#  mysql:
-#    image: mysql:8.2
-#    container_name: mysql
-#    restart: always
-#    environment:
-#      MYSQL_ROOT_PASSWORD: 123456  # ⚠️ IMPORTANT: Change this password in production!
-#      MYSQL_DATABASE: new-api
-#    volumes:
-#      - mysql_data:/var/lib/mysql
-#    networks:
-#      - new-api-network
-#    ports:
-#      - "3306:3306"  # Uncomment if you need to access MySQL from outside Docker
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command:
+      - sh
+      - -c
+      - 'redis-server --appendonly yes --requirepass "$${REDIS_PASSWORD}"'
+    environment:
+      REDIS_PASSWORD: "${REDIS_PASSWORD:?set_REDIS_PASSWORD}"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'redis-cli -a "$${REDIS_PASSWORD}" ping | grep -q PONG'
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    networks:
+      - backend
+    logging: *default-logging
+
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.3
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: "${CLICKHOUSE_DB:?set_CLICKHOUSE_DB}"
+      CLICKHOUSE_USER: "${CLICKHOUSE_USER:?set_CLICKHOUSE_USER}"
+      CLICKHOUSE_PASSWORD: "${CLICKHOUSE_PASSWORD:?set_CLICKHOUSE_PASSWORD}"
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: "1"
+    volumes:
+      - clickhouse_data:/var/lib/clickhouse
+    healthcheck:
+      test:
+        - CMD-SHELL
+        - 'clickhouse client --user "$${CLICKHOUSE_USER}" --password "$${CLICKHOUSE_PASSWORD}" --query "SELECT 1"'
+      interval: 10s
+      timeout: 5s
+      retries: 20
+      start_period: 30s
+    networks:
+      - backend
+    logging: *default-logging
 
 volumes:
-  pg_data:
-#  mysql_data:
+  app_data:
+  postgres_data:
+  redis_data:
+  clickhouse_data:
 
 networks:
-  new-api-network:
+  backend:
     driver: bridge

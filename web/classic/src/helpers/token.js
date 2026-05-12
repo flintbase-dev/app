@@ -25,7 +25,7 @@ import { API } from './api';
  * @returns {Promise<string>} 返回不带 sk- 前缀的真实 token key
  */
 export async function fetchTokenKey(tokenId) {
-  const response = await API.post(`/api/token/${tokenId}/key`);
+  const response = await API.mutation('tokenKey', { id: tokenId });
   const { success, data, message } = response.data || {};
   if (!success || !data?.key) {
     throw new Error(message || 'Failed to fetch token key');
@@ -39,7 +39,9 @@ export async function fetchTokenKey(tokenId) {
  * @returns {Promise<Record<number, string>>} 返回 {id: key} map，key 不带 sk- 前缀
  */
 export async function fetchTokenKeysBatch(tokenIds) {
-  const response = await API.post('/api/token/batch/keys', { ids: tokenIds });
+  const response = await API.mutation('tokenKeysBatch', {
+    input: { ids: tokenIds },
+  });
   const { success, data, message } = response.data || {};
   if (!success || !data?.keys) {
     throw new Error(message || 'Failed to fetch token keys');
@@ -53,7 +55,9 @@ export async function fetchTokenKeysBatch(tokenIds) {
  */
 export async function fetchTokenKeys() {
   try {
-    const response = await API.get('/api/token/?p=1&size=10');
+    const response = await API.query('tokens', {
+      params: { p: 1, size: 10 },
+    });
     const { success, data } = response.data;
     if (!success) throw new Error('Failed to fetch token keys');
 

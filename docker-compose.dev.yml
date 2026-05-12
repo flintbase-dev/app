@@ -2,8 +2,8 @@
 #
 # Usage:
 #   1. docker compose -f docker-compose.dev.yml up -d
-#   2. cd web/classic && bun install && bun run dev
-#   3. Open http://localhost:5173 (Vite dev server, API auto-proxied to :3000)
+#   2. cd web/new && npm install && FLINT_BACKEND_BASE_URL=http://localhost:3000 npm run dev -- --port 3001
+#   3. Open http://localhost:3001 (Next dev server, API auto-proxied to :3000)
 #
 # Rebuild backend after Go code changes:
 #   docker compose -f docker-compose.dev.yml up -d --build new-api
@@ -15,6 +15,26 @@
 #   docker compose -f docker-compose.dev.yml down -v
 
 services:
+  db-migrate:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    image: new-api-dev:local
+    container_name: new-api-dev-db-migrate
+    restart: "no"
+    entrypoint: ["/new-api-migrator"]
+    environment:
+      - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
+      - MIGRATION_DIR=/migrations
+      - INIT_SELF_USE_MODE_ENABLED=false
+      - INIT_DEMO_SITE_ENABLED=false
+      - TZ=Asia/Shanghai
+    depends_on:
+      postgres:
+        condition: service_healthy
+    networks:
+      - dev-network
+
   new-api:
     build:
       context: .
@@ -28,14 +48,28 @@ services:
       - dev_data:/data
     environment:
       - SQL_DSN=postgresql://root:123456@postgres:5432/new-api
+      - LOG_CLICKHOUSE_DSN=clickhouse://new_api:123456@clickhouse:9000/new_api_logs
       - REDIS_CONN_STRING=redis://redis
       - TZ=Asia/Shanghai
       - BATCH_UPDATE_ENABLED=true
+      - WORKOS_API_KEY=${WORKOS_API_KEY:-}
+      - WORKOS_CLIENT_ID=${WORKOS_CLIENT_ID:-}
+      - WORKOS_REDIRECT_URI=${WORKOS_REDIRECT_URI:-}
+      - WORKOS_ROOT_EMAILS=${WORKOS_ROOT_EMAILS:-}
+      - WORKOS_ROOT_USER_IDS=${WORKOS_ROOT_USER_IDS:-}
+      - WORKOS_API_BASE_URL=${WORKOS_API_BASE_URL:-}
+      - WEB_NEW_BASE_URL=http://host.docker.internal:3001
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     depends_on:
       redis:
         condition: service_started
       postgres:
         condition: service_healthy
+      clickhouse:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
     networks:
       - dev-network
 
@@ -64,9 +98,29 @@ services:
       timeout: 3s
       retries: 5
 
+  clickhouse:
+    image: clickhouse/clickhouse-server:25.3
+    container_name: new-api-dev-clickhouse
+    restart: unless-stopped
+    environment:
+      CLICKHOUSE_DB: new_api_logs
+      CLICKHOUSE_USER: new_api
+      CLICKHOUSE_PASSWORD: 123456
+      CLICKHOUSE_DEFAULT_ACCESS_MANAGEMENT: 1
+    volumes:
+      - dev_clickhouse_data:/var/lib/clickhouse
+    networks:
+      - dev-network
+    healthcheck:
+      test: ["CMD-SHELL", "clickhouse client --user new_api --password 123456 --query 'SELECT 1'"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
 volumes:
   dev_data:
   dev_pg_data:
+  dev_clickhouse_data:
 
 networks:
   dev-network:

@@ -74,7 +74,6 @@ export default defineConfig({
           'react-components': [
             'react-dropzone',
             'react-fireworks',
-            'react-telegram-login',
             'react-toastify',
             'react-turnstile',
           ],
@@ -91,14 +90,6 @@ export default defineConfig({
     host: '0.0.0.0',
     proxy: {
       '/api': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-      },
-      '/mj': {
-        target: 'http://localhost:3000',
-        changeOrigin: true,
-      },
-      '/pg': {
         target: 'http://localhost:3000',
         changeOrigin: true,
       },

@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	appconstant "github.com/QuantumNous/new-api/constant"
@@ -24,7 +23,7 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 	info.InitChannelMeta(c)
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact {
 		switch info.ApiType {
-		case appconstant.APITypeOpenAI, appconstant.APITypeCodex:
+		case appconstant.APITypeOpenAI:
 		default:
 			return types.NewErrorWithStatusCode(
 				fmt.Errorf("unsupported endpoint %q for api type %d", "/v1/responses/compact", info.ApiType),
@@ -152,10 +151,6 @@ func ResponsesHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *
 		return nil
 	}
 
-	if strings.HasPrefix(info.OriginModelName, "gpt-4o-audio") {
-		service.PostAudioConsumeQuota(c, info, usageDto, "")
-	} else {
-		service.PostTextConsumeQuota(c, info, usageDto, nil)
-	}
+	service.PostTextConsumeQuota(c, info, usageDto, nil)
 	return nil
 }

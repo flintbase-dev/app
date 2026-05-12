@@ -46,8 +46,7 @@ const ENDPOINT_TEMPLATE = {
   'openai-response-compact': { path: '/v1/responses/compact', method: 'POST' },
   anthropic: { path: '/v1/messages', method: 'POST' },
   gemini: { path: '/v1beta/models/{model}:generateContent', method: 'POST' },
-  'jina-rerank': { path: '/v1/rerank', method: 'POST' },
-  'image-generation': { path: '/v1/images/generations', method: 'POST' },
+  'image-generation': { path: '/v1/images', method: 'POST' },
 };
 
 const EditPrefillGroupModal = ({
@@ -90,7 +89,7 @@ const EditPrefillGroupModal = ({
 
       if (editingGroup.id) {
         submitData.id = editingGroup.id;
-        const res = await API.put('/api/prefill_group', submitData);
+        const res = await API.mutation('updatePrefillGroup', submitData);
         if (res.data.success) {
           showSuccess(t('更新成功'));
           onSuccess();
@@ -98,7 +97,7 @@ const EditPrefillGroupModal = ({
           showError(res.data.message || t('更新失败'));
         }
       } else {
-        const res = await API.post('/api/prefill_group', submitData);
+        const res = await API.mutation('createPrefillGroup', submitData);
         if (res.data.success) {
           showSuccess(t('创建成功'));
           onSuccess();

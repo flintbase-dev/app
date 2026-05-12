@@ -20,7 +20,10 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import { Avatar, Typography, Table, Tag } from '@douyinfe/semi-ui';
 import { IconCoinMoneyStroked } from '@douyinfe/semi-icons';
-import { calculateModelPrice, getModelPriceItems } from '../../../../../helpers';
+import {
+  calculateModelPrice,
+  getModelPriceItems,
+} from '../../../../../helpers';
 
 const { Text } = Typography;
 
@@ -128,7 +131,7 @@ const ModelPricingTable = ({
     });
 
     columns.push({
-      title: siteDisplayType === 'TOKENS' ? t('计费摘要') : t('价格摘要'),
+      title: t('价格摘要'),
       dataIndex: 'priceItems',
       render: (items) => {
         if (items.length === 1 && items[0].isDynamic) {

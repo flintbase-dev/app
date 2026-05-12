@@ -43,7 +43,8 @@ func GetPricing(c *gin.Context) {
 	}
 	var group string
 	if exists {
-		user, err := model.GetUserCache(userId.(int))
+		userID, _ := userId.(string)
+		user, err := model.GetUserCache(userID)
 		if err == nil {
 			group = user.Group
 			for g := range groupRatio {
@@ -76,9 +77,9 @@ func GetPricing(c *gin.Context) {
 	})
 }
 
-func ResetModelRatio(c *gin.Context) {
-	defaultStr := ratio_setting.DefaultModelRatio2JSONString()
-	err := model.UpdateOption("ModelRatio", defaultStr)
+func ResetModelPrices(c *gin.Context) {
+	defaultModelPriceStr := ratio_setting.DefaultModelPrice2JSONString()
+	err := model.UpdateOption("ModelPrice", defaultModelPriceStr)
 	if err != nil {
 		c.JSON(200, gin.H{
 			"success": false,
@@ -86,7 +87,24 @@ func ResetModelRatio(c *gin.Context) {
 		})
 		return
 	}
-	err = ratio_setting.UpdateModelRatioByJSONString(defaultStr)
+	err = ratio_setting.UpdateModelPriceByJSONString(defaultModelPriceStr)
+	if err != nil {
+		c.JSON(200, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	defaultCompletionPriceStr := ratio_setting.DefaultCompletionPrice2JSONString()
+	err = model.UpdateOption("CompletionPrice", defaultCompletionPriceStr)
+	if err != nil {
+		c.JSON(200, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+	err = ratio_setting.UpdateCompletionPriceByJSONString(defaultCompletionPriceStr)
 	if err != nil {
 		c.JSON(200, gin.H{
 			"success": false,
@@ -96,6 +114,6 @@ func ResetModelRatio(c *gin.Context) {
 	}
 	c.JSON(200, gin.H{
 		"success": true,
-		"message": "重置模型倍率成功",
+		"message": "重置模型价格成功",
 	})
 }

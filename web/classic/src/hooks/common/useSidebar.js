@@ -36,8 +36,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     detail: true,
     token: true,
     log: true,
-    midjourney: true,
-    task: true,
+    messages: true,
   },
   personal: {
     enabled: true,
@@ -48,10 +47,10 @@ export const DEFAULT_ADMIN_CONFIG = {
     enabled: true,
     channel: true,
     models: true,
-    deployment: true,
     redemption: true,
     user: true,
     subscription: true,
+    messageManagement: true,
     setting: true,
   },
 };
@@ -113,7 +112,7 @@ export const useSidebar = () => {
         setLoading(true);
       }
 
-      const res = await API.get('/api/user/self');
+      const res = await API.query('self');
       if (res.data.success && res.data.data.sidebar_modules) {
         let config;
         // 检查sidebar_modules是字符串还是对象

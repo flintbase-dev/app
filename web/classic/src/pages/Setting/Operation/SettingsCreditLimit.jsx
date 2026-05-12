@@ -51,7 +51,7 @@ export default function SettingsCreditLimit(props) {
       } else {
         value = inputs[item.key];
       }
-      return API.put('/api/option/', {
+      return API.mutation('updateOption', {
         key: item.key,
         value,
       });

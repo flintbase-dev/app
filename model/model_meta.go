@@ -1,8 +1,6 @@
 package model
 
 import (
-	"strconv"
-
 	"github.com/QuantumNous/new-api/common"
 
 	"gorm.io/gorm"
@@ -21,12 +19,12 @@ type BoundChannel struct {
 }
 
 type Model struct {
-	Id           int            `json:"id"`
+	Id           string         `json:"id" gorm:"primaryKey;type:varchar(32)"`
 	ModelName    string         `json:"model_name" gorm:"size:128;not null;uniqueIndex:uk_model_name_delete_at,priority:1"`
 	Description  string         `json:"description,omitempty" gorm:"type:text"`
 	Icon         string         `json:"icon,omitempty" gorm:"type:varchar(128)"`
 	Tags         string         `json:"tags,omitempty" gorm:"type:varchar(255)"`
-	VendorID     int            `json:"vendor_id,omitempty" gorm:"index"`
+	VendorID     string         `json:"vendor_id,omitempty" gorm:"type:varchar(32);index"`
 	Endpoints    string         `json:"endpoints,omitempty" gorm:"type:text"`
 	Status       int            `json:"status" gorm:"default:1"`
 	SyncOfficial int            `json:"sync_official" gorm:"default:1"`
@@ -64,7 +62,7 @@ func (mi *Model) Insert() error {
 	}).Error
 }
 
-func IsModelNameDuplicated(id int, name string) (bool, error) {
+func IsModelNameDuplicated(id string, name string) (bool, error) {
 	if name == "" {
 		return false, nil
 	}
@@ -85,9 +83,9 @@ func (mi *Model) Delete() error {
 	return DB.Delete(mi).Error
 }
 
-func GetVendorModelCounts() (map[int64]int64, error) {
+func GetVendorModelCounts() (map[string]int64, error) {
 	var stats []struct {
-		VendorID int64
+		VendorID string
 		Count    int64
 	}
 	if err := DB.Model(&Model{}).
@@ -96,7 +94,7 @@ func GetVendorModelCounts() (map[int64]int64, error) {
 		Scan(&stats).Error; err != nil {
 		return nil, err
 	}
-	m := make(map[int64]int64, len(stats))
+	m := make(map[string]int64, len(stats))
 	for _, s := range stats {
 		m[s.VendorID] = s.Count
 	}
@@ -143,11 +141,8 @@ func SearchModels(keyword string, vendor string, offset int, limit int) ([]*Mode
 		db = db.Where("model_name LIKE ? OR description LIKE ? OR tags LIKE ?", like, like, like)
 	}
 	if vendor != "" {
-		if vid, err := strconv.Atoi(vendor); err == nil {
-			db = db.Where("models.vendor_id = ?", vid)
-		} else {
-			db = db.Joins("JOIN vendors ON vendors.id = models.vendor_id").Where("vendors.name LIKE ?", "%"+vendor+"%")
-		}
+		db = db.Joins("JOIN vendors ON vendors.id = models.vendor_id").
+			Where("models.vendor_id = ? OR vendors.name LIKE ?", vendor, "%"+vendor+"%")
 	}
 	var total int64
 	if err := db.Count(&total).Error; err != nil {

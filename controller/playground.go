@@ -29,15 +29,15 @@ func Playground(c *gin.Context) {
 		return
 	}
 
-	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatOpenAI, nil, nil)
+	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatOpenAI, nil)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
 		return
 	}
 
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 
-	// Write user context to ensure acceptUnsetRatio is available
+	// Write user context to ensure acceptUnsetPrice is available
 	userCache, err := model.GetUserCache(userId)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())

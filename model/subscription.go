@@ -3,7 +3,6 @@ package model
 import (
 	"errors"
 	"fmt"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -12,6 +11,7 @@ import (
 	"github.com/QuantumNous/new-api/pkg/cachex"
 	"github.com/samber/hot"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // Subscription duration units
@@ -35,6 +35,11 @@ const (
 var (
 	ErrSubscriptionOrderNotFound      = errors.New("subscription order not found")
 	ErrSubscriptionOrderStatusInvalid = errors.New("subscription order status invalid")
+)
+
+const (
+	SubscriptionOrderModePurchase = "purchase"
+	SubscriptionOrderModeSwitch   = "switch"
 )
 
 const (
@@ -124,15 +129,15 @@ func getSubscriptionPlanInfoCache() *cachex.HybridCache[SubscriptionPlanInfo] {
 	return subscriptionPlanInfoCache
 }
 
-func subscriptionPlanCacheKey(id int) string {
-	if id <= 0 {
+func subscriptionPlanCacheKey(id string) string {
+	if common.IsEmptyID(id) {
 		return ""
 	}
-	return strconv.Itoa(id)
+	return id
 }
 
-func InvalidateSubscriptionPlanCache(planId int) {
-	if planId <= 0 {
+func InvalidateSubscriptionPlanCache(planId string) {
+	if common.IsEmptyID(planId) {
 		return
 	}
 	cache := getSubscriptionPlanCache()
@@ -143,14 +148,13 @@ func InvalidateSubscriptionPlanCache(planId int) {
 
 // Subscription plan
 type SubscriptionPlan struct {
-	Id int `json:"id"`
+	Id string `json:"id" gorm:"primaryKey;type:varchar(32)"`
 
 	Title    string `json:"title" gorm:"type:varchar(128);not null"`
 	Subtitle string `json:"subtitle" gorm:"type:varchar(255);default:''"`
 
-	// Display money amount (follow existing code style: float64 for money)
+	// Display money amount in the current site currency.
 	PriceAmount float64 `json:"price_amount" gorm:"type:decimal(10,6);not null;default:0"`
-	Currency    string  `json:"currency" gorm:"type:varchar(8);not null;default:'USD'"`
 
 	DurationUnit  string `json:"duration_unit" gorm:"type:varchar(16);not null;default:'month'"`
 	DurationValue int    `json:"duration_value" gorm:"type:int;not null;default:1"`
@@ -159,8 +163,7 @@ type SubscriptionPlan struct {
 	Enabled   bool `json:"enabled" gorm:"default:true"`
 	SortOrder int  `json:"sort_order" gorm:"type:int;default:0"`
 
-	StripePriceId  string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
-	CreemProductId string `json:"creem_product_id" gorm:"type:varchar(128);default:''"`
+	StripePriceId string `json:"stripe_price_id" gorm:"type:varchar(128);default:''"`
 
 	// Max purchases per user (0 = unlimited)
 	MaxPurchasePerUser int `json:"max_purchase_per_user" gorm:"type:int;default:0"`
@@ -180,6 +183,9 @@ type SubscriptionPlan struct {
 }
 
 func (p *SubscriptionPlan) BeforeCreate(tx *gorm.DB) error {
+	if common.IsEmptyID(p.Id) {
+		p.Id = common.MustNewTypedID("spl", 12)
+	}
 	now := common.GetTimestamp()
 	p.CreatedAt = now
 	p.UpdatedAt = now
@@ -193,9 +199,9 @@ func (p *SubscriptionPlan) BeforeUpdate(tx *gorm.DB) error {
 
 // Subscription order (payment -> webhook -> create UserSubscription)
 type SubscriptionOrder struct {
-	Id     int     `json:"id"`
-	UserId int     `json:"user_id" gorm:"index"`
-	PlanId int     `json:"plan_id" gorm:"index"`
+	Id     string  `json:"id" gorm:"primaryKey;type:varchar(32)"`
+	UserId string  `json:"user_id" gorm:"type:varchar(32);index"`
+	PlanId string  `json:"plan_id" gorm:"type:varchar(32);index"`
 	Money  float64 `json:"money"`
 
 	TradeNo         string `json:"trade_no" gorm:"unique;type:varchar(255);index"`
@@ -205,12 +211,83 @@ type SubscriptionOrder struct {
 	CreateTime      int64  `json:"create_time"`
 	CompleteTime    int64  `json:"complete_time"`
 
-	ProviderPayload string `json:"provider_payload" gorm:"type:text"`
+	PurchaseMode            string `json:"purchase_mode" gorm:"type:varchar(32);default:'purchase'"`
+	FromSubscriptionId      string `json:"from_subscription_id" gorm:"type:varchar(32);default:'';index"`
+	StripeCheckoutSessionId string `json:"stripe_checkout_session_id" gorm:"type:varchar(128);default:'';index"`
+	StripeInvoiceId         string `json:"stripe_invoice_id" gorm:"type:varchar(128);default:'';index"`
+	StripePaymentIntentId   string `json:"stripe_payment_intent_id" gorm:"type:varchar(128);default:'';index"`
+	ProviderPayload         string `json:"provider_payload" gorm:"type:text"`
+}
+
+type CreatePendingSubscriptionOrderParams struct {
+	UserId             string
+	Plan               *SubscriptionPlan
+	TradeNo            string
+	PaymentMethod      string
+	PaymentProvider    string
+	PurchaseMode       string
+	FromSubscriptionId string
+}
+
+func CreatePendingSubscriptionOrder(params CreatePendingSubscriptionOrderParams) (*SubscriptionOrder, error) {
+	if common.IsEmptyID(params.UserId) || params.Plan == nil || common.IsEmptyID(params.Plan.Id) || strings.TrimSpace(params.TradeNo) == "" {
+		return nil, errors.New("invalid subscription order args")
+	}
+	mode := strings.TrimSpace(params.PurchaseMode)
+	if mode == "" {
+		mode = SubscriptionOrderModePurchase
+	}
+	if mode != SubscriptionOrderModePurchase && mode != SubscriptionOrderModeSwitch {
+		return nil, errors.New("invalid subscription order mode")
+	}
+
+	var order *SubscriptionOrder
+	err := DB.Transaction(func(tx *gorm.DB) error {
+		amount := params.Plan.PriceAmount
+		fromSubscriptionId := ""
+		if mode == SubscriptionOrderModeSwitch {
+			fromSubscriptionId = params.FromSubscriptionId
+			diff, _, _, err := quoteSubscriptionSwitchTx(tx, params.UserId, fromSubscriptionId, params.Plan, true)
+			if err != nil {
+				return err
+			}
+			if err := ensureNoPendingSwitchOrderTx(tx, fromSubscriptionId); err != nil {
+				return err
+			}
+			amount = diff
+		} else if err := checkSubscriptionPlanPurchaseLimitTx(tx, params.UserId, params.Plan); err != nil {
+			return err
+		}
+		if amount <= 0 {
+			return errors.New("支付金额必须大于 0")
+		}
+
+		order = &SubscriptionOrder{
+			UserId:             params.UserId,
+			PlanId:             params.Plan.Id,
+			Money:              amount,
+			TradeNo:            params.TradeNo,
+			PaymentMethod:      params.PaymentMethod,
+			PaymentProvider:    params.PaymentProvider,
+			CreateTime:         common.GetTimestamp(),
+			Status:             common.TopUpStatusPending,
+			PurchaseMode:       mode,
+			FromSubscriptionId: fromSubscriptionId,
+		}
+		return tx.Create(order).Error
+	})
+	if err != nil {
+		return nil, err
+	}
+	return order, nil
 }
 
 func (o *SubscriptionOrder) Insert() error {
 	if o.CreateTime == 0 {
 		o.CreateTime = common.GetTimestamp()
+	}
+	if strings.TrimSpace(o.PurchaseMode) == "" {
+		o.PurchaseMode = SubscriptionOrderModePurchase
 	}
 	return DB.Create(o).Error
 }
@@ -230,11 +307,20 @@ func GetSubscriptionOrderByTradeNo(tradeNo string) *SubscriptionOrder {
 	return &order
 }
 
+func firstNonEmpty(values ...string) string {
+	for _, value := range values {
+		if strings.TrimSpace(value) != "" {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
+}
+
 // User subscription instance
 type UserSubscription struct {
-	Id     int `json:"id"`
-	UserId int `json:"user_id" gorm:"index;index:idx_user_sub_active,priority:1"`
-	PlanId int `json:"plan_id" gorm:"index"`
+	Id     string `json:"id" gorm:"primaryKey;type:varchar(32)"`
+	UserId string `json:"user_id" gorm:"type:varchar(32);index;index:idx_user_sub_active,priority:1"`
+	PlanId string `json:"plan_id" gorm:"type:varchar(32);index"`
 
 	AmountTotal int64 `json:"amount_total" gorm:"type:bigint;not null;default:0"`
 	AmountUsed  int64 `json:"amount_used" gorm:"type:bigint;not null;default:0"`
@@ -256,6 +342,9 @@ type UserSubscription struct {
 }
 
 func (s *UserSubscription) BeforeCreate(tx *gorm.DB) error {
+	if common.IsEmptyID(s.Id) {
+		s.Id = common.MustNewTypedID("sus", 12)
+	}
 	now := common.GetTimestamp()
 	s.CreatedAt = now
 	s.UpdatedAt = now
@@ -347,12 +436,12 @@ func calcNextResetTime(base time.Time, plan *SubscriptionPlan, endUnix int64) in
 	return next.Unix()
 }
 
-func GetSubscriptionPlanById(id int) (*SubscriptionPlan, error) {
+func GetSubscriptionPlanById(id string) (*SubscriptionPlan, error) {
 	return getSubscriptionPlanByIdTx(nil, id)
 }
 
-func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
-	if id <= 0 {
+func getSubscriptionPlanByIdTx(tx *gorm.DB, id string) (*SubscriptionPlan, error) {
+	if common.IsEmptyID(id) {
 		return nil, errors.New("invalid plan id")
 	}
 	key := subscriptionPlanCacheKey(id)
@@ -373,12 +462,19 @@ func getSubscriptionPlanByIdTx(tx *gorm.DB, id int) (*SubscriptionPlan, error) {
 	return &plan, nil
 }
 
-func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
-	if userId <= 0 || planId <= 0 {
+func CountUserSubscriptionsByPlan(userId string, planId string) (int64, error) {
+	if common.IsEmptyID(userId) || common.IsEmptyID(planId) {
 		return 0, errors.New("invalid userId or planId")
 	}
+	return countUserSubscriptionsByPlanTx(DB, userId, planId)
+}
+
+func countUserSubscriptionsByPlanTx(tx *gorm.DB, userId string, planId string) (int64, error) {
+	if tx == nil {
+		tx = DB
+	}
 	var count int64
-	if err := DB.Model(&UserSubscription{}).
+	if err := tx.Model(&UserSubscription{}).
 		Where("user_id = ? AND plan_id = ?", userId, planId).
 		Count(&count).Error; err != nil {
 		return 0, err
@@ -386,8 +482,47 @@ func CountUserSubscriptionsByPlan(userId int, planId int) (int64, error) {
 	return count, nil
 }
 
-func getUserGroupByIdTx(tx *gorm.DB, userId int) (string, error) {
-	if userId <= 0 {
+func checkSubscriptionPlanPurchaseLimitTx(tx *gorm.DB, userId string, plan *SubscriptionPlan) error {
+	if tx == nil {
+		tx = DB
+	}
+	if plan == nil || common.IsEmptyID(plan.Id) {
+		return errors.New("invalid plan")
+	}
+	if plan.MaxPurchasePerUser <= 0 {
+		return nil
+	}
+	count, err := countUserSubscriptionsByPlanTx(tx, userId, plan.Id)
+	if err != nil {
+		return err
+	}
+	if count >= int64(plan.MaxPurchasePerUser) {
+		return errors.New("已达到该套餐购买上限")
+	}
+	return nil
+}
+
+func ensureNoPendingSwitchOrderTx(tx *gorm.DB, fromSubscriptionId string) error {
+	if tx == nil {
+		tx = DB
+	}
+	if common.IsEmptyID(fromSubscriptionId) {
+		return errors.New("invalid switch subscription args")
+	}
+	var count int64
+	if err := tx.Model(&SubscriptionOrder{}).
+		Where("from_subscription_id = ? AND purchase_mode = ? AND status = ?", fromSubscriptionId, SubscriptionOrderModeSwitch, common.TopUpStatusPending).
+		Count(&count).Error; err != nil {
+		return err
+	}
+	if count > 0 {
+		return errors.New("当前订阅已有待支付的切换订单")
+	}
+	return nil
+}
+
+func getUserGroupByIdTx(tx *gorm.DB, userId string) (string, error) {
+	if common.IsEmptyID(userId) {
 		return "", errors.New("invalid userId")
 	}
 	if tx == nil {
@@ -435,26 +570,18 @@ func downgradeUserGroupForSubscriptionTx(tx *gorm.DB, sub *UserSubscription, now
 	return prevGroup, nil
 }
 
-func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
+func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId string, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
 	if tx == nil {
 		return nil, errors.New("tx is nil")
 	}
-	if plan == nil || plan.Id == 0 {
+	if plan == nil || common.IsEmptyID(plan.Id) {
 		return nil, errors.New("invalid plan")
 	}
-	if userId <= 0 {
+	if common.IsEmptyID(userId) {
 		return nil, errors.New("invalid user id")
 	}
-	if plan.MaxPurchasePerUser > 0 {
-		var count int64
-		if err := tx.Model(&UserSubscription{}).
-			Where("user_id = ? AND plan_id = ?", userId, plan.Id).
-			Count(&count).Error; err != nil {
-			return nil, err
-		}
-		if count >= int64(plan.MaxPurchasePerUser) {
-			return nil, errors.New("已达到该套餐购买上限")
-		}
+	if err := checkSubscriptionPlanPurchaseLimitTx(tx, userId, plan); err != nil {
+		return nil, err
 	}
 	nowUnix := GetDBTimestamp()
 	now := time.Unix(nowUnix, 0)
@@ -505,28 +632,118 @@ func CreateUserSubscriptionFromPlanTx(tx *gorm.DB, userId int, plan *Subscriptio
 	return sub, nil
 }
 
+func SwitchUserSubscriptionFromPlanTx(tx *gorm.DB, userId string, fromSubscriptionId string, plan *SubscriptionPlan, source string) (*UserSubscription, error) {
+	if tx == nil {
+		return nil, errors.New("tx is nil")
+	}
+	if common.IsEmptyID(userId) || common.IsEmptyID(fromSubscriptionId) {
+		return nil, errors.New("invalid switch subscription args")
+	}
+	if plan == nil || common.IsEmptyID(plan.Id) {
+		return nil, errors.New("invalid plan")
+	}
+	now := GetDBTimestamp()
+	var current UserSubscription
+	if err := tx.Set("gorm:query_option", "FOR UPDATE").
+		Where("id = ? AND user_id = ?", fromSubscriptionId, userId).
+		First(&current).Error; err != nil {
+		return nil, err
+	}
+	if current.Status != "active" || (current.EndTime > 0 && current.EndTime <= now) {
+		return nil, errors.New("当前订阅不可切换")
+	}
+	if current.PlanId == plan.Id {
+		return nil, errors.New("目标套餐与当前套餐相同")
+	}
+
+	if err := tx.Model(&current).Updates(map[string]interface{}{
+		"status":     "cancelled",
+		"end_time":   now,
+		"updated_at": common.GetTimestamp(),
+	}).Error; err != nil {
+		return nil, err
+	}
+	if _, err := downgradeUserGroupForSubscriptionTx(tx, &current, now); err != nil {
+		return nil, err
+	}
+	return CreateUserSubscriptionFromPlanTx(tx, userId, plan, source)
+}
+
+func QuoteSubscriptionSwitch(userId string, fromSubscriptionId string, targetPlan *SubscriptionPlan) (float64, *UserSubscription, *SubscriptionPlan, error) {
+	return quoteSubscriptionSwitchTx(DB, userId, fromSubscriptionId, targetPlan, false)
+}
+
+func quoteSubscriptionSwitchTx(tx *gorm.DB, userId string, fromSubscriptionId string, targetPlan *SubscriptionPlan, lockCurrent bool) (float64, *UserSubscription, *SubscriptionPlan, error) {
+	if tx == nil {
+		tx = DB
+	}
+	if common.IsEmptyID(userId) || common.IsEmptyID(fromSubscriptionId) || targetPlan == nil {
+		return 0, nil, nil, errors.New("invalid switch quote args")
+	}
+	now := common.GetTimestamp()
+	var current UserSubscription
+	query := tx.Where("id = ? AND user_id = ?", fromSubscriptionId, userId)
+	if lockCurrent {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	if err := query.First(&current).Error; err != nil {
+		return 0, nil, nil, err
+	}
+	if current.Status != "active" || (current.EndTime > 0 && current.EndTime <= now) {
+		return 0, nil, nil, errors.New("当前订阅不可切换")
+	}
+	if current.PlanId == targetPlan.Id {
+		return 0, nil, nil, errors.New("目标套餐与当前套餐相同")
+	}
+	currentPlan, err := GetSubscriptionPlanById(current.PlanId)
+	if err != nil {
+		return 0, nil, nil, err
+	}
+	if err := checkSubscriptionPlanPurchaseLimitTx(tx, userId, targetPlan); err != nil {
+		return 0, nil, nil, err
+	}
+	diff := targetPlan.PriceAmount - currentPlan.PriceAmount
+	if diff <= 0 {
+		return 0, nil, nil, errors.New("目标套餐价格不高于当前套餐，无需补差价")
+	}
+	return diff, &current, currentPlan, nil
+}
+
+type CompleteSubscriptionOrderParams struct {
+	TradeNo                 string
+	ProviderPayload         string
+	ExpectedPaymentProvider string
+	ActualPaymentMethod     string
+	StripePaymentOrderId    string
+	StripeCheckoutSessionId string
+	StripeInvoiceId         string
+	StripePaymentIntentId   string
+	StripeCustomerId        string
+}
+
 // Complete a subscription order (idempotent). Creates a UserSubscription snapshot from the plan.
-// expectedPaymentProvider guards against cross-gateway callback attacks (empty skips the check).
-// actualPaymentMethod updates the order's PaymentMethod to reflect the real payment type used (empty skips update).
-func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedPaymentProvider string, actualPaymentMethod string) error {
-	if tradeNo == "" {
+// ExpectedPaymentProvider guards against cross-gateway callback attacks (empty skips the check).
+// ActualPaymentMethod updates the order's PaymentMethod to reflect the real payment type used (empty skips update).
+func CompleteSubscriptionOrder(params CompleteSubscriptionOrderParams) error {
+	if params.TradeNo == "" {
 		return errors.New("tradeNo is empty")
 	}
-	refCol := "`trade_no`"
-	if common.UsingPostgreSQL {
-		refCol = `"trade_no"`
+	stripeInvoiceId := strings.TrimSpace(params.StripeInvoiceId)
+	if params.ExpectedPaymentProvider == PaymentProviderStripe && stripeInvoiceId == "" {
+		return errors.New("stripe invoice id is required")
 	}
-	var logUserId int
+	refCol := `"trade_no"`
+	var logUserId string
 	var logPlanTitle string
 	var logMoney float64
 	var logPaymentMethod string
 	var upgradeGroup string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
-		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", params.TradeNo).First(&order).Error; err != nil {
 			return ErrSubscriptionOrderNotFound
 		}
-		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
+		if params.ExpectedPaymentProvider != "" && order.PaymentProvider != params.ExpectedPaymentProvider {
 			return ErrPaymentMethodMismatch
 		}
 		if order.Status == common.TopUpStatusSuccess {
@@ -542,21 +759,81 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 		if !plan.Enabled {
 			// still allow completion for already purchased orders
 		}
-		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
-		_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
-		if err != nil {
-			return err
+		invoiceId := stripeInvoiceId
+		if invoiceId == "" && params.ExpectedPaymentProvider != PaymentProviderStripe {
+			invoiceId = strings.TrimSpace(order.StripeInvoiceId)
 		}
-		if err := upsertSubscriptionTopUpTx(tx, &order); err != nil {
+		if invoiceId != "" {
+			kind := "subscription_purchase"
+			if order.PurchaseMode == SubscriptionOrderModeSwitch {
+				kind = "subscription_switch"
+			}
+			created, err := CreateStripeInvoiceFulfillmentTx(tx, StripeInvoiceFulfillmentParams{
+				InvoiceId:             invoiceId,
+				Kind:                  kind,
+				UserId:                order.UserId,
+				SourceType:            "subscription_order",
+				SourceId:              order.TradeNo,
+				StripePaymentIntentId: firstNonEmpty(params.StripePaymentIntentId, order.StripePaymentIntentId),
+				Metadata: map[string]interface{}{
+					"trade_no":                   order.TradeNo,
+					"plan_id":                    order.PlanId,
+					"purchase_mode":              order.PurchaseMode,
+					"payment_method":             params.ActualPaymentMethod,
+					"money":                      order.Money,
+					"stripe_payment_order_id":    params.StripePaymentOrderId,
+					"stripe_checkout_session_id": firstNonEmpty(params.StripeCheckoutSessionId, order.StripeCheckoutSessionId),
+				},
+			})
+			if err != nil {
+				return err
+			}
+			if !created {
+				return errors.New("stripe invoice already fulfilled before subscription order completion")
+			}
+		}
+		if params.StripePaymentOrderId != "" {
+			completed, _, err := CompleteStripePaymentOrderTx(tx, CompleteStripePaymentOrderParams{
+				OrderId:                 params.StripePaymentOrderId,
+				StripeCheckoutSessionId: firstNonEmpty(params.StripeCheckoutSessionId, order.StripeCheckoutSessionId),
+				StripeInvoiceId:         invoiceId,
+				StripePaymentIntentId:   firstNonEmpty(params.StripePaymentIntentId, order.StripePaymentIntentId),
+				StripeCustomerId:        params.StripeCustomerId,
+				PaymentMethod:           params.ActualPaymentMethod,
+				ProviderPayload:         params.ProviderPayload,
+			})
+			if err != nil {
+				return err
+			}
+			if !completed {
+				return nil
+			}
+		}
+		upgradeGroup = strings.TrimSpace(plan.UpgradeGroup)
+		if order.PurchaseMode == SubscriptionOrderModeSwitch {
+			_, err = SwitchUserSubscriptionFromPlanTx(tx, order.UserId, order.FromSubscriptionId, plan, "order")
+		} else {
+			_, err = CreateUserSubscriptionFromPlanTx(tx, order.UserId, plan, "order")
+		}
+		if err != nil {
 			return err
 		}
 		order.Status = common.TopUpStatusSuccess
 		order.CompleteTime = common.GetTimestamp()
-		if providerPayload != "" {
-			order.ProviderPayload = providerPayload
+		if params.ProviderPayload != "" {
+			order.ProviderPayload = params.ProviderPayload
 		}
-		if actualPaymentMethod != "" && order.PaymentMethod != actualPaymentMethod {
-			order.PaymentMethod = actualPaymentMethod
+		if params.StripeCheckoutSessionId != "" {
+			order.StripeCheckoutSessionId = params.StripeCheckoutSessionId
+		}
+		if invoiceId != "" {
+			order.StripeInvoiceId = invoiceId
+		}
+		if params.StripePaymentIntentId != "" {
+			order.StripePaymentIntentId = params.StripePaymentIntentId
+		}
+		if params.ActualPaymentMethod != "" && order.PaymentMethod != params.ActualPaymentMethod {
+			order.PaymentMethod = params.ActualPaymentMethod
 		}
 		if err := tx.Save(&order).Error; err != nil {
 			return err
@@ -570,60 +847,32 @@ func CompleteSubscriptionOrder(tradeNo string, providerPayload string, expectedP
 	if err != nil {
 		return err
 	}
-	if upgradeGroup != "" && logUserId > 0 {
+	if upgradeGroup != "" && !common.IsEmptyID(logUserId) {
 		_ = UpdateUserGroupCache(logUserId, upgradeGroup)
 	}
-	if logUserId > 0 {
+	if !common.IsEmptyID(logUserId) {
 		msg := fmt.Sprintf("订阅购买成功，套餐: %s，支付金额: %.2f，支付方式: %s", logPlanTitle, logMoney, logPaymentMethod)
-		RecordLog(logUserId, LogTypeTopup, msg)
+		RecordAuditEvent(LogEventParams{
+			UserId:       logUserId,
+			Event:        "billing.subscription.completed",
+			Content:      msg,
+			ResourceType: "subscription_order",
+			ResourceId:   params.TradeNo,
+			Other: map[string]interface{}{
+				"plan_title":     logPlanTitle,
+				"money":          logMoney,
+				"payment_method": logPaymentMethod,
+			},
+		})
 	}
 	return nil
-}
-
-func upsertSubscriptionTopUpTx(tx *gorm.DB, order *SubscriptionOrder) error {
-	if tx == nil || order == nil {
-		return errors.New("invalid subscription order")
-	}
-	now := common.GetTimestamp()
-	var topup TopUp
-	if err := tx.Where("trade_no = ?", order.TradeNo).First(&topup).Error; err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			topup = TopUp{
-				UserId:        order.UserId,
-				Amount:        0,
-				Money:         order.Money,
-				TradeNo:       order.TradeNo,
-				PaymentMethod: order.PaymentMethod,
-				CreateTime:    order.CreateTime,
-				CompleteTime:  now,
-				Status:        common.TopUpStatusSuccess,
-			}
-			return tx.Create(&topup).Error
-		}
-		return err
-	}
-	topup.Money = order.Money
-	if topup.PaymentMethod == "" {
-		topup.PaymentMethod = order.PaymentMethod
-	} else if topup.PaymentMethod != order.PaymentMethod {
-		return ErrPaymentMethodMismatch
-	}
-	if topup.CreateTime == 0 {
-		topup.CreateTime = order.CreateTime
-	}
-	topup.CompleteTime = now
-	topup.Status = common.TopUpStatusSuccess
-	return tx.Save(&topup).Error
 }
 
 func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) error {
 	if tradeNo == "" {
 		return errors.New("tradeNo is empty")
 	}
-	refCol := "`trade_no`"
-	if common.UsingPostgreSQL {
-		refCol = `"trade_no"`
-	}
+	refCol := `"trade_no"`
 	return DB.Transaction(func(tx *gorm.DB) error {
 		var order SubscriptionOrder
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
@@ -641,9 +890,50 @@ func ExpireSubscriptionOrder(tradeNo string, expectedPaymentProvider string) err
 	})
 }
 
+func UpdateSubscriptionOrderStripeRefs(tradeNo string, checkoutSessionId string, invoiceId string, paymentIntentId string) error {
+	if tradeNo == "" {
+		return errors.New("tradeNo is empty")
+	}
+	updates := map[string]interface{}{
+		"stripe_checkout_session_id": checkoutSessionId,
+	}
+	if invoiceId != "" {
+		updates["stripe_invoice_id"] = invoiceId
+	}
+	if paymentIntentId != "" {
+		updates["stripe_payment_intent_id"] = paymentIntentId
+	}
+	return DB.Model(&SubscriptionOrder{}).Where("trade_no = ?", tradeNo).Updates(updates).Error
+}
+
+func FailSubscriptionOrder(tradeNo string, expectedPaymentProvider string, providerPayload string) error {
+	if tradeNo == "" {
+		return errors.New("tradeNo is empty")
+	}
+	refCol := `"trade_no"`
+	return DB.Transaction(func(tx *gorm.DB) error {
+		var order SubscriptionOrder
+		if err := tx.Set("gorm:query_option", "FOR UPDATE").Where(refCol+" = ?", tradeNo).First(&order).Error; err != nil {
+			return ErrSubscriptionOrderNotFound
+		}
+		if expectedPaymentProvider != "" && order.PaymentProvider != expectedPaymentProvider {
+			return ErrPaymentMethodMismatch
+		}
+		if order.Status != common.TopUpStatusPending {
+			return nil
+		}
+		order.Status = common.TopUpStatusFailed
+		order.CompleteTime = common.GetTimestamp()
+		if providerPayload != "" {
+			order.ProviderPayload = providerPayload
+		}
+		return tx.Save(&order).Error
+	})
+}
+
 // Admin bind (no payment). Creates a UserSubscription from a plan.
-func AdminBindSubscription(userId int, planId int, sourceNote string) (string, error) {
-	if userId <= 0 || planId <= 0 {
+func AdminBindSubscription(userId string, planId string, sourceNote string) (string, error) {
+	if common.IsEmptyID(userId) || common.IsEmptyID(planId) {
 		return "", errors.New("invalid userId or planId")
 	}
 	plan, err := GetSubscriptionPlanById(planId)
@@ -665,8 +955,8 @@ func AdminBindSubscription(userId int, planId int, sourceNote string) (string, e
 }
 
 // GetAllActiveUserSubscriptions returns all active subscriptions for a user.
-func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
-	if userId <= 0 {
+func GetAllActiveUserSubscriptions(userId string) ([]SubscriptionSummary, error) {
+	if common.IsEmptyID(userId) {
 		return nil, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
@@ -682,8 +972,8 @@ func GetAllActiveUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
 
 // HasActiveUserSubscription returns whether the user has any active subscription.
 // This is a lightweight existence check to avoid heavy pre-consume transactions.
-func HasActiveUserSubscription(userId int) (bool, error) {
-	if userId <= 0 {
+func HasActiveUserSubscription(userId string) (bool, error) {
+	if common.IsEmptyID(userId) {
 		return false, errors.New("invalid userId")
 	}
 	now := common.GetTimestamp()
@@ -697,8 +987,8 @@ func HasActiveUserSubscription(userId int) (bool, error) {
 }
 
 // GetAllUserSubscriptions returns all subscriptions (active and expired) for a user.
-func GetAllUserSubscriptions(userId int) ([]SubscriptionSummary, error) {
-	if userId <= 0 {
+func GetAllUserSubscriptions(userId string) ([]SubscriptionSummary, error) {
+	if common.IsEmptyID(userId) {
 		return nil, errors.New("invalid userId")
 	}
 	var subs []UserSubscription
@@ -726,14 +1016,14 @@ func buildSubscriptionSummaries(subs []UserSubscription) []SubscriptionSummary {
 }
 
 // AdminInvalidateUserSubscription marks a user subscription as cancelled and ends it immediately.
-func AdminInvalidateUserSubscription(userSubscriptionId int) (string, error) {
-	if userSubscriptionId <= 0 {
+func AdminInvalidateUserSubscription(userSubscriptionId string) (string, error) {
+	if common.IsEmptyID(userSubscriptionId) {
 		return "", errors.New("invalid userSubscriptionId")
 	}
 	now := common.GetTimestamp()
 	cacheGroup := ""
 	downgradeGroup := ""
-	var userId int
+	var userId string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var sub UserSubscription
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").
@@ -761,7 +1051,7 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if cacheGroup != "" && userId > 0 {
+	if cacheGroup != "" && !common.IsEmptyID(userId) {
 		_ = UpdateUserGroupCache(userId, cacheGroup)
 	}
 	if downgradeGroup != "" {
@@ -771,14 +1061,14 @@ func AdminInvalidateUserSubscription(userSubscriptionId int) (string, error) {
 }
 
 // AdminDeleteUserSubscription hard-deletes a user subscription.
-func AdminDeleteUserSubscription(userSubscriptionId int) (string, error) {
-	if userSubscriptionId <= 0 {
+func AdminDeleteUserSubscription(userSubscriptionId string) (string, error) {
+	if common.IsEmptyID(userSubscriptionId) {
 		return "", errors.New("invalid userSubscriptionId")
 	}
 	now := common.GetTimestamp()
 	cacheGroup := ""
 	downgradeGroup := ""
-	var userId int
+	var userId string
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var sub UserSubscription
 		if err := tx.Set("gorm:query_option", "FOR UPDATE").
@@ -802,7 +1092,7 @@ func AdminDeleteUserSubscription(userSubscriptionId int) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	if cacheGroup != "" && userId > 0 {
+	if cacheGroup != "" && !common.IsEmptyID(userId) {
 		_ = UpdateUserGroupCache(userId, cacheGroup)
 	}
 	if downgradeGroup != "" {
@@ -812,7 +1102,7 @@ func AdminDeleteUserSubscription(userSubscriptionId int) (string, error) {
 }
 
 type SubscriptionPreConsumeResult struct {
-	UserSubscriptionId int
+	UserSubscriptionId string
 	PreConsumed        int64
 	AmountTotal        int64
 	AmountUsedBefore   int64
@@ -836,9 +1126,9 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 		return 0, nil
 	}
 	expiredCount := 0
-	userIds := make(map[int]struct{}, len(subs))
+	userIds := make(map[string]struct{}, len(subs))
 	for _, sub := range subs {
-		if sub.UserId > 0 {
+		if !common.IsEmptyID(sub.UserId) {
 			userIds[sub.UserId] = struct{}{}
 		}
 	}
@@ -908,10 +1198,10 @@ func ExpireDueSubscriptions(limit int) (int, error) {
 
 // SubscriptionPreConsumeRecord stores idempotent pre-consume operations per request.
 type SubscriptionPreConsumeRecord struct {
-	Id                 int    `json:"id"`
+	Id                 string `json:"id" gorm:"primaryKey;type:varchar(32)"`
 	RequestId          string `json:"request_id" gorm:"type:varchar(64);uniqueIndex"`
-	UserId             int    `json:"user_id" gorm:"index"`
-	UserSubscriptionId int    `json:"user_subscription_id" gorm:"index"`
+	UserId             string `json:"user_id" gorm:"type:varchar(32);index"`
+	UserSubscriptionId string `json:"user_subscription_id" gorm:"type:varchar(32);index"`
 	PreConsumed        int64  `json:"pre_consumed" gorm:"type:bigint;not null;default:0"`
 	Status             string `json:"status" gorm:"type:varchar(32);index"` // consumed/refunded
 	CreatedAt          int64  `json:"created_at" gorm:"bigint"`
@@ -919,6 +1209,9 @@ type SubscriptionPreConsumeRecord struct {
 }
 
 func (r *SubscriptionPreConsumeRecord) BeforeCreate(tx *gorm.DB) error {
+	if common.IsEmptyID(r.Id) {
+		r.Id = common.MustNewTypedID("spr", 12)
+	}
 	now := common.GetTimestamp()
 	r.CreatedAt = now
 	r.UpdatedAt = now
@@ -967,8 +1260,8 @@ func maybeResetUserSubscriptionWithPlanTx(tx *gorm.DB, sub *UserSubscription, pl
 }
 
 // PreConsumeUserSubscription pre-consumes from any active subscription total quota.
-func PreConsumeUserSubscription(requestId string, userId int, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
-	if userId <= 0 {
+func PreConsumeUserSubscription(requestId string, userId string, modelName string, quotaType int, amount int64) (*SubscriptionPreConsumeResult, error) {
+	if common.IsEmptyID(userId) {
 		return nil, errors.New("invalid userId")
 	}
 	if strings.TrimSpace(requestId) == "" {
@@ -1150,15 +1443,15 @@ func CleanupSubscriptionPreConsumeRecords(olderThanSeconds int64) (int64, error)
 }
 
 type SubscriptionPlanInfo struct {
-	PlanId    int
+	PlanId    string
 	PlanTitle string
 }
 
-func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*SubscriptionPlanInfo, error) {
-	if userSubscriptionId <= 0 {
+func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId string) (*SubscriptionPlanInfo, error) {
+	if common.IsEmptyID(userSubscriptionId) {
 		return nil, errors.New("invalid userSubscriptionId")
 	}
-	cacheKey := fmt.Sprintf("sub:%d", userSubscriptionId)
+	cacheKey := fmt.Sprintf("sub:%s", userSubscriptionId)
 	if cached, found, err := getSubscriptionPlanInfoCache().Get(cacheKey); err == nil && found {
 		return &cached, nil
 	}
@@ -1179,8 +1472,8 @@ func GetSubscriptionPlanInfoByUserSubscriptionId(userSubscriptionId int) (*Subsc
 }
 
 // Update subscription used amount by delta (positive consume more, negative refund).
-func PostConsumeUserSubscriptionDelta(userSubscriptionId int, delta int64) error {
-	if userSubscriptionId <= 0 {
+func PostConsumeUserSubscriptionDelta(userSubscriptionId string, delta int64) error {
+	if common.IsEmptyID(userSubscriptionId) {
 		return errors.New("invalid userSubscriptionId")
 	}
 	if delta == 0 {

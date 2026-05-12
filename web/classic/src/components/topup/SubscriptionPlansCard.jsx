@@ -41,42 +41,11 @@ import {
 
 const { Text } = Typography;
 
-// 过滤易支付方式
-function getEpayMethods(payMethods = []) {
-  return (payMethods || []).filter(
-    (m) => m?.type && m.type !== 'stripe' && m.type !== 'creem',
-  );
-}
-
-// 提交易支付表单
-function submitEpayForm({ url, params }) {
-  const form = document.createElement('form');
-  form.action = url;
-  form.method = 'POST';
-  const isSafari =
-    navigator.userAgent.indexOf('Safari') > -1 &&
-    navigator.userAgent.indexOf('Chrome') < 1;
-  if (!isSafari) form.target = '_blank';
-  Object.keys(params || {}).forEach((key) => {
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = key;
-    input.value = params[key];
-    form.appendChild(input);
-  });
-  document.body.appendChild(form);
-  form.submit();
-  document.body.removeChild(form);
-}
-
 const SubscriptionPlansCard = ({
   t,
   loading = false,
   plans = [],
-  payMethods = [],
-  enableOnlineTopUp = false,
   enableStripeTopUp = false,
-  enableCreemTopUp = false,
   billingPreference,
   onChangeBillingPreference,
   activeSubscriptions = [],
@@ -87,14 +56,11 @@ const SubscriptionPlansCard = ({
   const [open, setOpen] = useState(false);
   const [selectedPlan, setSelectedPlan] = useState(null);
   const [paying, setPaying] = useState(false);
-  const [selectedEpayMethod, setSelectedEpayMethod] = useState('');
   const [refreshing, setRefreshing] = useState(false);
-
-  const epayMethods = useMemo(() => getEpayMethods(payMethods), [payMethods]);
+  const [paymentSession, setPaymentSession] = useState(null);
 
   const openBuy = (p) => {
     setSelectedPlan(p);
-    setSelectedEpayMethod(epayMethods?.[0]?.type || '');
     setOpen(true);
   };
 
@@ -102,6 +68,7 @@ const SubscriptionPlansCard = ({
     setOpen(false);
     setSelectedPlan(null);
     setPaying(false);
+    setPaymentSession(null);
   };
 
   const handleRefresh = async () => {
@@ -113,77 +80,70 @@ const SubscriptionPlansCard = ({
     }
   };
 
+  const planPriceMap = useMemo(() => {
+    const map = new Map();
+    (plans || []).forEach((p) => {
+      if (p?.plan?.id) map.set(p.plan.id, Number(p.plan.price_amount || 0));
+    });
+    return map;
+  }, [plans]);
+
+  const getSwitchModeInfo = (targetPlan) => {
+    if (!targetPlan || !activeSubscriptions?.length) {
+      return {
+        mode: 'purchase',
+        amount: Number(targetPlan?.price_amount || 0),
+      };
+    }
+    const now = Date.now() / 1000;
+    const candidates = activeSubscriptions
+      .map((item) => item?.subscription)
+      .filter(
+        (sub) =>
+          sub?.id &&
+          sub?.status === 'active' &&
+          (sub?.end_time || 0) > now &&
+          sub?.plan_id !== targetPlan.id,
+      )
+      .map((sub) => ({
+        sub,
+        price: planPriceMap.get(sub.plan_id) || 0,
+      }))
+      .sort((a, b) => b.price - a.price);
+    if (candidates.length === 0) {
+      return { mode: 'purchase', amount: Number(targetPlan.price_amount || 0) };
+    }
+    const current = candidates[0];
+    const diff = Number(targetPlan.price_amount || 0) - current.price;
+    if (diff > 0) {
+      return {
+        mode: 'switch',
+        amount: diff,
+        from_subscription_id: current.sub.id,
+        from_plan_id: current.sub.plan_id,
+      };
+    }
+    return { mode: 'purchase', amount: Number(targetPlan.price_amount || 0) };
+  };
+
+  const selectedModeInfo = getSwitchModeInfo(selectedPlan?.plan);
+
   const payStripe = async () => {
-    if (!selectedPlan?.plan?.stripe_price_id) {
-      showError(t('该套餐未配置 Stripe'));
+    if (!enableStripeTopUp) {
+      showError(t('管理员未开启Stripe充值！'));
       return;
     }
     setPaying(true);
     try {
-      const res = await API.post('/api/subscription/stripe/pay', {
+      const modeInfo = getSwitchModeInfo(selectedPlan?.plan);
+      const res = await API.mutation('subscriptionStripePay', {
         plan_id: selectedPlan.plan.id,
+        mode: modeInfo.mode,
+        from_subscription_id: modeInfo.from_subscription_id || '',
+        return_url: `${window.location.origin}/console/topup?show_history=true&session_id={CHECKOUT_SESSION_ID}`,
       });
       if (res.data?.message === 'success') {
-        window.open(res.data.data?.pay_link, '_blank');
-        showSuccess(t('已打开支付页面'));
-        closeBuy();
-      } else {
-        const errorMsg =
-          typeof res.data?.data === 'string'
-            ? res.data.data
-            : res.data?.message || t('支付失败');
-        showError(errorMsg);
-      }
-    } catch (e) {
-      showError(t('支付请求失败'));
-    } finally {
-      setPaying(false);
-    }
-  };
-
-  const payCreem = async () => {
-    if (!selectedPlan?.plan?.creem_product_id) {
-      showError(t('该套餐未配置 Creem'));
-      return;
-    }
-    setPaying(true);
-    try {
-      const res = await API.post('/api/subscription/creem/pay', {
-        plan_id: selectedPlan.plan.id,
-      });
-      if (res.data?.message === 'success') {
-        window.open(res.data.data?.checkout_url, '_blank');
-        showSuccess(t('已打开支付页面'));
-        closeBuy();
-      } else {
-        const errorMsg =
-          typeof res.data?.data === 'string'
-            ? res.data.data
-            : res.data?.message || t('支付失败');
-        showError(errorMsg);
-      }
-    } catch (e) {
-      showError(t('支付请求失败'));
-    } finally {
-      setPaying(false);
-    }
-  };
-
-  const payEpay = async () => {
-    if (!selectedEpayMethod) {
-      showError(t('请选择支付方式'));
-      return;
-    }
-    setPaying(true);
-    try {
-      const res = await API.post('/api/subscription/epay/pay', {
-        plan_id: selectedPlan.plan.id,
-        payment_method: selectedEpayMethod,
-      });
-      if (res.data?.message === 'success') {
-        submitEpayForm({ url: res.data.url, params: res.data.data });
-        showSuccess(t('已发起支付'));
-        closeBuy();
+        setPaymentSession(res.data.data);
       } else {
         const errorMsg =
           typeof res.data?.data === 'string'
@@ -454,7 +414,7 @@ const SubscriptionPlansCard = ({
                           {t('总额度')}:{' '}
                           {totalAmount > 0 ? (
                             <Tooltip
-                              content={`${t('原生额度')}：${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`}
+                              content={`${t('站内额度')}：${usedAmount}/${totalAmount} · ${t('剩余')} ${remainAmount}`}
                             >
                               <span>
                                 {renderQuota(usedAmount)}/
@@ -490,11 +450,10 @@ const SubscriptionPlansCard = ({
               {plans.map((p, index) => {
                 const plan = p?.plan;
                 const totalAmount = Number(plan?.total_amount || 0);
-                const { symbol, rate } = getCurrencyConfig();
+                const { symbol } = getCurrencyConfig();
                 const price = Number(plan?.price_amount || 0);
-                const convertedPrice = price * rate;
-                const displayPrice = convertedPrice.toFixed(
-                  Number.isInteger(convertedPrice) ? 0 : 2,
+                const displayPrice = price.toFixed(
+                  Number.isInteger(price) ? 0 : 2,
                 );
                 const isPopular = index === 0 && plans.length > 1;
                 const limit = Number(plan?.max_purchase_per_user || 0);
@@ -518,7 +477,7 @@ const SubscriptionPlansCard = ({
                   totalAmount > 0
                     ? {
                         label: totalLabel,
-                        tooltip: `${t('原生额度')}：${totalAmount}`,
+                        tooltip: `${t('站内额度')}：${totalAmount}`,
                       }
                     : { label: totalLabel },
                   limitLabel ? { label: limitLabel } : null,
@@ -625,7 +584,11 @@ const SubscriptionPlansCard = ({
                                 if (!reached) openBuy(p);
                               }}
                             >
-                              {reached ? t('已达上限') : t('立即订阅')}
+                              {reached
+                                ? t('已达上限')
+                                : getSwitchModeInfo(plan).mode === 'switch'
+                                  ? t('切换套餐')
+                                  : t('立即订阅')}
                             </Button>
                           );
                           return reached ? (
@@ -667,12 +630,15 @@ const SubscriptionPlansCard = ({
         onCancel={closeBuy}
         selectedPlan={selectedPlan}
         paying={paying}
-        selectedEpayMethod={selectedEpayMethod}
-        setSelectedEpayMethod={setSelectedEpayMethod}
-        epayMethods={epayMethods}
-        enableOnlineTopUp={enableOnlineTopUp}
         enableStripeTopUp={enableStripeTopUp}
-        enableCreemTopUp={enableCreemTopUp}
+        paymentSession={paymentSession}
+        paymentAmount={selectedModeInfo.amount}
+        modeInfo={selectedModeInfo}
+        onPaymentSuccess={async () => {
+          showSuccess(t('支付已提交，订阅同步中'));
+          closeBuy();
+          await reloadSubscriptionSelf?.();
+        }}
         purchaseLimitInfo={
           selectedPlan?.plan?.id
             ? {
@@ -682,8 +648,6 @@ const SubscriptionPlansCard = ({
             : null
         }
         onPayStripe={payStripe}
-        onPayCreem={payCreem}
-        onPayEpay={payEpay}
       />
     </>
   );

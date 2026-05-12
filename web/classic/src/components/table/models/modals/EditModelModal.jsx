@@ -48,8 +48,7 @@ const ENDPOINT_TEMPLATE = {
   'openai-response-compact': { path: '/v1/responses/compact', method: 'POST' },
   anthropic: { path: '/v1/messages', method: 'POST' },
   gemini: { path: '/v1beta/models/{model}:generateContent', method: 'POST' },
-  'jina-rerank': { path: '/v1/rerank', method: 'POST' },
-  'image-generation': { path: '/v1/images/generations', method: 'POST' },
+  'image-generation': { path: '/v1/images', method: 'POST' },
 };
 
 const nameRuleOptions = [
@@ -77,7 +76,7 @@ const EditModelModal = (props) => {
   // 获取供应商列表
   const fetchVendors = async () => {
     try {
-      const res = await API.get('/api/vendors/?page_size=1000'); // 获取全部供应商
+      const res = await API.query('vendors', { page_size: 1000 }); // 获取全部供应商
       if (res.data.success) {
         const items = res.data.data.items || res.data.data || [];
         setVendors(Array.isArray(items) ? items : []);
@@ -91,8 +90,8 @@ const EditModelModal = (props) => {
   const fetchPrefillGroups = async () => {
     try {
       const [tagRes, endpointRes] = await Promise.all([
-        API.get('/api/prefill_group?type=tag'),
-        API.get('/api/prefill_group?type=endpoint'),
+        API.query('prefillGroups', { type: 'tag' }),
+        API.query('prefillGroups', { type: 'endpoint' }),
       ]);
       if (tagRes?.data?.success) {
         setTagGroups(tagRes.data.data || []);
@@ -135,7 +134,9 @@ const EditModelModal = (props) => {
 
     setLoading(true);
     try {
-      const res = await API.get(`/api/models/${props.editingModel.id}`);
+      const res = await API.query('modelMeta', {
+        id: props.editingModel.id,
+      });
       const { success, message, data } = res.data;
       if (success) {
         // 处理tags
@@ -202,7 +203,7 @@ const EditModelModal = (props) => {
 
       if (isEdit) {
         submitData.id = props.editingModel.id;
-        const res = await API.put('/api/models/', submitData);
+        const res = await API.mutation('updateModelMeta', submitData);
         const { success, message } = res.data;
         if (success) {
           showSuccess(t('模型更新成功！'));
@@ -212,7 +213,7 @@ const EditModelModal = (props) => {
           showError(t(message));
         }
       } else {
-        const res = await API.post('/api/models/', submitData);
+        const res = await API.mutation('createModelMeta', submitData);
         const { success, message } = res.data;
         if (success) {
           showSuccess(t('模型创建成功！'));
@@ -338,7 +339,7 @@ const EditModelModal = (props) => {
                       extraText={
                         <span>
                           {t(
-                            "图标使用@lobehub/icons库，如：OpenAI、Claude.Color，支持链式参数：OpenAI.Avatar.type={'platform'}、OpenRouter.Avatar.shape={'square'}，查询所有可用图标请 ",
+                            "图标使用@lobehub/icons库，如：OpenAI、Claude.Color，支持链式参数：OpenAI.Avatar.type={'platform'}、Claude.Avatar.shape={'square'}，查询所有可用图标请 ",
                           )}
                           <Typography.Text
                             link={{

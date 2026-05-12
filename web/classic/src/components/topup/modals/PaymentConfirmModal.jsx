@@ -19,26 +19,28 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React from 'react';
 import { Modal, Typography, Card, Skeleton } from '@douyinfe/semi-ui';
-import { SiAlipay, SiWechat, SiStripe } from 'react-icons/si';
+import { SiStripe } from 'react-icons/si';
 import { CreditCard } from 'lucide-react';
+import { formatSiteCurrency } from '../../../helpers';
+import StripePaymentElement from '../StripePaymentElement';
 
 const { Text } = Typography;
 
 const PaymentConfirmModal = ({
   t,
   open,
-  onlineTopUp,
   handleCancel,
-  confirmLoading,
   topUpCount,
   renderQuotaWithAmount,
   amountLoading,
   renderAmount,
   payWay,
-  payMethods,
+  stripePaymentOptions,
   // 新增：用于显示折扣明细
   amountNumber,
   discountRate,
+  paymentSession,
+  onPaymentSuccess,
 }) => {
   const hasDiscount =
     discountRate && discountRate > 0 && discountRate < 1 && amountNumber > 0;
@@ -53,12 +55,11 @@ const PaymentConfirmModal = ({
         </div>
       }
       visible={open}
-      onOk={onlineTopUp}
       onCancel={handleCancel}
       maskClosable={false}
       size='small'
       centered
-      confirmLoading={confirmLoading}
+      footer={null}
     >
       <div className='space-y-4'>
         <Card className='!rounded-xl !border-0 bg-slate-50 dark:bg-slate-800'>
@@ -97,7 +98,7 @@ const PaymentConfirmModal = ({
                     {t('原价')}：
                   </Text>
                   <Text delete className='text-slate-500 dark:text-slate-400'>
-                    {`${originalAmount.toFixed(2)} ${t('元')}`}
+                    {formatSiteCurrency(originalAmount, 2)}
                   </Text>
                 </div>
                 <div className='flex justify-between items-center'>
@@ -105,7 +106,7 @@ const PaymentConfirmModal = ({
                     {t('优惠')}：
                   </Text>
                   <Text className='text-emerald-600 dark:text-emerald-400'>
-                    {`- ${discountAmount.toFixed(2)} ${t('元')}`}
+                    {`- ${formatSiteCurrency(discountAmount, 2)}`}
                   </Text>
                 </div>
               </>
@@ -116,40 +117,17 @@ const PaymentConfirmModal = ({
               </Text>
               <div className='flex items-center'>
                 {(() => {
-                  const payMethod = payMethods.find(
+                  const payMethod = stripePaymentOptions.find(
                     (method) => method.type === payWay,
                   );
                   if (payMethod) {
                     return (
                       <>
-                        {payMethod.type === 'alipay' ? (
-                          <SiAlipay
-                            className='mr-2'
-                            size={16}
-                            color='#1677FF'
-                          />
-                        ) : payMethod.type === 'wxpay' ? (
-                          <SiWechat
-                            className='mr-2'
-                            size={16}
-                            color='#07C160'
-                          />
-                        ) : payMethod.type === 'stripe' ? (
+                        {payMethod.type === 'stripe' ? (
                           <SiStripe
                             className='mr-2'
                             size={16}
                             color='#635BFF'
-                          />
-                        ) : payMethod.icon ? (
-                          <img
-                            src={payMethod.icon}
-                            alt={payMethod.name}
-                            className='mr-2'
-                            style={{
-                              width: 16,
-                              height: 16,
-                              objectFit: 'contain',
-                            }}
                           />
                         ) : (
                           <CreditCard
@@ -166,53 +144,29 @@ const PaymentConfirmModal = ({
                       </>
                     );
                   } else {
-                    // 默认充值方式
-                    if (payWay === 'alipay') {
-                      return (
-                        <>
-                          <SiAlipay
-                            className='mr-2'
-                            size={16}
-                            color='#1677FF'
-                          />
-                          <Text className='text-slate-900 dark:text-slate-100'>
-                            {t('支付宝')}
-                          </Text>
-                        </>
-                      );
-                    } else if (payWay === 'stripe') {
-                      return (
-                        <>
-                          <SiStripe
-                            className='mr-2'
-                            size={16}
-                            color='#635BFF'
-                          />
-                          <Text className='text-slate-900 dark:text-slate-100'>
-                            Stripe
-                          </Text>
-                        </>
-                      );
-                    } else {
-                      return (
-                        <>
-                          <SiWechat
-                            className='mr-2'
-                            size={16}
-                            color='#07C160'
-                          />
-                          <Text className='text-slate-900 dark:text-slate-100'>
-                            {t('微信')}
-                          </Text>
-                        </>
-                      );
-                    }
+                    return (
+                      <>
+                        <SiStripe className='mr-2' size={16} color='#635BFF' />
+                        <Text className='text-slate-900 dark:text-slate-100'>
+                          Stripe
+                        </Text>
+                      </>
+                    );
                   }
                 })()}
               </div>
             </div>
           </div>
         </Card>
+        {paymentSession ? (
+          <StripePaymentElement
+            t={t}
+            session={paymentSession}
+            submitLabel={t('确认支付')}
+            onSuccess={onPaymentSuccess}
+            onProcessing={onPaymentSuccess}
+          />
+        ) : null}
       </div>
     </Modal>
   );

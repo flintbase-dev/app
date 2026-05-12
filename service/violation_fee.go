@@ -89,7 +89,7 @@ func calcViolationFeeQuota(amount, groupRatio float64) int {
 		return 0
 	}
 	quota := decimal.NewFromFloat(amount).
-		Mul(decimal.NewFromFloat(common.QuotaPerUnit)).
+		Mul(decimal.NewFromFloat(common.SiteCreditsPerPriceUnit)).
 		Mul(decimal.NewFromFloat(groupRatio)).
 		Round(0).
 		IntPart()
@@ -158,6 +158,21 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 		IsStream:       relayInfo.IsStream,
 		Group:          relayInfo.UsingGroup,
 		Other:          other,
+	})
+	model.RecordSecurityEventWithContext(ctx, model.LogEventParams{
+		UserId:       relayInfo.UserId,
+		Event:        "relay.policy.violation_fee",
+		Severity:     "warning",
+		Result:       "charged",
+		Content:      "Policy violation fee charged",
+		ModelName:    relayInfo.OriginModelName,
+		TokenName:    tokenName,
+		Quota:        feeQuota,
+		ChannelId:    relayInfo.ChannelId,
+		TokenId:      relayInfo.TokenId,
+		Group:        relayInfo.UsingGroup,
+		ResourceType: "relay_request",
+		Other:        other,
 	})
 
 	return true

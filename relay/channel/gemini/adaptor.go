@@ -52,11 +52,6 @@ func (a *Adaptor) ConvertClaudeRequest(c *gin.Context, info *relaycommon.RelayIn
 	return a.ConvertOpenAIRequest(c, info, oaiReq.(*dto.GeneralOpenAIRequest))
 }
 
-func (a *Adaptor) ConvertAudioRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.AudioRequest) (io.Reader, error) {
-	//TODO implement me
-	return nil, errors.New("not implemented")
-}
-
 func (a *Adaptor) ConvertImageRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.ImageRequest) (any, error) {
 	if !strings.HasPrefix(info.UpstreamModelName, "imagen") {
 		return nil, errors.New("not supported model for image generation, only imagen models are supported")
@@ -187,54 +182,6 @@ func (a *Adaptor) ConvertOpenAIRequest(c *gin.Context, info *relaycommon.RelayIn
 	}
 
 	return geminiRequest, nil
-}
-
-func (a *Adaptor) ConvertRerankRequest(c *gin.Context, relayMode int, request dto.RerankRequest) (any, error) {
-	return nil, nil
-}
-
-func (a *Adaptor) ConvertEmbeddingRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.EmbeddingRequest) (any, error) {
-	if request.Input == nil {
-		return nil, errors.New("input is required")
-	}
-
-	inputs := request.ParseInput()
-	if len(inputs) == 0 {
-		return nil, errors.New("input is empty")
-	}
-	// We always build a batch-style payload with `requests`, so ensure we call the
-	// batch endpoint upstream to avoid payload/endpoint mismatches.
-	info.IsGeminiBatchEmbedding = true
-	// process all inputs
-	geminiRequests := make([]map[string]interface{}, 0, len(inputs))
-	for _, input := range inputs {
-		geminiRequest := map[string]interface{}{
-			"model": fmt.Sprintf("models/%s", info.UpstreamModelName),
-			"content": dto.GeminiChatContent{
-				Parts: []dto.GeminiPart{
-					{
-						Text: input,
-					},
-				},
-			},
-		}
-
-		// set specific parameters for different models
-		// https://ai.google.dev/api/embeddings?hl=zh-cn#method:-models.embedcontent
-		switch info.UpstreamModelName {
-		case "text-embedding-004", "gemini-embedding-exp-03-07", "gemini-embedding-001":
-			// Only newer models introduced after 2024 support OutputDimensionality
-			dimensions := lo.FromPtrOr(request.Dimensions, 0)
-			if dimensions > 0 {
-				geminiRequest["outputDimensionality"] = dimensions
-			}
-		}
-		geminiRequests = append(geminiRequests, geminiRequest)
-	}
-
-	return map[string]interface{}{
-		"requests": geminiRequests,
-	}, nil
 }
 
 func (a *Adaptor) ConvertOpenAIResponsesRequest(c *gin.Context, info *relaycommon.RelayInfo, request dto.OpenAIResponsesRequest) (any, error) {

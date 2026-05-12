@@ -132,41 +132,18 @@ func ApplyParamOverride(jsonData []byte, paramOverride map[string]interface{}, c
 	if len(paramOverride) == 0 {
 		return jsonData, nil
 	}
-	auditRecorder := getParamOverrideAuditRecorder(conditionContext)
-
-	// 尝试断言为操作格式
-	if operations, ok := tryParseOperations(paramOverride); ok {
-		legacyOverride := buildLegacyParamOverride(paramOverride)
-		workingJSON := jsonData
-		var err error
-		if len(legacyOverride) > 0 {
-			workingJSON, err = applyOperationsLegacy(workingJSON, legacyOverride, auditRecorder)
-			if err != nil {
-				return nil, err
-			}
+	operations, ok := tryParseOperations(paramOverride)
+	if !ok {
+		return nil, fmt.Errorf("param override must use operations format")
+	}
+	for key := range paramOverride {
+		if !strings.EqualFold(strings.TrimSpace(key), "operations") {
+			return nil, fmt.Errorf("param override contains unsupported field %q", key)
 		}
-
-		// 使用新方法
-		result, err := applyOperations(string(workingJSON), operations, conditionContext)
-		return []byte(result), err
 	}
 
-	// 直接使用旧方法
-	return applyOperationsLegacy(jsonData, paramOverride, auditRecorder)
-}
-
-func buildLegacyParamOverride(paramOverride map[string]interface{}) map[string]interface{} {
-	if len(paramOverride) == 0 {
-		return nil
-	}
-	legacy := make(map[string]interface{}, len(paramOverride))
-	for key, value := range paramOverride {
-		if strings.EqualFold(strings.TrimSpace(key), "operations") {
-			continue
-		}
-		legacy[key] = value
-	}
-	return legacy
+	result, err := applyOperations(string(jsonData), operations, conditionContext)
+	return []byte(result), err
 }
 
 func ApplyParamOverrideWithRelayInfo(jsonData []byte, info *RelayInfo) ([]byte, error) {
@@ -210,17 +187,7 @@ func shouldEnableParamOverrideAudit(paramOverride map[string]interface{}) bool {
 				return true
 			}
 		}
-		for key := range buildLegacyParamOverride(paramOverride) {
-			if shouldAuditParamPath(strings.TrimSpace(key)) {
-				return true
-			}
-		}
 		return false
-	}
-	for key := range paramOverride {
-		if shouldAuditParamPath(strings.TrimSpace(key)) {
-			return true
-		}
 	}
 	return false
 }
@@ -653,22 +620,6 @@ func compareNumeric(jsonValue, targetValue gjson.Result, operator string) (bool,
 	default:
 		return false, fmt.Errorf("unsupported numeric operator: %s", operator)
 	}
-}
-
-// applyOperationsLegacy 原参数覆盖方法
-func applyOperationsLegacy(jsonData []byte, paramOverride map[string]interface{}, auditRecorder *paramOverrideAuditRecorder) ([]byte, error) {
-	reqMap := make(map[string]interface{})
-	err := common.Unmarshal(jsonData, &reqMap)
-	if err != nil {
-		return nil, err
-	}
-
-	for key, value := range paramOverride {
-		reqMap[key] = value
-		auditRecorder.recordOperation("set", key, "", "", value)
-	}
-
-	return common.Marshal(reqMap)
 }
 
 func applyOperations(jsonStr string, operations []ParamOperation, conditionContext map[string]interface{}) (string, error) {
@@ -1320,11 +1271,7 @@ func parseSyncTarget(spec string) (syncTarget, error) {
 
 	idx := strings.Index(raw, ":")
 	if idx < 0 {
-		// Backward compatibility: treat bare value as JSON path.
-		return syncTarget{
-			kind: "json",
-			key:  raw,
-		}, nil
+		return syncTarget{}, fmt.Errorf("sync_fields target kind is required: %s", raw)
 	}
 
 	kind := strings.ToLower(strings.TrimSpace(raw[:idx]))

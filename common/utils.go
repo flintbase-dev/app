@@ -19,7 +19,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/google/uuid"
 	"github.com/pkg/errors"
 )
 
@@ -215,12 +214,6 @@ func IntMax(a int, b int) int {
 	} else {
 		return b
 	}
-}
-
-func GetUUID() string {
-	code := uuid.New().String()
-	code = strings.Replace(code, "-", "", -1)
-	return code
 }
 
 const keyChars = "0123456789abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ"

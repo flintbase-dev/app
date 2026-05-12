@@ -83,61 +83,7 @@ const renderType = (type, record = {}, t) => {
     </Tag>
   );
 
-  let ionetMeta = null;
-  if (record?.other_info) {
-    try {
-      const parsed = JSON.parse(record.other_info);
-      if (parsed && typeof parsed === 'object' && parsed.source === 'ionet') {
-        ionetMeta = parsed;
-      }
-    } catch (error) {
-      // ignore invalid metadata
-    }
-  }
-
-  if (!ionetMeta) {
-    return typeTag;
-  }
-
-  const handleNavigate = (event) => {
-    event?.stopPropagation?.();
-    if (!ionetMeta?.deployment_id) {
-      return;
-    }
-    const targetUrl = `/console/deployment?deployment_id=${ionetMeta.deployment_id}`;
-    window.open(targetUrl, '_blank', 'noopener');
-  };
-
-  return (
-    <Space spacing={6}>
-      {typeTag}
-      <Tooltip
-        content={
-          <div className='max-w-xs'>
-            <div className='text-xs text-gray-600'>
-              {t('来源于 IO.NET 部署')}
-            </div>
-            {ionetMeta?.deployment_id && (
-              <div className='text-xs text-gray-500 mt-1'>
-                {t('部署 ID')}: {ionetMeta.deployment_id}
-              </div>
-            )}
-          </div>
-        }
-      >
-        <span>
-          <Tag
-            color='purple'
-            type='light'
-            className='cursor-pointer'
-            onClick={handleNavigate}
-          >
-            IO.NET
-          </Tag>
-        </span>
-      </Tooltip>
-    </Space>
-  );
+  return typeTag;
 };
 
 const renderTagType = (t) => {
@@ -322,7 +268,6 @@ export const getChannelsColumns = ({
   refresh,
   activePage,
   channels,
-  checkOllamaVersion,
   setShowMultiKeyManageModal,
   setCurrentMultiKeyChannel,
   openUpstreamUpdateModal,
@@ -538,24 +483,19 @@ export const getChannelsColumns = ({
                 </Tooltip>
                 <Tooltip
                   content={
-                    record.type === 57
-                      ? t('查看 Codex 帐号信息与用量')
-                      : t('剩余额度') +
-                        ': ' +
-                        renderQuotaWithAmount(record.balance) +
-                        t('，点击更新')
+                    t('剩余额度') +
+                    ': ' +
+                    renderQuotaWithAmount(record.balance) +
+                    t('，点击更新')
                   }
                 >
                   <Tag
-                    color={record.type === 57 ? 'light-blue' : 'white'}
-                    type={record.type === 57 ? 'light' : 'ghost'}
+                    color='white'
+                    type='ghost'
                     shape='circle'
-                    className={record.type === 57 ? 'cursor-pointer' : ''}
                     onClick={() => updateChannelBalance(record)}
                   >
-                    {record.type === 57
-                      ? t('帐号信息')
-                      : renderQuotaWithAmount(record.balance)}
+                    {renderQuotaWithAmount(record.balance)}
                   </Tag>
                 </Tooltip>
               </Space>
@@ -761,15 +701,6 @@ export const getChannelsColumns = ({
                     : 'remove',
                 );
               },
-            });
-          }
-
-          if (record.type === 4) {
-            moreMenuItems.unshift({
-              node: 'item',
-              name: t('测活'),
-              type: 'tertiary',
-              onClick: () => checkOllamaVersion(record),
             });
           }
 

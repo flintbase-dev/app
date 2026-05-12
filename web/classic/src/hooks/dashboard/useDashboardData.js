@@ -87,13 +87,11 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
 
   // ========== Panel enable flags ==========
   const apiInfoEnabled = statusState?.status?.api_info_enabled ?? true;
-  const announcementsEnabled =
-    statusState?.status?.announcements_enabled ?? true;
   const faqEnabled = statusState?.status?.faq_enabled ?? true;
   const uptimeEnabled = statusState?.status?.uptime_kuma_enabled ?? true;
 
   const hasApiInfoPanel = apiInfoEnabled;
-  const hasInfoPanels = announcementsEnabled || faqEnabled || uptimeEnabled;
+  const hasInfoPanels = faqEnabled || uptimeEnabled;
 
   // ========== Memoized Values ==========
   const timeOptions = useMemo(
@@ -159,18 +157,18 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const loadQuotaData = useCallback(async () => {
     setLoading(true);
     try {
-      let url = '';
       const { start_timestamp, end_timestamp, username } = inputs;
       let localStartTimestamp = Date.parse(start_timestamp) / 1000;
       let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-
-      if (isAdminUser) {
-        url = `/api/data/?username=${username}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
-      } else {
-        url = `/api/data/self/?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&default_time=${dataExportDefaultTime}`;
-      }
-
-      const res = await API.get(url);
+      const res = await API.query(
+        isAdminUser ? 'quotaDates' : 'quotaDatesSelf',
+        {
+          ...(isAdminUser ? { username } : {}),
+          start_timestamp: localStartTimestamp,
+          end_timestamp: localEndTimestamp,
+          default_time: dataExportDefaultTime,
+        },
+      );
       const { success, message, data } = res.data;
       if (success) {
         setQuotaData(data);
@@ -196,7 +194,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   const loadUptimeData = useCallback(async () => {
     setUptimeLoading(true);
     try {
-      const res = await API.get('/api/uptime/status');
+      const res = await API.query('uptimeStatus');
       const { success, message, data } = res.data;
       if (success) {
         setUptimeData(data || []);
@@ -219,8 +217,10 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
       const { start_timestamp, end_timestamp } = inputs;
       const localStartTimestamp = Date.parse(start_timestamp) / 1000;
       const localEndTimestamp = Date.parse(end_timestamp) / 1000;
-      const url = `/api/data/users?start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}`;
-      const res = await API.get(url);
+      const res = await API.query('quotaDatesByUser', {
+        start_timestamp: localStartTimestamp,
+        end_timestamp: localEndTimestamp,
+      });
       const { success, message, data } = res.data;
       if (success) {
         return data || [];
@@ -235,7 +235,7 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
   }, [inputs, isAdminUser]);
 
   const getUserData = useCallback(async () => {
-    let res = await API.get(`/api/user/self`);
+    let res = await API.query('self');
     const { success, message, data } = res.data;
     if (success) {
       userDispatch({ type: 'login', payload: data });
@@ -323,7 +323,6 @@ export const useDashboardData = (userState, userDispatch, statusState) => {
     hasApiInfoPanel,
     hasInfoPanels,
     apiInfoEnabled,
-    announcementsEnabled,
     faqEnabled,
     uptimeEnabled,
 

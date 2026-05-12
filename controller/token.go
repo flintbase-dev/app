@@ -3,7 +3,6 @@ package controller
 import (
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -32,7 +31,7 @@ func buildMaskedTokenResponses(tokens []*model.Token) []*model.Token {
 }
 
 func GetAllTokens(c *gin.Context) {
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	pageInfo := common.GetPageQuery(c)
 	tokens, err := model.GetAllUserTokens(userId, pageInfo.GetStartIdx(), pageInfo.GetPageSize())
 	if err != nil {
@@ -46,7 +45,7 @@ func GetAllTokens(c *gin.Context) {
 }
 
 func SearchTokens(c *gin.Context) {
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	keyword := c.Query("keyword")
 	token := c.Query("token")
 
@@ -63,10 +62,10 @@ func SearchTokens(c *gin.Context) {
 }
 
 func GetToken(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	userId := c.GetInt("id")
-	if err != nil {
-		common.ApiError(c, err)
+	id := c.Param("id")
+	userId := c.GetString("id")
+	if common.IsEmptyID(id) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 	token, err := model.GetTokenByIds(id, userId)
@@ -78,10 +77,10 @@ func GetToken(c *gin.Context) {
 }
 
 func GetTokenKey(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	userId := c.GetInt("id")
-	if err != nil {
-		common.ApiError(c, err)
+	id := c.Param("id")
+	userId := c.GetString("id")
+	if common.IsEmptyID(id) {
+		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
 	token, err := model.GetTokenByIds(id, userId)
@@ -89,14 +88,25 @@ func GetTokenKey(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.RecordSecurityEventWithContext(c, model.LogEventParams{
+		UserId:       userId,
+		Event:        "token.secret.view",
+		Severity:     "warning",
+		Content:      "API token secret viewed",
+		ResourceType: "token",
+		ResourceId:   token.Id,
+		Other: map[string]interface{}{
+			"token_name": token.Name,
+		},
+	})
 	common.ApiSuccess(c, gin.H{
 		"key": token.GetFullKey(),
 	})
 }
 
 func GetTokenStatus(c *gin.Context) {
-	tokenId := c.GetInt("token_id")
-	userId := c.GetInt("id")
+	tokenId := c.GetString("token_id")
+	userId := c.GetString("id")
 	token, err := model.GetTokenByIds(tokenId, userId)
 	if err != nil {
 		common.ApiError(c, err)
@@ -181,7 +191,7 @@ func AddToken(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaNegative)
 			return
 		}
-		maxQuotaValue := int((1000000000 * common.QuotaPerUnit))
+		maxQuotaValue := int((1000000000 * common.SiteCreditsPerPriceUnit))
 		if token.RemainQuota > maxQuotaValue {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue})
 			return
@@ -189,7 +199,7 @@ func AddToken(c *gin.Context) {
 	}
 	// 检查用户令牌数量是否已达上限
 	maxTokens := operation_setting.GetMaxUserTokens()
-	count, err := model.CountUserTokens(c.GetInt("id"))
+	count, err := model.CountUserTokens(c.GetString("id"))
 	if err != nil {
 		common.ApiError(c, err)
 		return
@@ -208,7 +218,7 @@ func AddToken(c *gin.Context) {
 		return
 	}
 	cleanToken := model.Token{
-		UserId:             c.GetInt("id"),
+		UserId:             c.GetString("id"),
 		Name:               token.Name,
 		Key:                key,
 		CreatedTime:        common.GetTimestamp(),
@@ -227,6 +237,17 @@ func AddToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.RecordAuditEventWithContext(c, model.LogEventParams{
+		UserId:       cleanToken.UserId,
+		Event:        "token.create",
+		Content:      "API token created",
+		ResourceType: "token",
+		ResourceId:   cleanToken.Id,
+		Other: map[string]interface{}{
+			"token_name":      cleanToken.Name,
+			"unlimited_quota": cleanToken.UnlimitedQuota,
+		},
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -234,13 +255,20 @@ func AddToken(c *gin.Context) {
 }
 
 func DeleteToken(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
-	userId := c.GetInt("id")
+	id := c.Param("id")
+	userId := c.GetString("id")
 	err := model.DeleteTokenById(id, userId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	model.RecordAuditEventWithContext(c, model.LogEventParams{
+		UserId:       userId,
+		Event:        "token.delete",
+		Content:      "API token deleted",
+		ResourceType: "token",
+		ResourceId:   id,
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -248,7 +276,7 @@ func DeleteToken(c *gin.Context) {
 }
 
 func UpdateToken(c *gin.Context) {
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	statusOnly := c.Query("status_only")
 	token := model.Token{}
 	err := c.ShouldBindJSON(&token)
@@ -265,7 +293,7 @@ func UpdateToken(c *gin.Context) {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaNegative)
 			return
 		}
-		maxQuotaValue := int((1000000000 * common.QuotaPerUnit))
+		maxQuotaValue := int((1000000000 * common.SiteCreditsPerPriceUnit))
 		if token.RemainQuota > maxQuotaValue {
 			common.ApiErrorI18n(c, i18n.MsgTokenQuotaExceedMax, map[string]any{"Max": maxQuotaValue})
 			return
@@ -305,6 +333,17 @@ func UpdateToken(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	model.RecordAuditEventWithContext(c, model.LogEventParams{
+		UserId:       userId,
+		Event:        "token.update",
+		Content:      "API token updated",
+		ResourceType: "token",
+		ResourceId:   cleanToken.Id,
+		Other: map[string]interface{}{
+			"status_only": statusOnly != "",
+			"token_name":  cleanToken.Name,
+		},
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -313,7 +352,7 @@ func UpdateToken(c *gin.Context) {
 }
 
 type TokenBatch struct {
-	Ids []int `json:"ids"`
+	Ids []string `json:"ids"`
 }
 
 func DeleteTokenBatch(c *gin.Context) {
@@ -322,12 +361,21 @@ func DeleteTokenBatch(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
 		return
 	}
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	count, err := model.BatchDeleteTokens(tokenBatch.Ids, userId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	model.RecordAuditEventWithContext(c, model.LogEventParams{
+		UserId:       userId,
+		Event:        "token.batch_delete",
+		Content:      "API tokens deleted in batch",
+		ResourceType: "token",
+		Other: map[string]interface{}{
+			"count": count,
+		},
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -345,13 +393,23 @@ func GetTokenKeysBatch(c *gin.Context) {
 		common.ApiErrorI18n(c, i18n.MsgBatchTooMany, map[string]any{"Max": 100})
 		return
 	}
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	tokens, err := model.GetTokenKeysByIds(tokenBatch.Ids, userId)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	keysMap := make(map[int]string)
+	model.RecordSecurityEventWithContext(c, model.LogEventParams{
+		UserId:       userId,
+		Event:        "token.secret.batch_view",
+		Severity:     "warning",
+		Content:      "API token secrets viewed in batch",
+		ResourceType: "token",
+		Other: map[string]interface{}{
+			"count": len(tokens),
+		},
+	})
+	keysMap := make(map[string]string)
 	for _, t := range tokens {
 		keysMap[t.Id] = t.GetFullKey()
 	}

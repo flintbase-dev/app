@@ -16,10 +16,24 @@ import (
 func GetCheckinStatus(c *gin.Context) {
 	setting := operation_setting.GetCheckinSetting()
 	if !setting.Enabled {
-		common.ApiErrorMsg(c, "签到功能未启用")
+		c.JSON(http.StatusOK, gin.H{
+			"success": true,
+			"data": gin.H{
+				"enabled":   false,
+				"min_quota": setting.MinQuota,
+				"max_quota": setting.MaxQuota,
+				"stats": gin.H{
+					"total_quota":      0,
+					"total_checkins":   0,
+					"checkin_count":    0,
+					"checked_in_today": false,
+					"records":          []model.CheckinRecord{},
+				},
+			},
+		})
 		return
 	}
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	// 获取月份参数，默认为当前月份
 	month := c.DefaultQuery("month", time.Now().Format("2006-01"))
 
@@ -51,7 +65,7 @@ func DoCheckin(c *gin.Context) {
 		return
 	}
 
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 
 	checkin, err := model.UserCheckin(userId)
 	if err != nil {
@@ -61,7 +75,18 @@ func DoCheckin(c *gin.Context) {
 		})
 		return
 	}
-	model.RecordLog(userId, model.LogTypeSystem, fmt.Sprintf("用户签到，获得额度 %s", logger.LogQuota(checkin.QuotaAwarded)))
+	model.RecordAuditEventWithContext(c, model.LogEventParams{
+		UserId:       userId,
+		Event:        "quota.checkin_grant",
+		Content:      fmt.Sprintf("用户签到，获得额度 %s", logger.LogQuota(checkin.QuotaAwarded)),
+		ResourceType: "checkin",
+		ResourceId:   checkin.CheckinDate,
+		Quota:        checkin.QuotaAwarded,
+		Other: map[string]interface{}{
+			"quota_awarded": checkin.QuotaAwarded,
+			"checkin_date":  checkin.CheckinDate,
+		},
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "签到成功",

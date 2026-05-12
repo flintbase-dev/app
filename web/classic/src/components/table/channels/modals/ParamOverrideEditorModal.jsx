@@ -38,7 +38,6 @@ import { IconDelete, IconMenu, IconPlus } from '@douyinfe/semi-icons';
 import { copy, showError, showSuccess, verifyJSON } from '../../../../helpers';
 import {
   CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE,
-  CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE,
 } from '../../../../constants/channel-affinity-template.constants';
 
 const { Text } = Typography;
@@ -163,7 +162,8 @@ const MODE_DESCRIPTIONS = {
   prune_objects: '按条件清理对象中的子项',
   pass_headers: '把指定请求头透传到上游请求',
   sync_fields: '在一个字段有值、另一个缺失时自动补齐',
-  set_header: '设置运行期请求头：可直接覆盖整条值，也可对逗号分隔的 token 做删除、替换、追加或白名单保留',
+  set_header:
+    '设置运行期请求头：可直接覆盖整条值，也可对逗号分隔的 token 做删除、替换、追加或白名单保留',
   delete_header: '删除运行期请求头',
   copy_header: '复制请求头',
   move_header: '移动请求头',
@@ -209,7 +209,8 @@ const getModeToLabel = (mode) => {
 const getModeToPlaceholder = (mode) => {
   if (mode === 'replace') return '（可留空）';
   if (mode === 'regex_replace') return 'openai/gpt-';
-  if (mode === 'copy_header' || mode === 'move_header') return 'X-Upstream-Auth';
+  if (mode === 'copy_header' || mode === 'move_header')
+    return 'X-Upstream-Auth';
   return 'original_model';
 };
 
@@ -275,11 +276,6 @@ const SYNC_TARGET_TYPE_OPTIONS = [
   { label: '请求头字段', value: 'header' },
 ];
 
-const LEGACY_TEMPLATE = {
-  temperature: 0,
-  max_tokens: 1000,
-};
-
 const OPERATION_TEMPLATE = {
   operations: [
     {
@@ -343,7 +339,8 @@ const GEMINI_IMAGE_4K_TEMPLATE = {
 const AWS_BEDROCK_ANTHROPIC_COMPAT_TEMPLATE = {
   operations: [
     {
-      description: 'Normalize anthropic-beta header tokens for Bedrock compatibility.',
+      description:
+        'Normalize anthropic-beta header tokens for Bedrock compatibility.',
       mode: 'set_header',
       path: 'anthropic-beta',
       // https://github.com/BerriAI/litellm/blob/main/litellm/anthropic_beta_headers_config.json
@@ -376,11 +373,12 @@ const AWS_BEDROCK_ANTHROPIC_COMPAT_TEMPLATE = {
         'tool-search-tool-2025-10-19': 'tool-search-tool-2025-10-19',
         'web-fetch-2025-09-10': null,
         'web-search-2025-03-05': null,
-        'oauth-2025-04-20': null
+        'oauth-2025-04-20': null,
       },
     },
     {
-      description: 'Remove all tools[*].custom.input_examples before upstream relay.',
+      description:
+        'Remove all tools[*].custom.input_examples before upstream relay.',
       mode: 'delete',
       path: 'tools.*.custom.input_examples',
     },
@@ -399,12 +397,6 @@ const TEMPLATE_PRESET_CONFIG = {
     kind: 'operations',
     payload: OPERATION_TEMPLATE,
   },
-  legacy_default: {
-    group: 'basic',
-    label: '旧格式模板（JSON 对象）',
-    kind: 'legacy',
-    payload: LEGACY_TEMPLATE,
-  },
   pass_headers_auth: {
     group: 'scenario',
     label: '请求头透传（X-Request-Id）',
@@ -422,12 +414,6 @@ const TEMPLATE_PRESET_CONFIG = {
     label: 'Claude CLI 请求头透传',
     kind: 'operations',
     payload: CLAUDE_CLI_HEADER_PASSTHROUGH_TEMPLATE,
-  },
-  codex_cli_headers_passthrough: {
-    group: 'scenario',
-    label: 'Codex CLI 请求头透传',
-    kind: 'operations',
-    payload: CODEX_CLI_HEADER_PASSTHROUGH_TEMPLATE,
   },
   aws_bedrock_anthropic_beta_override: {
     group: 'scenario',
@@ -454,7 +440,11 @@ const BUILTIN_FIELD_SECTIONS = [
       },
       { key: 'temperature', label: '采样温度', tip: '控制输出随机性' },
       { key: 'max_tokens', label: '最大输出 Token', tip: '控制输出长度上限' },
-      { key: 'messages.-1.content', label: '最后一条消息内容', tip: '常用于重写用户输入' },
+      {
+        key: 'messages.-1.content',
+        label: '最后一条消息内容',
+        tip: '常用于重写用户输入',
+      },
     ],
   },
   {
@@ -516,9 +506,7 @@ const parseLooseValue = (valueText) => {
 
 const parsePassHeaderNames = (rawValue) => {
   if (Array.isArray(rawValue)) {
-    return rawValue
-      .map((item) => String(item ?? '').trim())
-      .filter(Boolean);
+    return rawValue.map((item) => String(item ?? '').trim()).filter(Boolean);
   }
   if (rawValue && typeof rawValue === 'object') {
     if (Array.isArray(rawValue.headers)) {
@@ -646,7 +634,11 @@ const parsePruneObjectsDraft = (valueText) => {
     }
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
       const rules = [];
-      if (parsed.where && typeof parsed.where === 'object' && !Array.isArray(parsed.where)) {
+      if (
+        parsed.where &&
+        typeof parsed.where === 'object' &&
+        !Array.isArray(parsed.where)
+      ) {
         Object.entries(parsed.where).forEach(([path, value]) => {
           rules.push(
             normalizePruneRule({
@@ -793,7 +785,8 @@ const createDefaultCondition = () => normalizeCondition({});
 
 const normalizeOperation = (operation = {}) => ({
   id: nextLocalId(),
-  description: typeof operation.description === 'string' ? operation.description : '',
+  description:
+    typeof operation.description === 'string' ? operation.description : '',
   path: typeof operation.path === 'string' ? operation.path : '',
   mode: OPERATION_MODE_VALUES.has(operation.mode) ? operation.mode : 'set',
   value_text: toValueText(operation.value),
@@ -818,7 +811,9 @@ const reorderOperations = (
     return sourceOperations;
   }
 
-  const sourceIndex = sourceOperations.findIndex((item) => item.id === sourceId);
+  const sourceIndex = sourceOperations.findIndex(
+    (item) => item.id === sourceId,
+  );
 
   if (sourceIndex < 0) {
     return sourceOperations;
@@ -869,8 +864,6 @@ const parseInitialState = (rawValue) => {
   if (!trimmed) {
     return {
       editMode: 'visual',
-      visualMode: 'operations',
-      legacyValue: '',
       operations: [createDefaultOperation()],
       jsonText: '',
       jsonError: '',
@@ -880,8 +873,6 @@ const parseInitialState = (rawValue) => {
   if (!verifyJSON(trimmed)) {
     return {
       editMode: 'json',
-      visualMode: 'operations',
-      legacyValue: '',
       operations: [createDefaultOperation()],
       jsonText: text,
       jsonError: 'JSON 格式不正确',
@@ -899,8 +890,6 @@ const parseInitialState = (rawValue) => {
   ) {
     return {
       editMode: 'visual',
-      visualMode: 'operations',
-      legacyValue: '',
       operations:
         parsed.operations.length > 0
           ? parsed.operations.map(normalizeOperation)
@@ -912,19 +901,15 @@ const parseInitialState = (rawValue) => {
 
   if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
     return {
-      editMode: 'visual',
-      visualMode: 'legacy',
-      legacyValue: pretty,
+      editMode: 'json',
       operations: [createDefaultOperation()],
       jsonText: pretty,
-      jsonError: '',
+      jsonError: '参数覆盖必须使用 operations 格式',
     };
   }
 
   return {
     editMode: 'json',
-    visualMode: 'operations',
-    legacyValue: '',
     operations: [createDefaultOperation()],
     jsonText: pretty,
     jsonError: '',
@@ -1025,8 +1010,7 @@ const validateOperations = (operations, t) => {
         const parsed = JSON.parse(raw);
         if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
           const hasType =
-            parsed.type !== undefined &&
-            String(parsed.type).trim() !== '';
+            parsed.type !== undefined && String(parsed.type).trim() !== '';
           const hasWhere =
             parsed.where &&
             typeof parsed.where === 'object' &&
@@ -1039,7 +1023,12 @@ const validateOperations = (operations, t) => {
             typeof parsed.conditions === 'object' &&
             !Array.isArray(parsed.conditions) &&
             Object.keys(parsed.conditions).length > 0;
-          if (!hasType && !hasWhere && !hasConditionsArray && !hasConditionsObject) {
+          if (
+            !hasType &&
+            !hasWhere &&
+            !hasConditionsArray &&
+            !hasConditionsObject
+          ) {
             return t('第 {{line}} 条 prune_objects 需要至少一个匹配条件', {
               line,
             });
@@ -1069,8 +1058,6 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   const { t } = useTranslation();
 
   const [editMode, setEditMode] = useState('visual');
-  const [visualMode, setVisualMode] = useState('operations');
-  const [legacyValue, setLegacyValue] = useState('');
   const [operations, setOperations] = useState([createDefaultOperation()]);
   const [jsonText, setJsonText] = useState('');
   const [jsonError, setJsonError] = useState('');
@@ -1081,8 +1068,10 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   const [dragOverOperationId, setDragOverOperationId] = useState('');
   const [dragOverPosition, setDragOverPosition] = useState('before');
   const [templateGroupKey, setTemplateGroupKey] = useState('basic');
-  const [templatePresetKey, setTemplatePresetKey] = useState('operations_default');
-  const [headerValueExampleVisible, setHeaderValueExampleVisible] = useState(false);
+  const [templatePresetKey, setTemplatePresetKey] =
+    useState('operations_default');
+  const [headerValueExampleVisible, setHeaderValueExampleVisible] =
+    useState(false);
   const [fieldGuideVisible, setFieldGuideVisible] = useState(false);
   const [fieldGuideTarget, setFieldGuideTarget] = useState('path');
   const [fieldGuideKeyword, setFieldGuideKeyword] = useState('');
@@ -1091,8 +1080,6 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
     if (!visible) return;
     const nextState = parseInitialState(value);
     setEditMode(nextState.editMode);
-    setVisualMode(nextState.visualMode);
-    setLegacyValue(nextState.legacyValue);
     setOperations(nextState.operations);
     setJsonText(nextState.jsonText);
     setJsonError(nextState.jsonError);
@@ -1102,13 +1089,8 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
     setDraggedOperationId('');
     setDragOverOperationId('');
     setDragOverPosition('before');
-    if (nextState.visualMode === 'legacy') {
-      setTemplateGroupKey('basic');
-      setTemplatePresetKey('legacy_default');
-    } else {
-      setTemplateGroupKey('basic');
-      setTemplatePresetKey('operations_default');
-    }
+    setTemplateGroupKey('basic');
+    setTemplatePresetKey('operations_default');
     setHeaderValueExampleVisible(false);
     setFieldGuideVisible(false);
     setFieldGuideTarget('path');
@@ -1182,14 +1164,20 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   );
 
   const returnErrorDraft = useMemo(() => {
-    if (!selectedOperation || (selectedOperation.mode || '') !== 'return_error') {
+    if (
+      !selectedOperation ||
+      (selectedOperation.mode || '') !== 'return_error'
+    ) {
       return null;
     }
     return parseReturnErrorDraft(selectedOperation.value_text);
   }, [selectedOperation]);
 
   const pruneObjectsDraft = useMemo(() => {
-    if (!selectedOperation || (selectedOperation.mode || '') !== 'prune_objects') {
+    if (
+      !selectedOperation ||
+      (selectedOperation.mode || '') !== 'prune_objects'
+    ) {
       return null;
     }
     return parsePruneObjectsDraft(selectedOperation.value_text);
@@ -1209,7 +1197,9 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   const buildOperationsJson = useCallback(
     (sourceOperations, options = {}) => {
       const { validate = true } = options;
-      const filteredOps = sourceOperations.filter((item) => !isOperationBlank(item));
+      const filteredOps = sourceOperations.filter(
+        (item) => !isOperationBlank(item),
+      );
       if (filteredOps.length === 0) return '';
 
       if (validate) {
@@ -1278,20 +1268,8 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   );
 
   const buildVisualJson = useCallback(() => {
-    if (visualMode === 'legacy') {
-      const trimmed = legacyValue.trim();
-      if (!trimmed) return '';
-      if (!verifyJSON(trimmed)) {
-        throw new Error(t('参数覆盖必须是合法的 JSON 格式！'));
-      }
-      const parsed = JSON.parse(trimmed);
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-        throw new Error(t('旧格式必须是 JSON 对象'));
-      }
-      return JSON.stringify(parsed, null, 2);
-    }
     return buildOperationsJson(operations, { validate: true });
-  }, [buildOperationsJson, legacyValue, operations, t, visualMode]);
+  }, [buildOperationsJson, operations]);
 
   const switchToJsonMode = () => {
     if (editMode === 'json') return;
@@ -1300,11 +1278,7 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
       setJsonError('');
     } catch (error) {
       showError(error.message);
-      if (visualMode === 'legacy') {
-        setJsonText(legacyValue);
-      } else {
-        setJsonText(buildOperationsJson(operations, { validate: false }));
-      }
+      setJsonText(buildOperationsJson(operations, { validate: false }));
       setJsonError(error.message || t('参数配置有误'));
     }
     setEditMode('json');
@@ -1315,10 +1289,8 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
     const trimmed = jsonText.trim();
     if (!trimmed) {
       const fallback = createDefaultOperation();
-      setVisualMode('operations');
       setOperations([fallback]);
       setSelectedOperationId(fallback.id);
-      setLegacyValue('');
       setJsonError('');
       setEditMode('visual');
       return;
@@ -1338,10 +1310,8 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
         parsed.operations.length > 0
           ? parsed.operations.map(normalizeOperation)
           : [createDefaultOperation()];
-      setVisualMode('operations');
       setOperations(nextOperations);
       setSelectedOperationId(nextOperations[0]?.id || '');
-      setLegacyValue('');
       setJsonError('');
       setEditMode('visual');
       setTemplateGroupKey('basic');
@@ -1349,92 +1319,33 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
       return;
     }
     if (parsed && typeof parsed === 'object' && !Array.isArray(parsed)) {
-      const fallback = createDefaultOperation();
-      setVisualMode('legacy');
-      setLegacyValue(JSON.stringify(parsed, null, 2));
-      setOperations([fallback]);
-      setSelectedOperationId(fallback.id);
-      setJsonError('');
-      setEditMode('visual');
-      setTemplateGroupKey('basic');
-      setTemplatePresetKey('legacy_default');
+      showError(t('参数覆盖必须使用 operations 格式'));
       return;
     }
     showError(t('参数覆盖必须是合法的 JSON 对象'));
-  };
-
-  const fillLegacyTemplate = (legacyPayload) => {
-    const text = JSON.stringify(legacyPayload, null, 2);
-    const fallback = createDefaultOperation();
-    setVisualMode('legacy');
-    setLegacyValue(text);
-    setOperations([fallback]);
-    setSelectedOperationId(fallback.id);
-    setExpandedConditionMap({});
-    setJsonText(text);
-    setJsonError('');
-    setEditMode('visual');
   };
 
   const fillOperationsTemplate = (operationsPayload) => {
     const nextOperations = (operationsPayload || []).map(normalizeOperation);
     const finalOperations =
       nextOperations.length > 0 ? nextOperations : [createDefaultOperation()];
-    setVisualMode('operations');
     setOperations(finalOperations);
     setSelectedOperationId(finalOperations[0]?.id || '');
     setExpandedConditionMap({});
-    setJsonText(JSON.stringify({ operations: operationsPayload || [] }, null, 2));
-    setJsonError('');
-    setEditMode('visual');
-  };
-
-  const appendLegacyTemplate = (legacyPayload) => {
-    let parsedCurrent = {};
-    if (visualMode === 'legacy') {
-      const trimmed = legacyValue.trim();
-      if (trimmed) {
-        if (!verifyJSON(trimmed)) {
-          showError(t('当前旧格式 JSON 不合法，无法追加模板'));
-          return;
-        }
-        const parsed = JSON.parse(trimmed);
-        if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
-          showError(t('当前旧格式不是 JSON 对象，无法追加模板'));
-          return;
-        }
-        parsedCurrent = parsed;
-      }
-    }
-
-    const merged = {
-      ...(legacyPayload || {}),
-      ...parsedCurrent,
-    };
-    const text = JSON.stringify(merged, null, 2);
-    const fallback = createDefaultOperation();
-    setVisualMode('legacy');
-    setLegacyValue(text);
-    setOperations([fallback]);
-    setSelectedOperationId(fallback.id);
-    setExpandedConditionMap({});
-    setJsonText(text);
+    setJsonText(
+      JSON.stringify({ operations: operationsPayload || [] }, null, 2),
+    );
     setJsonError('');
     setEditMode('visual');
   };
 
   const appendOperationsTemplate = (operationsPayload) => {
     const appended = (operationsPayload || []).map(normalizeOperation);
-    const existing =
-      visualMode === 'operations'
-        ? operations.filter((item) => !isOperationBlank(item))
-        : [];
+    const existing = operations.filter((item) => !isOperationBlank(item));
     const nextOperations = [...existing, ...appended];
-    setVisualMode('operations');
     setOperations(nextOperations.length > 0 ? nextOperations : appended);
     setSelectedOperationId(nextOperations[0]?.id || appended[0]?.id || '');
     setExpandedConditionMap({});
-    setLegacyValue('');
     setJsonError('');
     setEditMode('visual');
     setJsonText('');
@@ -1442,8 +1353,6 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
 
   const clearValue = () => {
     const fallback = createDefaultOperation();
-    setVisualMode('operations');
-    setLegacyValue('');
     setOperations([fallback]);
     setSelectedOperationId(fallback.id);
     setExpandedConditionMap({});
@@ -1459,19 +1368,11 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
 
   const fillTemplateFromLibrary = () => {
     const preset = getSelectedTemplatePreset();
-    if (preset.kind === 'legacy') {
-      fillLegacyTemplate(preset.payload || {});
-      return;
-    }
     fillOperationsTemplate(preset.payload?.operations || []);
   };
 
   const appendTemplateFromLibrary = () => {
     const preset = getSelectedTemplatePreset();
-    if (preset.kind === 'legacy') {
-      appendLegacyTemplate(preset.payload || {});
-      return;
-    }
     appendOperationsTemplate(preset.payload?.operations || []);
   };
 
@@ -1487,19 +1388,31 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
     }
     const mode = selectedOperation.mode || 'set';
     const meta = MODE_META[mode] || MODE_META.set;
-    if (target === 'path' && (meta.path || meta.pathOptional || meta.pathAlias)) {
+    if (
+      target === 'path' &&
+      (meta.path || meta.pathOptional || meta.pathAlias)
+    ) {
       updateOperation(selectedOperation.id, { path: fieldKey });
       return;
     }
-    if (target === 'from' && (meta.from || meta.pathAlias || mode === 'sync_fields')) {
+    if (
+      target === 'from' &&
+      (meta.from || meta.pathAlias || mode === 'sync_fields')
+    ) {
       updateOperation(selectedOperation.id, {
-        from: mode === 'sync_fields' ? buildSyncTargetSpec('json', fieldKey) : fieldKey,
+        from:
+          mode === 'sync_fields'
+            ? buildSyncTargetSpec('json', fieldKey)
+            : fieldKey,
       });
       return;
     }
     if (target === 'to' && (meta.to || mode === 'sync_fields')) {
       updateOperation(selectedOperation.id, {
-        to: mode === 'sync_fields' ? buildSyncTargetSpec('json', fieldKey) : fieldKey,
+        to:
+          mode === 'sync_fields'
+            ? buildSyncTargetSpec('json', fieldKey)
+            : fieldKey,
       });
       return;
     }
@@ -1892,89 +1805,70 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
   return (
     <>
       <Modal
-      title={t('参数覆盖')}
-      visible={visible}
-      width={1120}
-      bodyStyle={{ maxHeight: '76vh', overflowY: 'auto', paddingTop: 10 }}
-      onCancel={onCancel}
-      onOk={handleSave}
-      okText={t('保存')}
-      cancelText={t('取消')}
-    >
-      <Space vertical align='start' spacing={14} style={{ width: '100%' }}>
-        <Card
-          className='!rounded-xl !border-0 w-full'
-          bodyStyle={{
-            padding: 12,
-            background: 'var(--semi-color-fill-0)',
-          }}
-        >
-          <div className='flex items-start justify-between gap-3'>
-            <Space wrap spacing={8}>
-              <Tag color='grey'>{t('编辑方式')}</Tag>
-              <Button
-                type={editMode === 'visual' ? 'primary' : 'tertiary'}
-                onClick={switchToVisualMode}
-              >
-                {t('可视化')}
-              </Button>
-              <Button
-                type={editMode === 'json' ? 'primary' : 'tertiary'}
-                onClick={switchToJsonMode}
-              >
-                {t('JSON 文本')}
-              </Button>
-              <Tag color='grey'>{t('模板')}</Tag>
-              <Select
-                value={templateGroupKey}
-                optionList={TEMPLATE_GROUP_OPTIONS}
-                onChange={(nextValue) =>
-                  setTemplateGroupKey(nextValue || 'basic')
-                }
-                style={{ width: 120 }}
-              />
-              <Select
-                value={templatePresetKey}
-                optionList={templatePresetOptions}
-                onChange={(nextValue) =>
-                  setTemplatePresetKey(nextValue || 'operations_default')
-                }
-                style={{ width: 260 }}
-              />
-              <Button onClick={fillTemplateFromLibrary}>{t('填充模板')}</Button>
-              <Button type='tertiary' onClick={appendTemplateFromLibrary}>
-                {t('追加模板')}
-              </Button>
-              <Button type='tertiary' onClick={resetEditorState}>
-                {t('重置')}
-              </Button>
-            </Space>
-          </div>
-        </Card>
-
-        {editMode === 'visual' ? (
-          <div style={{ width: '100%' }}>
-            {visualMode === 'legacy' ? (
-              <Card
-                className='!rounded-2xl !border-0'
-                bodyStyle={{
-                  padding: 14,
-                  background: 'var(--semi-color-fill-0)',
-                }}
-              >
-                <Text className='mb-2 block'>{t('旧格式（JSON 对象）')}</Text>
-                <TextArea
-                  value={legacyValue}
-                  autosize={{ minRows: 10, maxRows: 20 }}
-                  placeholder={JSON.stringify(LEGACY_TEMPLATE, null, 2)}
-                  onChange={(nextValue) => setLegacyValue(nextValue)}
-                  showClear
+        title={t('参数覆盖')}
+        visible={visible}
+        width={1120}
+        bodyStyle={{ maxHeight: '76vh', overflowY: 'auto', paddingTop: 10 }}
+        onCancel={onCancel}
+        onOk={handleSave}
+        okText={t('保存')}
+        cancelText={t('取消')}
+      >
+        <Space vertical align='start' spacing={14} style={{ width: '100%' }}>
+          <Card
+            className='!rounded-xl !border-0 w-full'
+            bodyStyle={{
+              padding: 12,
+              background: 'var(--semi-color-fill-0)',
+            }}
+          >
+            <div className='flex items-start justify-between gap-3'>
+              <Space wrap spacing={8}>
+                <Tag color='grey'>{t('编辑方式')}</Tag>
+                <Button
+                  type={editMode === 'visual' ? 'primary' : 'tertiary'}
+                  onClick={switchToVisualMode}
+                >
+                  {t('可视化')}
+                </Button>
+                <Button
+                  type={editMode === 'json' ? 'primary' : 'tertiary'}
+                  onClick={switchToJsonMode}
+                >
+                  {t('JSON 文本')}
+                </Button>
+                <Tag color='grey'>{t('模板')}</Tag>
+                <Select
+                  value={templateGroupKey}
+                  optionList={TEMPLATE_GROUP_OPTIONS}
+                  onChange={(nextValue) =>
+                    setTemplateGroupKey(nextValue || 'basic')
+                  }
+                  style={{ width: 120 }}
                 />
-                <Text type='tertiary' size='small' className='mt-2 block'>
-                  {t('这里直接编辑 JSON 对象。适合简单覆盖参数的场景。')}
-                </Text>
-              </Card>
-            ) : (
+                <Select
+                  value={templatePresetKey}
+                  optionList={templatePresetOptions}
+                  onChange={(nextValue) =>
+                    setTemplatePresetKey(nextValue || 'operations_default')
+                  }
+                  style={{ width: 260 }}
+                />
+                <Button onClick={fillTemplateFromLibrary}>
+                  {t('填充模板')}
+                </Button>
+                <Button type='tertiary' onClick={appendTemplateFromLibrary}>
+                  {t('追加模板')}
+                </Button>
+                <Button type='tertiary' onClick={resetEditorState}>
+                  {t('重置')}
+                </Button>
+              </Space>
+            </div>
+          </Card>
+
+          {editMode === 'visual' ? (
+            <div style={{ width: '100%' }}>
               <div>
                 <div className='flex items-center justify-between mb-3'>
                   <Space>
@@ -2020,7 +1914,9 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
 
                       <Input
                         value={operationSearch}
-                        placeholder={t('搜索规则（描述 / 类型 / 路径 / 来源 / 目标）')}
+                        placeholder={t(
+                          '搜索规则（描述 / 类型 / 路径 / 来源 / 目标）',
+                        )}
                         onChange={(nextValue) =>
                           setOperationSearch(nextValue || '')
                         }
@@ -2066,7 +1962,10 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                     setSelectedOperationId(operation.id)
                                   }
                                   onDragStart={(event) =>
-                                    handleOperationDragStart(event, operation.id)
+                                    handleOperationDragStart(
+                                      event,
+                                      operation.id,
+                                    )
                                   }
                                   onDragOver={(event) =>
                                     handleOperationDragOver(event, operation.id)
@@ -2106,7 +2005,10 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                         className='flex-shrink-0'
                                         style={{
                                           color: 'var(--semi-color-text-2)',
-                                          cursor: operations.length > 1 ? 'grab' : 'default',
+                                          cursor:
+                                            operations.length > 1
+                                              ? 'grab'
+                                              : 'default',
                                           marginTop: 1,
                                         }}
                                       >
@@ -2119,9 +2021,14 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                           size='small'
                                           className='block mt-1'
                                         >
-                                          {getOperationSummary(operation, index)}
+                                          {getOperationSummary(
+                                            operation,
+                                            index,
+                                          )}
                                         </Text>
-                                        {String(operation.description || '').trim() ? (
+                                        {String(
+                                          operation.description || '',
+                                        ).trim() ? (
                                           <Text
                                             type='tertiary'
                                             size='small'
@@ -2273,7 +2180,9 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                               </Text>
                               <Input
                                 value={selectedOperation.description || ''}
-                                placeholder={t('例如：清理工具参数，避免上游校验错误')}
+                                placeholder={t(
+                                  '例如：清理工具参数，避免上游校验错误',
+                                )}
                                 onChange={(nextValue) =>
                                   updateOperation(selectedOperation.id, {
                                     description: nextValue || '',
@@ -2282,7 +2191,11 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                 maxLength={180}
                                 showClear
                               />
-                              <Text type='tertiary' size='small' className='mt-1 block'>
+                              <Text
+                                type='tertiary'
+                                size='small'
+                                className='mt-1 block'
+                              >
                                 {`${String(selectedOperation.description || '').length}/180`}
                               </Text>
                             </div>
@@ -2293,7 +2206,8 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                   className='mt-2 rounded-xl p-3'
                                   style={{
                                     background: 'var(--semi-color-bg-1)',
-                                    border: '1px solid var(--semi-color-border)',
+                                    border:
+                                      '1px solid var(--semi-color-border)',
                                   }}
                                 >
                                   <div className='flex items-center justify-between mb-2'>
@@ -2343,7 +2257,9 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                   <TextArea
                                     value={returnErrorDraft.message}
                                     autosize={{ minRows: 2, maxRows: 4 }}
-                                    placeholder={t('例如：该请求不满足准入策略')}
+                                    placeholder={t(
+                                      '例如：该请求不满足准入策略',
+                                    )}
                                     onChange={(nextValue) =>
                                       updateReturnErrorDraft(
                                         selectedOperation.id,
@@ -2364,7 +2280,10 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                     </Text>
                                   ) : (
                                     <>
-                                      <Row gutter={12} style={{ marginTop: 10 }}>
+                                      <Row
+                                        gutter={12}
+                                        style={{ marginTop: 10 }}
+                                      >
                                         <Col xs={24} md={8}>
                                           <Text type='tertiary' size='small'>
                                             {t('状态码')}
@@ -2510,12 +2429,14 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                     </>
                                   )}
                                 </div>
-                              ) : mode === 'prune_objects' && pruneObjectsDraft ? (
+                              ) : mode === 'prune_objects' &&
+                                pruneObjectsDraft ? (
                                 <div
                                   className='mt-2 rounded-xl p-3'
                                   style={{
                                     background: 'var(--semi-color-bg-1)',
-                                    border: '1px solid var(--semi-color-border)',
+                                    border:
+                                      '1px solid var(--semi-color-border)',
                                   }}
                                 >
                                   <div className='flex items-center justify-between mb-2'>
@@ -2585,7 +2506,10 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                     </Text>
                                   ) : (
                                     <>
-                                      <Row gutter={12} style={{ marginTop: 10 }}>
+                                      <Row
+                                        gutter={12}
+                                        style={{ marginTop: 10 }}
+                                      >
                                         <Col xs={24} md={12}>
                                           <Text type='tertiary' size='small'>
                                             {t('逻辑')}
@@ -2593,8 +2517,14 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                           <Select
                                             value={pruneObjectsDraft.logic}
                                             optionList={[
-                                              { label: t('全部满足（AND）'), value: 'AND' },
-                                              { label: t('任一满足（OR）'), value: 'OR' },
+                                              {
+                                                label: t('全部满足（AND）'),
+                                                value: 'AND',
+                                              },
+                                              {
+                                                label: t('任一满足（OR）'),
+                                                value: 'OR',
+                                              },
                                             ]}
                                             style={{ width: '100%' }}
                                             onChange={(nextValue) =>
@@ -2609,7 +2539,10 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                           <Text type='tertiary' size='small'>
                                             {t('递归策略')}
                                           </Text>
-                                          <Space spacing={6} style={{ marginTop: 2 }}>
+                                          <Space
+                                            spacing={6}
+                                            style={{ marginTop: 2 }}
+                                          >
                                             <Button
                                               size='small'
                                               type={
@@ -2649,13 +2582,12 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                       <div
                                         className='mt-2 rounded-lg p-2'
                                         style={{
-                                          background: 'var(--semi-color-fill-0)',
+                                          background:
+                                            'var(--semi-color-fill-0)',
                                         }}
                                       >
                                         <div className='flex items-center justify-between mb-2'>
-                                          <Text strong>
-                                            {t('附加条件')}
-                                          </Text>
+                                          <Text strong>{t('附加条件')}</Text>
                                           <Button
                                             size='small'
                                             icon={<IconPlus />}
@@ -2666,7 +2598,8 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                             {t('新增条件')}
                                           </Button>
                                         </div>
-                                        {(pruneObjectsDraft.rules || []).length === 0 ? (
+                                        {(pruneObjectsDraft.rules || [])
+                                          .length === 0 ? (
                                           <Text type='tertiary' size='small'>
                                             {t(
                                               '未添加附加条件时，仅使用上方 type 进行清理。',
@@ -2674,151 +2607,150 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                           </Text>
                                         ) : (
                                           <div className='flex flex-col gap-2'>
-                                            {(pruneObjectsDraft.rules || []).map(
-                                              (rule, ruleIndex) => (
-                                                <div
-                                                  key={rule.id}
-                                                  className='rounded-lg p-2'
-                                                  style={{
-                                                    border:
-                                                      '1px solid var(--semi-color-border)',
-                                                    background:
-                                                      'var(--semi-color-bg-0)',
-                                                  }}
-                                                >
-                                                  <div className='flex items-center justify-between mb-2'>
-                                                    <Tag size='small'>
-                                                      {`R${ruleIndex + 1}`}
-                                                    </Tag>
-                                                    <Button
-                                                      size='small'
-                                                      type='danger'
-                                                      theme='borderless'
-                                                      icon={<IconDelete />}
-                                                      onClick={() =>
-                                                        removePruneRule(
-                                                          selectedOperation.id,
-                                                          rule.id,
-                                                        )
-                                                      }
-                                                    >
-                                                      {t('删除条件')}
-                                                    </Button>
-                                                  </div>
-                                                  <Row gutter={8}>
-                                                    <Col xs={24} md={9}>
-                                                      <Text
-                                                        type='tertiary'
-                                                        size='small'
-                                                      >
-                                                        {t('字段路径')}
-                                                      </Text>
-                                                      <Input
-                                                        value={rule.path}
-                                                        placeholder='type'
-                                                        onChange={(nextValue) =>
-                                                          updatePruneRule(
-                                                            selectedOperation.id,
-                                                            rule.id,
-                                                            { path: nextValue },
-                                                          )
-                                                        }
-                                                      />
-                                                    </Col>
-                                                    <Col xs={24} md={7}>
-                                                      <Text
-                                                        type='tertiary'
-                                                        size='small'
-                                                      >
-                                                        {t('匹配方式')}
-                                                      </Text>
-                                                      <Select
-                                                        value={rule.mode}
-                                                        optionList={
-                                                          CONDITION_MODE_OPTIONS
-                                                        }
-                                                        style={{ width: '100%' }}
-                                                        onChange={(nextValue) =>
-                                                          updatePruneRule(
-                                                            selectedOperation.id,
-                                                            rule.id,
-                                                            { mode: nextValue },
-                                                          )
-                                                        }
-                                                      />
-                                                    </Col>
-                                                    <Col xs={24} md={8}>
-                                                      <Text
-                                                        type='tertiary'
-                                                        size='small'
-                                                      >
-                                                        {t('匹配值（可选）')}
-                                                      </Text>
-                                                      <Input
-                                                        value={rule.value_text}
-                                                        placeholder='redacted_thinking'
-                                                        onChange={(nextValue) =>
-                                                          updatePruneRule(
-                                                            selectedOperation.id,
-                                                            rule.id,
-                                                            {
-                                                              value_text:
-                                                                nextValue,
-                                                            },
-                                                          )
-                                                        }
-                                                      />
-                                                    </Col>
-                                                  </Row>
-                                                  <Space
-                                                    wrap
-                                                    spacing={8}
-                                                    style={{ marginTop: 8 }}
+                                            {(
+                                              pruneObjectsDraft.rules || []
+                                            ).map((rule, ruleIndex) => (
+                                              <div
+                                                key={rule.id}
+                                                className='rounded-lg p-2'
+                                                style={{
+                                                  border:
+                                                    '1px solid var(--semi-color-border)',
+                                                  background:
+                                                    'var(--semi-color-bg-0)',
+                                                }}
+                                              >
+                                                <div className='flex items-center justify-between mb-2'>
+                                                  <Tag size='small'>
+                                                    {`R${ruleIndex + 1}`}
+                                                  </Tag>
+                                                  <Button
+                                                    size='small'
+                                                    type='danger'
+                                                    theme='borderless'
+                                                    icon={<IconDelete />}
+                                                    onClick={() =>
+                                                      removePruneRule(
+                                                        selectedOperation.id,
+                                                        rule.id,
+                                                      )
+                                                    }
                                                   >
-                                                    <Button
-                                                      size='small'
-                                                      type={
-                                                        rule.invert
-                                                          ? 'primary'
-                                                          : 'tertiary'
-                                                      }
-                                                      onClick={() =>
-                                                        updatePruneRule(
-                                                          selectedOperation.id,
-                                                          rule.id,
-                                                          {
-                                                            invert:
-                                                              !rule.invert,
-                                                          },
-                                                        )
-                                                      }
-                                                    >
-                                                      {t('条件取反')}
-                                                    </Button>
-                                                    <Button
-                                                      size='small'
-                                                      type={
-                                                        rule.pass_missing_key
-                                                          ? 'primary'
-                                                          : 'tertiary'
-                                                      }
-                                                      onClick={() =>
-                                                        updatePruneRule(
-                                                          selectedOperation.id,
-                                                          rule.id,
-                                                          {
-                                                            pass_missing_key:
-                                                              !rule.pass_missing_key,
-                                                          },
-                                                        )
-                                                      }
-                                                    >
-                                                      {t('字段缺失视为命中')}
-                                                    </Button>
-                                                  </Space>
+                                                    {t('删除条件')}
+                                                  </Button>
                                                 </div>
-                                              ),
-                                            )}
+                                                <Row gutter={8}>
+                                                  <Col xs={24} md={9}>
+                                                    <Text
+                                                      type='tertiary'
+                                                      size='small'
+                                                    >
+                                                      {t('字段路径')}
+                                                    </Text>
+                                                    <Input
+                                                      value={rule.path}
+                                                      placeholder='type'
+                                                      onChange={(nextValue) =>
+                                                        updatePruneRule(
+                                                          selectedOperation.id,
+                                                          rule.id,
+                                                          { path: nextValue },
+                                                        )
+                                                      }
+                                                    />
+                                                  </Col>
+                                                  <Col xs={24} md={7}>
+                                                    <Text
+                                                      type='tertiary'
+                                                      size='small'
+                                                    >
+                                                      {t('匹配方式')}
+                                                    </Text>
+                                                    <Select
+                                                      value={rule.mode}
+                                                      optionList={
+                                                        CONDITION_MODE_OPTIONS
+                                                      }
+                                                      style={{ width: '100%' }}
+                                                      onChange={(nextValue) =>
+                                                        updatePruneRule(
+                                                          selectedOperation.id,
+                                                          rule.id,
+                                                          { mode: nextValue },
+                                                        )
+                                                      }
+                                                    />
+                                                  </Col>
+                                                  <Col xs={24} md={8}>
+                                                    <Text
+                                                      type='tertiary'
+                                                      size='small'
+                                                    >
+                                                      {t('匹配值（可选）')}
+                                                    </Text>
+                                                    <Input
+                                                      value={rule.value_text}
+                                                      placeholder='redacted_thinking'
+                                                      onChange={(nextValue) =>
+                                                        updatePruneRule(
+                                                          selectedOperation.id,
+                                                          rule.id,
+                                                          {
+                                                            value_text:
+                                                              nextValue,
+                                                          },
+                                                        )
+                                                      }
+                                                    />
+                                                  </Col>
+                                                </Row>
+                                                <Space
+                                                  wrap
+                                                  spacing={8}
+                                                  style={{ marginTop: 8 }}
+                                                >
+                                                  <Button
+                                                    size='small'
+                                                    type={
+                                                      rule.invert
+                                                        ? 'primary'
+                                                        : 'tertiary'
+                                                    }
+                                                    onClick={() =>
+                                                      updatePruneRule(
+                                                        selectedOperation.id,
+                                                        rule.id,
+                                                        {
+                                                          invert: !rule.invert,
+                                                        },
+                                                      )
+                                                    }
+                                                  >
+                                                    {t('条件取反')}
+                                                  </Button>
+                                                  <Button
+                                                    size='small'
+                                                    type={
+                                                      rule.pass_missing_key
+                                                        ? 'primary'
+                                                        : 'tertiary'
+                                                    }
+                                                    onClick={() =>
+                                                      updatePruneRule(
+                                                        selectedOperation.id,
+                                                        rule.id,
+                                                        {
+                                                          pass_missing_key:
+                                                            !rule.pass_missing_key,
+                                                        },
+                                                      )
+                                                    }
+                                                  >
+                                                    {t('字段缺失视为命中')}
+                                                  </Button>
+                                                </Space>
+                                              </div>
+                                            ))}
                                           </div>
                                         )}
                                       </div>
@@ -2845,7 +2777,9 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                         <Button
                                           size='small'
                                           type='tertiary'
-                                          onClick={formatSelectedOperationValueAsJson}
+                                          onClick={
+                                            formatSelectedOperationValueAsJson
+                                          }
                                         >
                                           {t('格式化 JSON')}
                                         </Button>
@@ -2858,7 +2792,9 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                       size='small'
                                       className='mt-1 mb-2 block'
                                     >
-                                      {t('纯字符串会直接覆盖整条请求头，或者点击“查看 JSON 示例”按 token 规则处理。')}
+                                      {t(
+                                        '纯字符串会直接覆盖整条请求头，或者点击“查看 JSON 示例”按 token 规则处理。',
+                                      )}
                                     </Text>
                                   ) : null}
                                   <TextArea
@@ -3064,8 +3000,14 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                   <Select
                                     value={selectedOperation.logic || 'OR'}
                                     optionList={[
-                                      { label: t('满足任一条件（OR）'), value: 'OR' },
-                                      { label: t('必须全部满足（AND）'), value: 'AND' },
+                                      {
+                                        label: t('满足任一条件（OR）'),
+                                        value: 'OR',
+                                      },
+                                      {
+                                        label: t('必须全部满足（AND）'),
+                                        value: 'AND',
+                                      },
                                     ]}
                                     size='small'
                                     style={{ width: 180 }}
@@ -3219,7 +3161,10 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                           </Row>
                                           <div className='mt-2 flex flex-wrap gap-3'>
                                             <div className='flex items-center gap-2'>
-                                              <Text type='tertiary' size='small'>
+                                              <Text
+                                                type='tertiary'
+                                                size='small'
+                                              >
                                                 {t('条件取反')}
                                               </Text>
                                               <Switch
@@ -3238,7 +3183,10 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                               />
                                             </div>
                                             <div className='flex items-center gap-2'>
-                                              <Text type='tertiary' size='small'>
+                                              <Text
+                                                type='tertiary'
+                                                size='small'
+                                              >
                                                 {t('字段缺失视为命中')}
                                               </Text>
                                               <Switch
@@ -3252,7 +3200,8 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                                                     selectedOperation.id,
                                                     condition.id,
                                                     {
-                                                      pass_missing_key: nextValue,
+                                                      pass_missing_key:
+                                                        nextValue,
                                                     },
                                                   )
                                                 }
@@ -3300,30 +3249,29 @@ const ParamOverrideEditorModal = ({ visible, value, onSave, onCancel }) => {
                   </Col>
                 </Row>
               </div>
-            )}
-          </div>
-        ) : (
-          <div style={{ width: '100%' }}>
-            <Space style={{ marginBottom: 8 }} wrap>
-              <Button onClick={formatJson}>{t('格式化')}</Button>
-              <Tag color='grey'>{t('高级文本编辑')}</Tag>
-            </Space>
-            <TextArea
-              value={jsonText}
-              autosize={{ minRows: 18, maxRows: 28 }}
-              onChange={(nextValue) => handleJsonChange(nextValue ?? '')}
-              placeholder={JSON.stringify(OPERATION_TEMPLATE, null, 2)}
-              showClear
-            />
-            <Text type='tertiary' size='small' className='mt-2 block'>
-              {t('直接编辑 JSON 文本，保存时会校验格式。')}
-            </Text>
-            {jsonError ? (
-              <Text className='text-red-500 text-xs mt-2'>{jsonError}</Text>
-            ) : null}
-          </div>
-        )}
-      </Space>
+            </div>
+          ) : (
+            <div style={{ width: '100%' }}>
+              <Space style={{ marginBottom: 8 }} wrap>
+                <Button onClick={formatJson}>{t('格式化')}</Button>
+                <Tag color='grey'>{t('高级文本编辑')}</Tag>
+              </Space>
+              <TextArea
+                value={jsonText}
+                autosize={{ minRows: 18, maxRows: 28 }}
+                onChange={(nextValue) => handleJsonChange(nextValue ?? '')}
+                placeholder={JSON.stringify(OPERATION_TEMPLATE, null, 2)}
+                showClear
+              />
+              <Text type='tertiary' size='small' className='mt-2 block'>
+                {t('直接编辑 JSON 文本，保存时会校验格式。')}
+              </Text>
+              {jsonError ? (
+                <Text className='text-red-500 text-xs mt-2'>{jsonError}</Text>
+              ) : null}
+            </div>
+          )}
+        </Space>
       </Modal>
 
       <Modal

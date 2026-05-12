@@ -77,7 +77,7 @@ func TestApplyParamOverrideTrimNoop(t *testing.T) {
 	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.7}`, string(out))
 }
 
-func TestApplyParamOverrideMixedLegacyAndOperations(t *testing.T) {
+func TestApplyParamOverrideRejectsMixedFields(t *testing.T) {
 	input := []byte(`{"model":"openai/gpt-4","temperature":0.7}`)
 	override := map[string]interface{}{
 		"temperature": 0.2,
@@ -91,17 +91,16 @@ func TestApplyParamOverrideMixedLegacyAndOperations(t *testing.T) {
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
+	_, err := ApplyParamOverride(input, override, nil)
+	if err == nil {
+		t.Fatalf("expected mixed param override to be rejected")
 	}
-	assertJSONEqual(t, `{"model":"gpt-4","temperature":0.2,"top_p":0.95}`, string(out))
 }
 
-func TestApplyParamOverrideMixedLegacyAndOperationsConflictPrefersOperations(t *testing.T) {
+func TestApplyParamOverrideRejectsMixedFieldConflicts(t *testing.T) {
 	input := []byte(`{"model":"openai/gpt-4","temperature":0.7}`)
 	override := map[string]interface{}{
-		"model":       "legacy-model",
+		"model":       "stale-model",
 		"temperature": 0.2,
 		"operations": []interface{}{
 			map[string]interface{}{
@@ -112,11 +111,10 @@ func TestApplyParamOverrideMixedLegacyAndOperationsConflictPrefersOperations(t *
 		},
 	}
 
-	out, err := ApplyParamOverride(input, override, nil)
-	if err != nil {
-		t.Fatalf("ApplyParamOverride returned error: %v", err)
+	_, err := ApplyParamOverride(input, override, nil)
+	if err == nil {
+		t.Fatalf("expected mixed param override to be rejected")
 	}
-	assertJSONEqual(t, `{"model":"op-model","temperature":0.2}`, string(out))
 }
 
 func TestApplyParamOverrideTrimRequiresValue(t *testing.T) {
@@ -1362,7 +1360,7 @@ func TestApplyParamOverridePassHeadersSkipsMissingHeaders(t *testing.T) {
 		"operations": []interface{}{
 			map[string]interface{}{
 				"mode":  "pass_headers",
-				"value": []interface{}{"X-Codex-Beta-Features", "Session_id"},
+				"value": []interface{}{"X-Trace-Id", "Session_id"},
 			},
 		},
 	}
@@ -1385,7 +1383,7 @@ func TestApplyParamOverridePassHeadersSkipsMissingHeaders(t *testing.T) {
 	if headers["session_id"] != "sess-123" {
 		t.Fatalf("expected session_id to be passed, got: %v", headers["session_id"])
 	}
-	if _, exists := headers["x-codex-beta-features"]; exists {
+	if _, exists := headers["x-missing-header"]; exists {
 		t.Fatalf("expected missing header to be skipped")
 	}
 }
@@ -1569,7 +1567,7 @@ func TestApplyParamOverrideSetHeaderKeepOrigin(t *testing.T) {
 	}
 	ctx := map[string]interface{}{
 		"header_override": map[string]interface{}{
-			"x-feature-flag": "legacy-value",
+			"x-feature-flag": "existing-value",
 		},
 	}
 
@@ -1581,7 +1579,7 @@ func TestApplyParamOverrideSetHeaderKeepOrigin(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected header_override context map")
 	}
-	if headers["x-feature-flag"] != "legacy-value" {
+	if headers["x-feature-flag"] != "existing-value" {
 		t.Fatalf("expected keep_origin to preserve old value, got: %v", headers["x-feature-flag"])
 	}
 }
@@ -1836,7 +1834,7 @@ func TestApplyParamOverrideWithRelayInfoSyncRuntimeHeaders(t *testing.T) {
 				},
 			},
 			HeadersOverride: map[string]interface{}{
-				"X-Delete-Me": "legacy",
+				"X-Delete-Me": "remove",
 				"X-Keep-Me":   "keep",
 			},
 		},
@@ -1863,23 +1861,27 @@ func TestApplyParamOverrideWithRelayInfoSyncRuntimeHeaders(t *testing.T) {
 	}
 }
 
-func TestApplyParamOverrideWithRelayInfoMixedLegacyAndOperations(t *testing.T) {
+func TestApplyParamOverrideWithRelayInfoOperationsAndStaticHeaders(t *testing.T) {
 	info := &RelayInfo{
 		RequestHeaders: map[string]string{
-			"Originator": "Codex CLI",
+			"X-Trace-Id": "trace-123",
 		},
 		ChannelMeta: &ChannelMeta{
 			ParamOverride: map[string]interface{}{
-				"temperature": 0.2,
 				"operations": []interface{}{
 					map[string]interface{}{
+						"mode":  "set",
+						"path":  "temperature",
+						"value": 0.2,
+					},
+					map[string]interface{}{
 						"mode":  "pass_headers",
-						"value": []interface{}{"Originator"},
+						"value": []interface{}{"X-Trace-Id"},
 					},
 				},
 			},
 			HeadersOverride: map[string]interface{}{
-				"X-Static": "legacy-static",
+				"X-Static": "static-value",
 			},
 		},
 	}
@@ -1893,11 +1895,11 @@ func TestApplyParamOverrideWithRelayInfoMixedLegacyAndOperations(t *testing.T) {
 	if !info.UseRuntimeHeadersOverride {
 		t.Fatalf("expected runtime header override to be enabled")
 	}
-	if info.RuntimeHeadersOverride["x-static"] != "legacy-static" {
+	if info.RuntimeHeadersOverride["x-static"] != "static-value" {
 		t.Fatalf("expected x-static to be preserved, got: %v", info.RuntimeHeadersOverride["x-static"])
 	}
-	if info.RuntimeHeadersOverride["originator"] != "Codex CLI" {
-		t.Fatalf("expected originator header to be passed, got: %v", info.RuntimeHeadersOverride["originator"])
+	if info.RuntimeHeadersOverride["x-trace-id"] != "trace-123" {
+		t.Fatalf("expected x-trace-id header to be passed, got: %v", info.RuntimeHeadersOverride["x-trace-id"])
 	}
 }
 
@@ -1908,7 +1910,7 @@ func TestApplyParamOverrideWithRelayInfoMoveAndCopyHeaders(t *testing.T) {
 				"operations": []interface{}{
 					map[string]interface{}{
 						"mode": "move_header",
-						"from": "X-Legacy-Trace",
+						"from": "X-Source-Trace",
 						"to":   "X-Trace",
 					},
 					map[string]interface{}{
@@ -1919,7 +1921,7 @@ func TestApplyParamOverrideWithRelayInfoMoveAndCopyHeaders(t *testing.T) {
 				},
 			},
 			HeadersOverride: map[string]interface{}{
-				"X-Legacy-Trace": "trace-123",
+				"X-Source-Trace": "trace-123",
 			},
 		},
 	}
@@ -1929,7 +1931,7 @@ func TestApplyParamOverrideWithRelayInfoMoveAndCopyHeaders(t *testing.T) {
 	if err != nil {
 		t.Fatalf("ApplyParamOverrideWithRelayInfo returned error: %v", err)
 	}
-	if _, exists := info.RuntimeHeadersOverride["x-legacy-trace"]; exists {
+	if _, exists := info.RuntimeHeadersOverride["x-source-trace"]; exists {
 		t.Fatalf("expected source header to be removed after move")
 	}
 	if info.RuntimeHeadersOverride["x-trace"] != "trace-123" {

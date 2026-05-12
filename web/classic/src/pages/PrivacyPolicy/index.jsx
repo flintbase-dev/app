@@ -26,7 +26,7 @@ const PrivacyPolicy = () => {
 
   return (
     <DocumentRenderer
-      apiEndpoint='/api/privacy-policy'
+      operation='privacyPolicy'
       title={t('隐私政策')}
       cacheKey='privacy_policy'
       emptyMessage={t('加载隐私政策内容失败...')}

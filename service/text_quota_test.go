@@ -5,7 +5,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/pkg/billingexpr"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -32,8 +31,8 @@ func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	}
 
 	priceData := types.PriceData{
-		ModelRatio:           1,
-		CompletionRatio:      2,
+		ModelPrice:           2,
+		CompletionPrice:      4,
 		CacheRatio:           0.1,
 		CacheCreationRatio:   1.25,
 		CacheCreation5mRatio: 1.25,
@@ -65,7 +64,7 @@ func TestCalculateTextQuotaSummaryUnifiedForClaudeSemantic(t *testing.T) {
 	require.Equal(t, messageSummary.CacheCreationTokens5m, chatSummary.CacheCreationTokens5m)
 	require.Equal(t, messageSummary.CacheCreationTokens1h, chatSummary.CacheCreationTokens1h)
 	require.True(t, chatSummary.IsClaudeUsageSemantic)
-	require.Equal(t, 1488, chatSummary.Quota)
+	require.Equal(t, 2975, chatSummary.Quota)
 }
 
 func TestCalculateTextQuotaSummaryUsesSplitClaudeCacheCreationRatios(t *testing.T) {
@@ -78,8 +77,8 @@ func TestCalculateTextQuotaSummaryUsesSplitClaudeCacheCreationRatios(t *testing.
 		FinalRequestRelayFormat: types.RelayFormatClaude,
 		OriginModelName:         "claude-3-7-sonnet",
 		PriceData: types.PriceData{
-			ModelRatio:           1,
-			CompletionRatio:      1,
+			ModelPrice:           2,
+			CompletionPrice:      2,
 			CacheRatio:           0,
 			CacheCreationRatio:   1,
 			CacheCreation5mRatio: 2,
@@ -103,8 +102,8 @@ func TestCalculateTextQuotaSummaryUsesSplitClaudeCacheCreationRatios(t *testing.
 
 	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
 
-	// 100 + remaining(5)*1 + 2*2 + 3*3 = 118
-	require.Equal(t, 118, summary.Quota)
+	// (100 + remaining(5)*1 + 2*2 + 3*3) * model price 2 = 236
+	require.Equal(t, 236, summary.Quota)
 }
 
 func TestCalculateTextQuotaSummaryUsesAnthropicUsageSemanticFromUpstreamUsage(t *testing.T) {
@@ -116,8 +115,8 @@ func TestCalculateTextQuotaSummaryUsesAnthropicUsageSemanticFromUpstreamUsage(t 
 		RelayFormat:     types.RelayFormatOpenAI,
 		OriginModelName: "claude-3-7-sonnet",
 		PriceData: types.PriceData{
-			ModelRatio:           1,
-			CompletionRatio:      2,
+			ModelPrice:           2,
+			CompletionPrice:      4,
 			CacheRatio:           0.1,
 			CacheCreationRatio:   1.25,
 			CacheCreation5mRatio: 1.25,
@@ -145,7 +144,7 @@ func TestCalculateTextQuotaSummaryUsesAnthropicUsageSemanticFromUpstreamUsage(t 
 
 	require.True(t, summary.IsClaudeUsageSemantic)
 	require.Equal(t, "anthropic", summary.UsageSemantic)
-	require.Equal(t, 1488, summary.Quota)
+	require.Equal(t, 2975, summary.Quota)
 }
 
 func TestCacheWriteTokensTotal(t *testing.T) {
@@ -158,7 +157,7 @@ func TestCacheWriteTokensTotal(t *testing.T) {
 		require.Equal(t, 50, cacheWriteTokensTotal(summary))
 	})
 
-	t.Run("legacy cache creation", func(t *testing.T) {
+	t.Run("aggregate cache creation", func(t *testing.T) {
 		summary := textQuotaSummary{CacheCreationTokens: 50}
 		require.Equal(t, 50, cacheWriteTokensTotal(summary))
 	})
@@ -181,8 +180,8 @@ func TestCalculateTextQuotaSummaryHandlesLegacyClaudeDerivedOpenAIUsage(t *testi
 		RelayFormat:     types.RelayFormatOpenAI,
 		OriginModelName: "claude-3-7-sonnet",
 		PriceData: types.PriceData{
-			ModelRatio:           1,
-			CompletionRatio:      5,
+			ModelPrice:           2,
+			CompletionPrice:      10,
 			CacheRatio:           0.1,
 			CacheCreationRatio:   1.25,
 			CacheCreation5mRatio: 1.25,
@@ -203,119 +202,8 @@ func TestCalculateTextQuotaSummaryHandlesLegacyClaudeDerivedOpenAIUsage(t *testi
 
 	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
 
-	// 62 + 3544*0.1 + 586*1.25 + 95*5 = 1624.9 => 1624
-	require.Equal(t, 1624, summary.Quota)
-}
-
-func TestCalculateTextQuotaSummarySeparatesOpenRouterCacheReadFromPromptBilling(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(w)
-
-	relayInfo := &relaycommon.RelayInfo{
-		OriginModelName: "openai/gpt-4.1",
-		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelType: constant.ChannelTypeOpenRouter,
-		},
-		PriceData: types.PriceData{
-			ModelRatio:         1,
-			CompletionRatio:    1,
-			CacheRatio:         0.1,
-			CacheCreationRatio: 1.25,
-			GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
-		},
-		StartTime: time.Now(),
-	}
-
-	usage := &dto.Usage{
-		PromptTokens:     2604,
-		CompletionTokens: 383,
-		PromptTokensDetails: dto.InputTokenDetails{
-			CachedTokens: 2432,
-		},
-	}
-
-	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
-
-	// OpenRouter OpenAI-format display keeps prompt_tokens as total input,
-	// but billing still separates normal input from cache read tokens.
-	// quota = (2604 - 2432) + 2432*0.1 + 383 = 798.2 => 798
-	require.Equal(t, 2604, summary.PromptTokens)
-	require.Equal(t, 798, summary.Quota)
-}
-
-func TestCalculateTextQuotaSummarySeparatesOpenRouterCacheCreationFromPromptBilling(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(w)
-
-	relayInfo := &relaycommon.RelayInfo{
-		OriginModelName: "openai/gpt-4.1",
-		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelType: constant.ChannelTypeOpenRouter,
-		},
-		PriceData: types.PriceData{
-			ModelRatio:         1,
-			CompletionRatio:    1,
-			CacheCreationRatio: 1.25,
-			GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
-		},
-		StartTime: time.Now(),
-	}
-
-	usage := &dto.Usage{
-		PromptTokens:     2604,
-		CompletionTokens: 383,
-		PromptTokensDetails: dto.InputTokenDetails{
-			CachedCreationTokens: 100,
-		},
-	}
-
-	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
-
-	// prompt_tokens is still logged as total input, but cache creation is billed separately.
-	// quota = (2604 - 100) + 100*1.25 + 383 = 3012
-	require.Equal(t, 2604, summary.PromptTokens)
-	require.Equal(t, 3012, summary.Quota)
-}
-
-func TestCalculateTextQuotaSummaryKeepsPrePRClaudeOpenRouterBilling(t *testing.T) {
-	gin.SetMode(gin.TestMode)
-	w := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(w)
-
-	relayInfo := &relaycommon.RelayInfo{
-		FinalRequestRelayFormat: types.RelayFormatClaude,
-		OriginModelName:         "anthropic/claude-3.7-sonnet",
-		ChannelMeta: &relaycommon.ChannelMeta{
-			ChannelType: constant.ChannelTypeOpenRouter,
-		},
-		PriceData: types.PriceData{
-			ModelRatio:         1,
-			CompletionRatio:    1,
-			CacheRatio:         0.1,
-			CacheCreationRatio: 1.25,
-			GroupRatioInfo:     types.GroupRatioInfo{GroupRatio: 1},
-		},
-		StartTime: time.Now(),
-	}
-
-	usage := &dto.Usage{
-		PromptTokens:     2604,
-		CompletionTokens: 383,
-		PromptTokensDetails: dto.InputTokenDetails{
-			CachedTokens: 2432,
-		},
-	}
-
-	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
-
-	// Pre-PR PostClaudeConsumeQuota behavior for OpenRouter:
-	// prompt = 2604 - 2432 = 172
-	// quota = 172 + 2432*0.1 + 383 = 798.2 => 798
-	require.True(t, summary.IsClaudeUsageSemantic)
-	require.Equal(t, 172, summary.PromptTokens)
-	require.Equal(t, 798, summary.Quota)
+	// 62*2 + 3544*2*0.1 + 586*2*1.25 + 95*10 = 3247.8 => 3248
+	require.Equal(t, 3248, summary.Quota)
 }
 
 func TestComposeTieredTextQuotaKeepsToolCallSurcharges(t *testing.T) {
@@ -329,8 +217,8 @@ func TestComposeTieredTextQuotaKeepsToolCallSurcharges(t *testing.T) {
 	relayInfo := &relaycommon.RelayInfo{
 		OriginModelName: "o1",
 		PriceData: types.PriceData{
-			ModelRatio:      1,
-			CompletionRatio: 1,
+			ModelPrice:      2,
+			CompletionPrice: 2,
 			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1},
 		},
 		ResponsesUsageInfo: &relaycommon.ResponsesUsageInfo{
@@ -363,8 +251,8 @@ func TestComposeTieredTextQuotaKeepsToolCallSurcharges(t *testing.T) {
 		ActualQuotaAfterGroup:  1000,
 	})
 
-	require.Equal(t, int64(13000), summary.ToolCallSurchargeQuota.Round(0).IntPart())
-	require.Equal(t, 14000, quota)
+	require.Equal(t, int64(26000), summary.ToolCallSurchargeQuota.Round(0).IntPart())
+	require.Equal(t, 27000, quota)
 }
 
 func TestComposeTieredTextQuotaFallbackKeepsToolCallSurcharges(t *testing.T) {
@@ -376,8 +264,8 @@ func TestComposeTieredTextQuotaFallbackKeepsToolCallSurcharges(t *testing.T) {
 	relayInfo := &relaycommon.RelayInfo{
 		OriginModelName: "claude-3-7-sonnet",
 		PriceData: types.PriceData{
-			ModelRatio:      1,
-			CompletionRatio: 1,
+			ModelPrice:      2,
+			CompletionPrice: 2,
 			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1.25},
 		},
 		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
@@ -397,8 +285,8 @@ func TestComposeTieredTextQuotaFallbackKeepsToolCallSurcharges(t *testing.T) {
 	summary := calculateTextQuotaSummary(ctx, relayInfo, usage)
 	quota := composeTieredTextQuota(relayInfo, summary, 1250, nil)
 
-	require.Equal(t, int64(12500), summary.ToolCallSurchargeQuota.Round(0).IntPart())
-	require.Equal(t, 13750, quota)
+	require.Equal(t, int64(25000), summary.ToolCallSurchargeQuota.Round(0).IntPart())
+	require.Equal(t, 26250, quota)
 }
 
 func TestComposeTieredTextQuotaErrorFallbackUsesPreConsumedQuota(t *testing.T) {
@@ -410,8 +298,8 @@ func TestComposeTieredTextQuotaErrorFallbackUsesPreConsumedQuota(t *testing.T) {
 	relayInfo := &relaycommon.RelayInfo{
 		OriginModelName: "claude-3-7-sonnet",
 		PriceData: types.PriceData{
-			ModelRatio:      1,
-			CompletionRatio: 1,
+			ModelPrice:      2,
+			CompletionPrice: 2,
 			GroupRatioInfo:  types.GroupRatioInfo{GroupRatio: 1.25},
 		},
 		TieredBillingSnapshot: &billingexpr.BillingSnapshot{
@@ -436,6 +324,6 @@ func TestComposeTieredTextQuotaErrorFallbackUsesPreConsumedQuota(t *testing.T) {
 	preConsumedFallback := 2000
 	quota := composeTieredTextQuota(relayInfo, summary, preConsumedFallback, nil)
 
-	require.Equal(t, int64(12500), summary.ToolCallSurchargeQuota.Round(0).IntPart())
-	require.Equal(t, 14500, quota)
+	require.Equal(t, int64(25000), summary.ToolCallSurchargeQuota.Round(0).IntPart())
+	require.Equal(t, 27000, quota)
 }

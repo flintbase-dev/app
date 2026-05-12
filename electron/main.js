@@ -9,7 +9,7 @@ let serverProcess;
 let tray = null;
 let serverErrorLogs = [];
 const PORT = 3000;
-const DEV_FRONTEND_PORT = 5173; // Vite dev server port
+const DEV_FRONTEND_PORT = 3001; // Next dev server port
 
 // 保存日志到文件并打开
 function saveAndOpenErrorLog() {
@@ -76,14 +76,15 @@ function analyzeError(errorLogs) {
     };
   }
   
-  // 检测数据库错误
-  if (allLogs.includes('database is locked') || 
-      allLogs.includes('unable to open database')) {
+  // 检测数据库配置错误
+  if (allLogs.includes('SQL_DSN') || 
+      allLogs.includes('PostgreSQL') ||
+      allLogs.includes('pgx')) {
     return {
-      type: '数据文件被占用',
-      title: '无法访问数据文件',
-      message: '应用的数据文件正被其他程序占用',
-      solution: '可能的解决方案：\n\n1. 检查是否已经打开了另一个 New API 窗口\n   - 查看任务栏/Dock 中是否有其他 New API 图标\n   - 查看系统托盘（Windows）或菜单栏（Mac）中是否有 New API 图标\n\n2. 如果刚刚关闭过应用，请等待 10 秒后再试\n\n3. 重启电脑以释放被占用的文件\n\n4. 如果问题持续，可以尝试：\n   - 退出所有 New API 实例\n   - 删除数据目录中的临时文件（.db-shm 和 .db-wal）\n   - 重新启动应用'
+      type: '数据库配置错误',
+      title: '无法连接 PostgreSQL',
+      message: '应用没有可用的 PostgreSQL 连接配置',
+      solution: '可能的解决方案：\n\n1. 设置 SQL_DSN 为 PostgreSQL 连接串\n2. 确认 PostgreSQL 服务正在运行\n3. 确认数据库迁移服务已经执行完成\n4. 检查网络、防火墙、用户名和密码配置'
     };
   }
   
@@ -223,32 +224,26 @@ function startServer() {
   return new Promise((resolve, reject) => {
     const isDev = process.env.NODE_ENV === 'development';
 
-    const userDataPath = app.getPath('userData');
-    const dataDir = path.join(userDataPath, 'data');
-    
-    // 设置环境变量供 preload.js 使用
-    process.env.ELECTRON_DATA_DIR = dataDir;
-    
     if (isDev) {
       // 开发模式：假设开发者手动启动了 Go 后端和前端开发服务器
       // 只需要等待前端开发服务器就绪
       console.log('Development mode: skipping server startup');
       console.log('Please make sure you have started:');
       console.log('  1. Go backend: go run main.go (port 3000)');
-      console.log('  2. Frontend dev server: cd web/classic && bun run dev (port 5173)');
+      console.log('  2. Frontend dev server: cd web/new && FLINT_BACKEND_BASE_URL=http://localhost:3000 npm run dev -- --port 3001');
       console.log('');
       console.log('Checking if servers are running...');
       
       // First check if both servers are accessible
       checkServerAvailability(DEV_FRONTEND_PORT)
         .then(() => {
-          console.log('✓ Frontend dev server is accessible on port 5173');
+          console.log(`✓ Frontend dev server is accessible on port ${DEV_FRONTEND_PORT}`);
           resolve();
         })
         .catch((err) => {
           console.error(`✗ Cannot connect to frontend dev server on port ${DEV_FRONTEND_PORT}`);
           console.error('Please make sure the frontend dev server is running:');
-          console.error('  cd web/classic && bun run dev');
+          console.error('  cd web/new && FLINT_BACKEND_BASE_URL=http://localhost:3000 npm run dev -- --port 3001');
           reject(err);
         });
       return;
@@ -256,17 +251,15 @@ function startServer() {
 
     // 生产模式：启动二进制服务器
     const env = { ...process.env, PORT: PORT.toString() };
-
-    if (!fs.existsSync(dataDir)) {
-      fs.mkdirSync(dataDir, { recursive: true });
+    const sqlDsn = (env.SQL_DSN || '').trim();
+    if (!sqlDsn.startsWith('postgres://') && !sqlDsn.startsWith('postgresql://')) {
+      reject(new Error('SQL_DSN must be set to a PostgreSQL DSN before starting the Electron server'));
+      return;
     }
-
-    env.SQLITE_PATH = path.join(dataDir, 'new-api.db');
     
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
-    console.log('📁 您的数据存储位置：');
-    console.log('   ' + dataDir);
-    console.log('   💡 备份提示：复制此目录即可备份所有数据');
+    console.log('🗄️  数据库：PostgreSQL');
+    console.log('   💡 请确保数据库迁移服务已经执行完成');
     console.log('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
 
     const binaryPath = getBinaryPath();

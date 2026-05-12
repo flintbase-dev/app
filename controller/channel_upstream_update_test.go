@@ -143,7 +143,10 @@ func TestBuildUpstreamModelUpdateTaskNotificationContent_OmitOverflowDetails(t *
 		56,
 		21,
 		9,
-		[]int{1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12},
+		[]string{
+			"chn_AAAAAA", "chn_BBBBBB", "chn_CCCCCC", "chn_DDDDDD", "chn_EEEEEE", "chn_FFFFFF",
+			"chn_GGGGGG", "chn_HHHHHH", "chn_IIIIII", "chn_JJJJJJ", "chn_KKKKKK", "chn_LLLLLL",
+		},
 		channelSummaries,
 		[]string{
 			"gpt-4.1", "gpt-4.1-mini", "o3", "o4-mini", "gemini-2.5-pro", "claude-3.7-sonnet",

@@ -37,7 +37,6 @@ export const useUsersData = () => {
   const [userCount, setUserCount] = useState(0);
 
   // Modal states
-  const [showAddUser, setShowAddUser] = useState(false);
   const [showEditUser, setShowEditUser] = useState(false);
   const [editingUser, setEditingUser] = useState({
     id: undefined,
@@ -72,7 +71,10 @@ export const useUsersData = () => {
   // Load users data
   const loadUsers = async (startIdx, pageSize) => {
     setLoading(true);
-    const res = await API.get(`/api/user/?p=${startIdx}&page_size=${pageSize}`);
+    const res = await API.query('users', {
+      p: startIdx,
+      page_size: pageSize,
+    });
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;
@@ -105,9 +107,12 @@ export const useUsersData = () => {
       return;
     }
     setSearching(true);
-    const res = await API.get(
-      `/api/user/search?keyword=${searchKeyword}&group=${searchGroup}&p=${startIdx}&page_size=${pageSize}`,
-    );
+    const res = await API.query('searchUsers', {
+      keyword: searchKeyword,
+      group: searchGroup,
+      p: startIdx,
+      page_size: pageSize,
+    });
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;
@@ -125,7 +130,7 @@ export const useUsersData = () => {
     // Trigger loading state to force table re-render
     setLoading(true);
 
-    const res = await API.post('/api/user/manage', {
+    const res = await API.mutation('manageUser', {
       id: userId,
       action,
     });
@@ -152,40 +157,6 @@ export const useUsersData = () => {
     }
 
     setLoading(false);
-  };
-
-  const resetUserPasskey = async (user) => {
-    if (!user) {
-      return;
-    }
-    try {
-      const res = await API.delete(`/api/user/${user.id}/reset_passkey`);
-      const { success, message } = res.data;
-      if (success) {
-        showSuccess(t('Passkey 已重置'));
-      } else {
-        showError(message || t('操作失败，请重试'));
-      }
-    } catch (error) {
-      showError(t('操作失败，请重试'));
-    }
-  };
-
-  const resetUserTwoFA = async (user) => {
-    if (!user) {
-      return;
-    }
-    try {
-      const res = await API.delete(`/api/user/${user.id}/2fa`);
-      const { success, message } = res.data;
-      if (success) {
-        showSuccess(t('二步验证已重置'));
-      } else {
-        showError(message || t('操作失败，请重试'));
-      }
-    } catch (error) {
-      showError(t('操作失败，请重试'));
-    }
   };
 
   // Handle page change
@@ -237,7 +208,7 @@ export const useUsersData = () => {
   // Fetch groups data
   const fetchGroups = async () => {
     try {
-      let res = await API.get(`/api/group/`);
+      let res = await API.query('groups');
       if (res === undefined) {
         return;
       }
@@ -253,10 +224,6 @@ export const useUsersData = () => {
   };
 
   // Modal control functions
-  const closeAddUser = () => {
-    setShowAddUser(false);
-  };
-
   const closeEditUser = () => {
     setShowEditUser(false);
     setEditingUser({
@@ -285,10 +252,8 @@ export const useUsersData = () => {
     groupOptions,
 
     // Modal state
-    showAddUser,
     showEditUser,
     editingUser,
-    setShowAddUser,
     setShowEditUser,
     setEditingUser,
 
@@ -305,13 +270,10 @@ export const useUsersData = () => {
     loadUsers,
     searchUsers,
     manageUser,
-    resetUserPasskey,
-    resetUserTwoFA,
     handlePageChange,
     handlePageSizeChange,
     handleRow,
     refresh,
-    closeAddUser,
     closeEditUser,
     getFormValues,
 

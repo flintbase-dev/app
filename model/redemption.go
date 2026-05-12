@@ -3,7 +3,6 @@ package model
 import (
 	"errors"
 	"fmt"
-	"strconv"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
@@ -12,16 +11,16 @@ import (
 )
 
 type Redemption struct {
-	Id           int            `json:"id"`
-	UserId       int            `json:"user_id"`
-	Key          string         `json:"key" gorm:"type:char(32);uniqueIndex"`
+	Id           string         `json:"id" gorm:"primaryKey;type:varchar(32)"`
+	UserId       string         `json:"user_id" gorm:"type:varchar(32);index"`
+	Key          string         `json:"key" gorm:"type:varchar(24);uniqueIndex"`
 	Status       int            `json:"status" gorm:"default:1"`
 	Name         string         `json:"name" gorm:"index"`
 	Quota        int            `json:"quota" gorm:"default:100"`
 	CreatedTime  int64          `json:"created_time" gorm:"bigint"`
 	RedeemedTime int64          `json:"redeemed_time" gorm:"bigint"`
 	Count        int            `json:"count" gorm:"-:all"` // only for api request
-	UsedUserId   int            `json:"used_user_id"`
+	UsedUserId   string         `json:"used_user_id" gorm:"type:varchar(32)"`
 	DeletedAt    gorm.DeletedAt `gorm:"index"`
 	ExpiredTime  int64          `json:"expired_time" gorm:"bigint"` // 过期时间，0 表示不过期
 }
@@ -71,15 +70,8 @@ func SearchRedemptions(keyword string, startIdx int, num int) (redemptions []*Re
 		}
 	}()
 
-	// Build query based on keyword type
 	query := tx.Model(&Redemption{})
-
-	// Only try to convert to ID if the string represents a valid integer
-	if id, err := strconv.Atoi(keyword); err == nil {
-		query = query.Where("id = ? OR name LIKE ?", id, keyword+"%")
-	} else {
-		query = query.Where("name LIKE ?", keyword+"%")
-	}
+	query = query.Where("id = ? OR name LIKE ?", keyword, keyword+"%")
 
 	// Get total count
 	err = query.Count(&total).Error
@@ -102,8 +94,8 @@ func SearchRedemptions(keyword string, startIdx int, num int) (redemptions []*Re
 	return redemptions, total, nil
 }
 
-func GetRedemptionById(id int) (*Redemption, error) {
-	if id == 0 {
+func GetRedemptionById(id string) (*Redemption, error) {
+	if common.IsEmptyID(id) {
 		return nil, errors.New("id 为空！")
 	}
 	redemption := Redemption{Id: id}
@@ -112,22 +104,19 @@ func GetRedemptionById(id int) (*Redemption, error) {
 	return &redemption, err
 }
 
-func Redeem(key string, userId int) (quota int, err error) {
+func Redeem(key string, userId string) (quota int, err error) {
 	if key == "" {
 		return 0, errors.New("未提供兑换码")
 	}
-	if userId == 0 {
+	if common.IsEmptyID(userId) {
 		return 0, errors.New("无效的 user id")
 	}
 	redemption := &Redemption{}
+	var balanceAfter int
 
-	keyCol := "`key`"
-	if common.UsingPostgreSQL {
-		keyCol = `"key"`
-	}
 	common.RandomSleep()
 	err = DB.Transaction(func(tx *gorm.DB) error {
-		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(keyCol+" = ?", key).First(redemption).Error
+		err := tx.Set("gorm:query_option", "FOR UPDATE").Where(`"key" = ?`, key).First(redemption).Error
 		if err != nil {
 			return errors.New("无效的兑换码")
 		}
@@ -137,7 +126,18 @@ func Redeem(key string, userId int) (quota int, err error) {
 		if redemption.ExpiredTime != 0 && redemption.ExpiredTime < common.GetTimestamp() {
 			return errors.New("该兑换码已过期")
 		}
-		err = tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", redemption.Quota)).Error
+		balanceAfter, err = GrantUserCreditsTx(tx, CreditGrantParams{
+			UserId:     userId,
+			Amount:     redemption.Quota,
+			SourceType: "redemption.grant",
+			SourceId:   fmt.Sprintf("redemption:%s", redemption.Id),
+			RequestId:  common.NewRequestID(),
+			Reason:     "redemption code redeemed",
+			Metadata: map[string]interface{}{
+				"redemption_id": redemption.Id,
+				"redemption":    redemption.Name,
+			},
+		})
 		if err != nil {
 			return err
 		}
@@ -151,7 +151,15 @@ func Redeem(key string, userId int) (quota int, err error) {
 		common.SysError("redemption failed: " + err.Error())
 		return 0, ErrRedeemFailed
 	}
-	RecordLog(userId, LogTypeTopup, fmt.Sprintf("通过兑换码充值 %s，兑换码ID %d", logger.LogQuota(redemption.Quota), redemption.Id))
+	updateUserQuotaCacheAfterCommit(userId, balanceAfter)
+	RecordAuditEvent(LogEventParams{
+		UserId:       userId,
+		Event:        "billing.redemption.completed",
+		Content:      fmt.Sprintf("通过兑换码充值 %s，兑换码ID %s", logger.LogQuota(redemption.Quota), redemption.Id),
+		ResourceType: "redemption",
+		ResourceId:   redemption.Id,
+		Quota:        redemption.Quota,
+	})
 	return redemption.Quota, nil
 }
 
@@ -179,8 +187,8 @@ func (redemption *Redemption) Delete() error {
 	return err
 }
 
-func DeleteRedemptionById(id int) (err error) {
-	if id == 0 {
+func DeleteRedemptionById(id string) (err error) {
+	if common.IsEmptyID(id) {
 		return errors.New("id 为空！")
 	}
 	redemption := Redemption{Id: id}

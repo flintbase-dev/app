@@ -53,7 +53,7 @@ export default function SettingGrokModel(props) {
 
         const requestQueue = updateArray.map((item) => {
           const value = String(inputs[item.key]);
-          return API.put('/api/option/', { key: item.key, value });
+          return API.mutation('updateOption', { key: item.key, value });
         });
 
         setLoading(true);

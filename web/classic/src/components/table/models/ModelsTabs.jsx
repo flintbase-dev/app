@@ -53,7 +53,9 @@ const ModelsTabs = ({
   const handleDeleteVendor = async (vendor, e) => {
     e.stopPropagation(); // 阻止事件冒泡，避免触发tab切换
     try {
-      const res = await API.delete(`/api/vendors/${vendor.id}`);
+      const res = await API.mutation('deleteVendor', {
+        id: vendor.id,
+      });
       if (res.data.success) {
         showSuccess(t('供应商删除成功'));
         // 如果删除的是当前选中的供应商，切换到"全部"

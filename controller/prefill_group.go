@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"strconv"
-
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 
@@ -32,7 +30,7 @@ func CreatePrefillGroup(c *gin.Context) {
 		return
 	}
 	// 创建前检查名称
-	if dup, err := model.IsPrefillGroupNameDuplicated(0, g.Name); err != nil {
+	if dup, err := model.IsPrefillGroupNameDuplicated("", g.Name); err != nil {
 		common.ApiError(c, err)
 		return
 	} else if dup {
@@ -54,7 +52,7 @@ func UpdatePrefillGroup(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if g.Id == 0 {
+	if common.IsEmptyID(g.Id) {
 		common.ApiErrorMsg(c, "缺少组 ID")
 		return
 	}
@@ -76,12 +74,7 @@ func UpdatePrefillGroup(c *gin.Context) {
 
 // DeletePrefillGroup 删除预填组
 func DeletePrefillGroup(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	id := c.Param("id")
 	if err := model.DeletePrefillGroupByID(id); err != nil {
 		common.ApiError(c, err)
 		return

@@ -1002,7 +1002,7 @@ func getResponseToolCall(item *dto.GeminiPart) *dto.ToolCallResponse {
 		return nil
 	}
 	return &dto.ToolCallResponse{
-		ID:   fmt.Sprintf("call_%s", common.GetUUID()),
+		ID:   fmt.Sprintf("call_%s", common.MustNewNanoIDKey(16)),
 		Type: "function",
 		Function: dto.FunctionResponse{
 			Arguments: string(argsBytes),

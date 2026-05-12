@@ -47,15 +47,15 @@ func startCleanupTask() {
 
 // CheckNotificationLimit checks if the user has exceeded their notification limit
 // Returns true if the user can send notification, false if limit exceeded
-func CheckNotificationLimit(userId int, notifyType string) (bool, error) {
-	if common.RedisEnabled {
+func CheckNotificationLimit(userId string, notifyType string) (bool, error) {
+	if common.RedisAvailable() {
 		return checkRedisLimit(userId, notifyType)
 	}
 	return checkMemoryLimit(userId, notifyType)
 }
 
-func checkRedisLimit(userId int, notifyType string) (bool, error) {
-	key := fmt.Sprintf("notify_limit:%d:%s:%s", userId, notifyType, time.Now().Format("2006010215"))
+func checkRedisLimit(userId string, notifyType string) (bool, error) {
+	key := fmt.Sprintf("notify_limit:%s:%s:%s", userId, notifyType, time.Now().Format("2006010215"))
 
 	// Get current count
 	count, err := common.RedisGet(key)
@@ -86,11 +86,11 @@ func checkRedisLimit(userId int, notifyType string) (bool, error) {
 	return true, nil
 }
 
-func checkMemoryLimit(userId int, notifyType string) (bool, error) {
+func checkMemoryLimit(userId string, notifyType string) (bool, error) {
 	// Ensure cleanup task is started
 	cleanupOnce.Do(startCleanupTask)
 
-	key := fmt.Sprintf("%d:%s:%s", userId, notifyType, time.Now().Format("2006010215"))
+	key := fmt.Sprintf("%s:%s:%s", userId, notifyType, time.Now().Format("2006010215"))
 	now := time.Now()
 
 	// Get current limit count or initialize new one

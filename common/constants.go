@@ -6,8 +6,6 @@ import (
 	//"strconv"
 	"sync"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 var StartTime = time.Now().Unix() // unit: second
@@ -19,21 +17,17 @@ var TopUpLink = ""
 
 // var ChatLink = ""
 // var ChatLink2 = ""
-var QuotaPerUnit = 500 * 1000.0 // $0.002 / 1K tokens
-// 保留旧变量以兼容历史逻辑，实际展示由 general_setting.quota_display_type 控制
-var DisplayInCurrencyEnabled = true
+const SiteCreditsPerPriceUnit = 1_000_000.0
+
 var DisplayTokenStatEnabled = true
 var DrawingEnabled = true
-var TaskEnabled = true
-var DataExportEnabled = true
-var DataExportInterval = 5         // unit: minute
-var DataExportDefaultTime = "hour" // unit: minute
+var DataExportDefaultTime = "hour" // dashboard aggregation bucket
 var DefaultCollapseSidebar = false // default value of collapse sidebar
 
 // Any options with "Secret", "Token" in its key won't be return by GetOptions
 
-var SessionSecret = uuid.New().String()
-var CryptoSecret = uuid.New().String()
+var SessionSecret = NewGeneralID()
+var CryptoSecret = NewGeneralID()
 
 var OptionMap map[string]string
 var OptionMapRWMutex sync.RWMutex
@@ -41,65 +35,23 @@ var OptionMapRWMutex sync.RWMutex
 var ItemsPerPage = 10
 var MaxRecentItems = 1000
 
-var PasswordLoginEnabled = true
-var PasswordRegisterEnabled = true
-var EmailVerificationEnabled = false
-var GitHubOAuthEnabled = false
-var LinuxDOOAuthEnabled = false
-var WeChatAuthEnabled = false
-var TelegramOAuthEnabled = false
 var TurnstileCheckEnabled = false
-var RegisterEnabled = true
-
-var EmailDomainRestrictionEnabled = false // 是否启用邮箱域名限制
-var EmailAliasRestrictionEnabled = false  // 是否启用邮箱别名限制
-var EmailDomainWhitelist = []string{
-	"gmail.com",
-	"163.com",
-	"126.com",
-	"qq.com",
-	"outlook.com",
-	"hotmail.com",
-	"icloud.com",
-	"yahoo.com",
-	"foxmail.com",
-}
-var EmailLoginAuthServerList = []string{
-	"smtp.sendcloud.net",
-	"smtp.azurecomm.net",
-}
 
 var DebugEnabled bool
 var MemoryCacheEnabled bool
 
-var LogConsumeEnabled = true
-
 var TLSInsecureSkipVerify bool
 var InsecureTLSConfig = &tls.Config{InsecureSkipVerify: true}
 
-var SMTPServer = ""
-var SMTPPort = 587
-var SMTPSSLEnabled = false
-var SMTPForceAuthLogin = false
-var SMTPAccount = ""
-var SMTPFrom = ""
-var SMTPToken = ""
+const DefaultPostmarkAPIBaseURL = "https://api.postmarkapp.com"
 
-var GitHubClientId = ""
-var GitHubClientSecret = ""
-var LinuxDOClientId = ""
-var LinuxDOClientSecret = ""
-var LinuxDOMinimumTrustLevel = 0
-
-var WeChatServerAddress = ""
-var WeChatServerToken = ""
-var WeChatAccountQRCodeImageURL = ""
+var PostmarkAPIBaseURL = DefaultPostmarkAPIBaseURL
+var PostmarkFrom = ""
+var PostmarkServerToken = ""
+var PostmarkMessageStream = "outbound"
 
 var TurnstileSiteKey = ""
 var TurnstileSecretKey = ""
-
-var TelegramBotToken = ""
-var TelegramBotName = ""
 
 var QuotaForNewUser = 0
 var QuotaForInviter = 0
@@ -134,9 +86,6 @@ var RelayMaxIdleConns int
 var RelayMaxIdleConnsPerHost int
 
 var GeminiSafetySetting string
-
-// https://docs.cohere.com/docs/safety-modes Type; NONE/CONTEXTUAL/STRICT
-var CohereSafetySetting string
 
 const (
 	RequestIdKey = "X-Oneapi-Request-Id"

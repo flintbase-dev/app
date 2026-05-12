@@ -114,10 +114,10 @@ func Translate(lang, key string, args ...map[string]any) string {
 
 // userLangLoaderFunc is a function that loads user language from database/cache
 // It's set by the model package to avoid circular imports
-var userLangLoaderFunc func(userId int) string
+var userLangLoaderFunc func(userId string) string
 
 // SetUserLangLoader sets the function to load user language (called from model package)
-func SetUserLangLoader(loader func(userId int) string) {
+func SetUserLangLoader(loader func(userId string) string) {
 	userLangLoaderFunc = loader
 }
 
@@ -145,7 +145,7 @@ func GetLangFromContext(c *gin.Context) string {
 	// 2. Lazy load user language using user ID (for session-based auth where full settings aren't loaded)
 	if userLangLoaderFunc != nil {
 		if userId, exists := c.Get("id"); exists {
-			if uid, ok := userId.(int); ok && uid > 0 {
+			if uid, ok := userId.(string); ok && !common.IsEmptyID(uid) {
 				lang := userLangLoaderFunc(uid)
 				if lang != "" {
 					normalized := normalizeLang(lang)

@@ -15,7 +15,6 @@ import (
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/relay/channel/gemini"
-	"github.com/QuantumNous/new-api/relay/channel/ollama"
 	"github.com/QuantumNous/new-api/service"
 
 	"github.com/gin-gonic/gin"
@@ -64,14 +63,14 @@ var (
 )
 
 type applyChannelUpstreamModelUpdatesRequest struct {
-	ID           int      `json:"id"`
+	ID           string   `json:"id"`
 	AddModels    []string `json:"add_models"`
 	RemoveModels []string `json:"remove_models"`
 	IgnoreModels []string `json:"ignore_models"`
 }
 
 type applyAllChannelUpstreamModelUpdatesResult struct {
-	ChannelID             int      `json:"channel_id"`
+	ChannelID             string   `json:"channel_id"`
 	ChannelName           string   `json:"channel_name"`
 	AddedModels           []string `json:"added_models"`
 	RemovedModels         []string `json:"removed_models"`
@@ -80,7 +79,7 @@ type applyAllChannelUpstreamModelUpdatesResult struct {
 }
 
 type detectChannelUpstreamModelUpdatesResult struct {
-	ChannelID       int      `json:"channel_id"`
+	ChannelID       string   `json:"channel_id"`
 	ChannelName     string   `json:"channel_name"`
 	AddModels       []string `json:"add_models"`
 	RemoveModels    []string `json:"remove_models"`
@@ -265,17 +264,6 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		baseURL = channel.GetBaseURL()
 	}
 
-	if channel.Type == constant.ChannelTypeOllama {
-		key := strings.TrimSpace(strings.Split(channel.Key, "\n")[0])
-		models, err := ollama.FetchOllamaModels(baseURL, key)
-		if err != nil {
-			return nil, err
-		}
-		return normalizeModelNames(lo.Map(models, func(item ollama.OllamaModel, _ int) string {
-			return item.Name
-		})), nil
-	}
-
 	if channel.Type == constant.ChannelTypeGemini {
 		key, _, apiErr := channel.GetNextEnabledKey()
 		if apiErr != nil {
@@ -289,31 +277,7 @@ func fetchChannelUpstreamModelIDs(channel *model.Channel) ([]string, error) {
 		return normalizeModelNames(models), nil
 	}
 
-	var url string
-	switch channel.Type {
-	case constant.ChannelTypeAli:
-		url = fmt.Sprintf("%s/compatible-mode/v1/models", baseURL)
-	case constant.ChannelTypeZhipu_v4:
-		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
-		} else {
-			url = fmt.Sprintf("%s/api/paas/v4/models", baseURL)
-		}
-	case constant.ChannelTypeVolcEngine:
-		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			url = fmt.Sprintf("%s/v1/models", plan.OpenAIBaseURL)
-		} else {
-			url = fmt.Sprintf("%s/v1/models", baseURL)
-		}
-	case constant.ChannelTypeMoonshot:
-		if plan, ok := constant.ChannelSpecialBases[baseURL]; ok && plan.OpenAIBaseURL != "" {
-			url = fmt.Sprintf("%s/models", plan.OpenAIBaseURL)
-		} else {
-			url = fmt.Sprintf("%s/v1/models", baseURL)
-		}
-	default:
-		url = fmt.Sprintf("%s/v1/models", baseURL)
-	}
+	url := fmt.Sprintf("%s/v1/models", baseURL)
 
 	key, _, apiErr := channel.GetNextEnabledKey()
 	if apiErr != nil {
@@ -447,7 +411,7 @@ func buildUpstreamModelUpdateTaskNotificationContent(
 	detectedAddModels int,
 	detectedRemoveModels int,
 	autoAddedModels int,
-	failedChannelIDs []int,
+	failedChannelIDs []string,
 	channelSummaries []upstreamModelUpdateChannelSummary,
 	addModelSamples []string,
 	removeModelSamples []string,
@@ -503,9 +467,7 @@ func buildUpstreamModelUpdateTaskNotificationContent(
 
 	if failedChannels > 0 {
 		displayCount := min(failedChannels, channelUpstreamModelUpdateNotifyMaxFailedChannelIDs)
-		displayIDs := lo.Map(failedChannelIDs[:displayCount], func(channelID int, _ int) string {
-			return fmt.Sprintf("%d", channelID)
-		})
+		displayIDs := failedChannelIDs[:displayCount]
 		builder.WriteString(fmt.Sprintf(
 			"\n\n失败渠道 ID（展示 %d/%d）：%s",
 			displayCount,
@@ -527,7 +489,7 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 
 	checkedChannels := 0
 	failedChannels := 0
-	failedChannelIDs := make([]int, 0)
+	failedChannelIDs := make([]string, 0)
 	changedChannels := 0
 	detectedAddModels := 0
 	detectedRemoveModels := 0
@@ -537,7 +499,7 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 	removeModelSamples := make([]string, 0)
 	refreshNeeded := false
 
-	lastID := 0
+	lastID := ""
 	for {
 		var channels []*model.Channel
 		query := model.DB.
@@ -545,7 +507,7 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 			Where("status = ?", common.ChannelStatusEnabled).
 			Order("id asc").
 			Limit(channelUpstreamModelUpdateTaskBatchSize)
-		if lastID > 0 {
+		if !common.IsEmptyID(lastID) {
 			query = query.Where("id > ?", lastID)
 		}
 		err := query.Find(&channels).Error
@@ -573,7 +535,7 @@ func runChannelUpstreamModelUpdateTaskOnce() {
 			if err != nil {
 				failedChannels++
 				failedChannelIDs = append(failedChannelIDs, channel.Id)
-				common.SysLog(fmt.Sprintf("upstream model update check failed: channel_id=%d channel_name=%s err=%v", channel.Id, channel.Name, err))
+				common.SysLog(fmt.Sprintf("upstream model update check failed: channel_id=%s channel_name=%s err=%v", channel.Id, channel.Name, err))
 				continue
 			}
 			currentAddModels := normalizeModelNames(settings.UpstreamModelUpdateLastDetectedModels)
@@ -686,7 +648,7 @@ func ApplyChannelUpstreamModelUpdates(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if req.ID <= 0 {
+	if common.IsEmptyID(req.ID) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "invalid channel id",
@@ -739,7 +701,7 @@ func DetectChannelUpstreamModelUpdates(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if req.ID <= 0 {
+	if common.IsEmptyID(req.ID) {
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
 			"message": "invalid channel id",
@@ -831,14 +793,14 @@ func collectPendingApplyUpstreamModelChanges(settings dto.ChannelOtherSettings) 
 	return normalizeModelNames(settings.UpstreamModelUpdateLastDetectedModels), normalizeModelNames(settings.UpstreamModelUpdateLastRemovedModels)
 }
 
-func findEnabledChannelsAfterID(lastID int, batchSize int) ([]*model.Channel, error) {
+func findEnabledChannelsAfterID(lastID string, batchSize int) ([]*model.Channel, error) {
 	var channels []*model.Channel
 	query := model.DB.
 		Select(channelUpstreamModelUpdateSelectFields).
 		Where("status = ?", common.ChannelStatusEnabled).
 		Order("id asc").
 		Limit(batchSize)
-	if lastID > 0 {
+	if !common.IsEmptyID(lastID) {
 		query = query.Where("id > ?", lastID)
 	}
 	return channels, query.Find(&channels).Error
@@ -846,12 +808,12 @@ func findEnabledChannelsAfterID(lastID int, batchSize int) ([]*model.Channel, er
 
 func ApplyAllChannelUpstreamModelUpdates(c *gin.Context) {
 	results := make([]applyAllChannelUpstreamModelUpdatesResult, 0)
-	failed := make([]int, 0)
+	failed := make([]string, 0)
 	refreshNeeded := false
 	addedModelCount := 0
 	removedModelCount := 0
 
-	lastID := 0
+	lastID := ""
 	for {
 		channels, err := findEnabledChannelsAfterID(lastID, channelUpstreamModelUpdateTaskBatchSize)
 		if err != nil {
@@ -927,12 +889,12 @@ func ApplyAllChannelUpstreamModelUpdates(c *gin.Context) {
 
 func DetectAllChannelUpstreamModelUpdates(c *gin.Context) {
 	results := make([]detectChannelUpstreamModelUpdatesResult, 0)
-	failed := make([]int, 0)
+	failed := make([]string, 0)
 	detectedAddCount := 0
 	detectedRemoveCount := 0
 	refreshNeeded := false
 
-	lastID := 0
+	lastID := ""
 	for {
 		channels, err := findEnabledChannelsAfterID(lastID, channelUpstreamModelUpdateTaskBatchSize)
 		if err != nil {

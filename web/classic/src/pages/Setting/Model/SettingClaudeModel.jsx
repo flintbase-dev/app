@@ -75,7 +75,7 @@ export default function SettingClaudeModel(props) {
     const requestQueue = updateArray.map((item) => {
       let value = String(inputs[item.key]);
 
-      return API.put('/api/option/', {
+      return API.mutation('updateOption', {
         key: item.key,
         value,
       });

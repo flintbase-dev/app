@@ -51,29 +51,11 @@ func normalizeChannelTestEndpoint(channel *model.Channel, modelName, endpointTyp
 	if strings.HasSuffix(modelName, ratio_setting.CompactModelSuffix) {
 		return string(constant.EndpointTypeOpenAIResponseCompact)
 	}
-	if channel != nil && channel.Type == constant.ChannelTypeCodex {
-		return string(constant.EndpointTypeOpenAIResponse)
-	}
 	return normalized
 }
 
 func testChannel(channel *model.Channel, testModel string, endpointType string, isStream bool) testResult {
 	tik := time.Now()
-	var unsupportedTestChannelTypes = []int{
-		constant.ChannelTypeMidjourney,
-		constant.ChannelTypeMidjourneyPlus,
-		constant.ChannelTypeSunoAPI,
-		constant.ChannelTypeKling,
-		constant.ChannelTypeJimeng,
-		constant.ChannelTypeDoubaoVideo,
-		constant.ChannelTypeVidu,
-	}
-	if lo.Contains(unsupportedTestChannelTypes, channel.Type) {
-		channelTypeName := constant.GetChannelTypeName(channel.Type)
-		return testResult{
-			localErr: fmt.Errorf("%s channel test is not supported", channelTypeName),
-		}
-	}
 	w := httptest.NewRecorder()
 	c, _ := gin.CreateTestContext(w)
 
@@ -102,32 +84,6 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			requestPath = endpointInfo.Path
 		}
 	} else {
-		// 如果没有指定端点类型，使用原有的自动检测逻辑
-
-		if strings.Contains(strings.ToLower(testModel), "rerank") {
-			requestPath = "/v1/rerank"
-		}
-
-		// 先判断是否为 Embedding 模型
-		if strings.Contains(strings.ToLower(testModel), "embedding") ||
-			strings.HasPrefix(testModel, "m3e") || // m3e 系列模型
-			strings.Contains(testModel, "bge-") || // bge 系列模型
-			strings.Contains(testModel, "embed") ||
-			channel.Type == constant.ChannelTypeMokaAI { // 其他 embedding 模型
-			requestPath = "/v1/embeddings" // 修改请求路径
-		}
-
-		// VolcEngine 图像生成模型
-		if channel.Type == constant.ChannelTypeVolcEngine && strings.Contains(testModel, "seedream") {
-			requestPath = "/v1/images/generations"
-		}
-
-		// responses-only models
-		if strings.Contains(strings.ToLower(testModel), "codex") {
-			requestPath = "/v1/responses"
-		}
-
-		// responses compaction models (must use /v1/responses/compact)
 		if strings.HasSuffix(testModel, ratio_setting.CompactModelSuffix) {
 			requestPath = "/v1/responses/compact"
 		}
@@ -143,7 +99,15 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		Header: make(http.Header),
 	}
 
-	cache, err := model.GetUserCache(1)
+	rootUser := model.GetRootUser()
+	if rootUser == nil || common.IsEmptyID(rootUser.Id) {
+		return testResult{
+			localErr:    errors.New("root user not found"),
+			newAPIError: nil,
+		}
+	}
+	testUserID := rootUser.Id
+	cache, err := model.GetUserCache(testUserID)
 	if err != nil {
 		return testResult{
 			localErr:    err,
@@ -151,13 +115,13 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		}
 	}
 	cache.WriteContext(c)
-	c.Set("id", 1)
+	c.Set("id", testUserID)
 
 	//c.Request.Header.Set("Authorization", "Bearer "+channel.Key)
 	c.Request.Header.Set("Content-Type", "application/json")
 	c.Set("channel", channel.Type)
 	c.Set("base_url", channel.GetBaseURL())
-	group, _ := model.GetUserGroup(1, false)
+	group, _ := model.GetUserGroup(testUserID, false)
 	c.Set("group", group)
 
 	newAPIError := middleware.SetupContextForSelectedChannel(c, channel, testModel)
@@ -184,22 +148,15 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 			relayFormat = types.RelayFormatClaude
 		case constant.EndpointTypeGemini:
 			relayFormat = types.RelayFormatGemini
-		case constant.EndpointTypeJinaRerank:
-			relayFormat = types.RelayFormatRerank
 		case constant.EndpointTypeImageGeneration:
 			relayFormat = types.RelayFormatOpenAIImage
-		case constant.EndpointTypeEmbeddings:
-			relayFormat = types.RelayFormatEmbedding
 		default:
 			relayFormat = types.RelayFormatOpenAI
 		}
 	} else {
 		// 根据请求路径自动检测
 		relayFormat = types.RelayFormatOpenAI
-		if c.Request.URL.Path == "/v1/embeddings" {
-			relayFormat = types.RelayFormatEmbedding
-		}
-		if c.Request.URL.Path == "/v1/images/generations" {
+		if c.Request.URL.Path == "/v1/images" {
 			relayFormat = types.RelayFormatOpenAIImage
 		}
 		if c.Request.URL.Path == "/v1/messages" {
@@ -207,9 +164,6 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		}
 		if strings.Contains(c.Request.URL.Path, "/v1beta/models") {
 			relayFormat = types.RelayFormatGemini
-		}
-		if c.Request.URL.Path == "/v1/rerank" || c.Request.URL.Path == "/rerank" {
-			relayFormat = types.RelayFormatRerank
 		}
 		if c.Request.URL.Path == "/v1/responses" {
 			relayFormat = types.RelayFormatOpenAIResponses
@@ -221,7 +175,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 	request := buildTestRequest(testModel, endpointType, channel, isStream)
 
-	info, err := relaycommon.GenRelayInfo(c, relayFormat, request, nil)
+	info, err := relaycommon.GenRelayInfo(c, relayFormat, request)
 
 	if err != nil {
 		return testResult{
@@ -258,11 +212,10 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 
 	apiType, _ := common.ChannelType2APIType(channel.Type)
 	if info.RelayMode == relayconstant.RelayModeResponsesCompact &&
-		apiType != constant.APITypeOpenAI &&
-		apiType != constant.APITypeCodex {
+		apiType != constant.APITypeOpenAI {
 		return testResult{
 			context:     c,
-			localErr:    fmt.Errorf("responses compaction test only supports openai/codex channels, got api type %d", apiType),
+			localErr:    fmt.Errorf("responses compaction test only supports openai channels, got api type %d", apiType),
 			newAPIError: types.NewError(fmt.Errorf("unsupported api type: %d", apiType), types.ErrorCodeInvalidApiType),
 		}
 	}
@@ -278,7 +231,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	//// 创建一个用于日志的 info 副本，移除 ApiKey
 	//logInfo := info
 	//logInfo.ApiKey = ""
-	common.SysLog(fmt.Sprintf("testing channel %d with model %s , info %+v ", channel.Id, testModel, info.ToString()))
+	common.SysLog(fmt.Sprintf("testing channel %s with model %s , info %+v ", channel.Id, testModel, info.ToString()))
 
 	priceData, err := helper.ModelPriceHelper(c, info, 0, request.GetTokenCountMeta())
 	if err != nil {
@@ -294,17 +247,6 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	var convertedRequest any
 	// 根据 RelayMode 选择正确的转换函数
 	switch info.RelayMode {
-	case relayconstant.RelayModeEmbeddings:
-		// Embedding 请求 - request 已经是正确的类型
-		if embeddingReq, ok := request.(*dto.EmbeddingRequest); ok {
-			convertedRequest, err = adaptor.ConvertEmbeddingRequest(c, info, *embeddingReq)
-		} else {
-			return testResult{
-				context:     c,
-				localErr:    errors.New("invalid embedding request type"),
-				newAPIError: types.NewError(errors.New("invalid embedding request type"), types.ErrorCodeConvertRequestFailed),
-			}
-		}
 	case relayconstant.RelayModeImagesGenerations:
 		// 图像生成请求 - request 已经是正确的类型
 		if imageReq, ok := request.(*dto.ImageRequest); ok {
@@ -314,17 +256,6 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 				context:     c,
 				localErr:    errors.New("invalid image request type"),
 				newAPIError: types.NewError(errors.New("invalid image request type"), types.ErrorCodeConvertRequestFailed),
-			}
-		}
-	case relayconstant.RelayModeRerank:
-		// Rerank 请求 - request 已经是正确的类型
-		if rerankReq, ok := request.(*dto.RerankRequest); ok {
-			convertedRequest, err = adaptor.ConvertRerankRequest(c, info.RelayMode, *rerankReq)
-		} else {
-			return testResult{
-				context:     c,
-				localErr:    errors.New("invalid rerank request type"),
-				newAPIError: types.NewError(errors.New("invalid rerank request type"), types.ErrorCodeConvertRequestFailed),
 			}
 		}
 	case relayconstant.RelayModeResponses:
@@ -429,7 +360,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		if httpResp.StatusCode != http.StatusOK {
 			err := service.RelayErrorHandler(c.Request.Context(), httpResp, true)
 			common.SysError(fmt.Sprintf(
-				"channel test bad response: channel_id=%d name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
+				"channel test bad response: channel_id=%s name=%s type=%d model=%s endpoint_type=%s status=%d err=%v",
 				channel.Id,
 				channel.Name,
 				channel.Type,
@@ -484,7 +415,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 	milliseconds := tok.Sub(tik).Milliseconds()
 	consumedTime := float64(milliseconds) / 1000.0
 	other := buildTestLogOther(c, info, priceData, usage, tieredResult)
-	model.RecordConsumeLog(c, 1, model.RecordConsumeLogParams{
+	model.RecordConsumeLog(c, testUserID, model.RecordConsumeLogParams{
 		ChannelId:        channel.Id,
 		PromptTokens:     usage.PromptTokens,
 		CompletionTokens: usage.CompletionTokens,
@@ -497,7 +428,7 @@ func testChannel(channel *model.Channel, testModel string, endpointType string, 
 		Group:            info.UsingGroup,
 		Other:            other,
 	})
-	common.SysLog(fmt.Sprintf("testing channel #%d, response: \n%s", channel.Id, string(respBody)))
+	common.SysLog(fmt.Sprintf("testing channel #%s, response: \n%s", channel.Id, string(respBody)))
 	return testResult{
 		context:     c,
 		localErr:    nil,
@@ -528,21 +459,22 @@ func settleTestQuota(info *relaycommon.RelayInfo, priceData types.PriceData, usa
 	}
 
 	quota := 0
-	if !priceData.UsePrice {
-		quota = usage.PromptTokens + int(math.Round(float64(usage.CompletionTokens)*priceData.CompletionRatio))
-		quota = int(math.Round(float64(quota) * priceData.ModelRatio))
-		if priceData.ModelRatio != 0 && quota <= 0 {
+	if !priceData.UseFixedPrice {
+		promptQuota := float64(usage.PromptTokens) / 1_000_000 * priceData.ModelPrice * common.SiteCreditsPerPriceUnit * priceData.GroupRatioInfo.GroupRatio
+		completionQuota := float64(usage.CompletionTokens) / 1_000_000 * priceData.CompletionPrice * common.SiteCreditsPerPriceUnit * priceData.GroupRatioInfo.GroupRatio
+		quota = int(math.Round(promptQuota + completionQuota))
+		if priceData.ModelPrice != 0 && quota <= 0 {
 			quota = 1
 		}
 		return quota, nil
 	}
 
-	return int(priceData.ModelPrice * common.QuotaPerUnit), nil
+	return int(priceData.ModelFixedPrice * common.SiteCreditsPerPriceUnit * priceData.GroupRatioInfo.GroupRatio), nil
 }
 
 func buildTestLogOther(c *gin.Context, info *relaycommon.RelayInfo, priceData types.PriceData, usage *dto.Usage, tieredResult *billingexpr.TieredResult) map[string]interface{} {
-	other := service.GenerateTextOtherInfo(c, info, priceData.ModelRatio, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionRatio,
-		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
+	other := service.GenerateTextOtherInfo(c, info, priceData.ModelPrice, priceData.GroupRatioInfo.GroupRatio, priceData.CompletionPrice,
+		usage.PromptTokensDetails.CachedTokens, priceData.CacheRatio, priceData.ModelFixedPrice, priceData.GroupRatioInfo.GroupSpecialRatio)
 	if tieredResult != nil {
 		service.InjectTieredBillingInfo(other, info, tieredResult)
 	}
@@ -647,7 +579,7 @@ func validateTestResponseBody(respBody []byte, isStream bool) error {
 }
 
 func shouldUseStreamForAutomaticChannelTest(channel *model.Channel) bool {
-	return channel != nil && channel.Type == constant.ChannelTypeCodex
+	return false
 }
 
 func detectErrorMessageFromJSONBytes(jsonBytes []byte) string {
@@ -685,12 +617,6 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 	// 根据端点类型构建不同的测试请求
 	if endpointType != "" {
 		switch constant.EndpointType(endpointType) {
-		case constant.EndpointTypeEmbeddings:
-			// 返回 EmbeddingRequest
-			return &dto.EmbeddingRequest{
-				Model: model,
-				Input: []any{"hello world"},
-			}
 		case constant.EndpointTypeImageGeneration:
 			// 返回 ImageRequest
 			return &dto.ImageRequest{
@@ -698,14 +624,6 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 				Prompt: "a cute cat",
 				N:      lo.ToPtr(uint(1)),
 				Size:   "1024x1024",
-			}
-		case constant.EndpointTypeJinaRerank:
-			// 返回 RerankRequest
-			return &dto.RerankRequest{
-				Model:     model,
-				Query:     "What is Deep Learning?",
-				Documents: []any{"Deep Learning is a subset of machine learning.", "Machine learning is a field of artificial intelligence."},
-				TopN:      lo.ToPtr(2),
 			}
 		case constant.EndpointTypeOpenAIResponse:
 			// 返回 OpenAIResponsesRequest
@@ -744,41 +662,11 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 		}
 	}
 
-	// 自动检测逻辑（保持原有行为）
-	if strings.Contains(strings.ToLower(model), "rerank") {
-		return &dto.RerankRequest{
-			Model:     model,
-			Query:     "What is Deep Learning?",
-			Documents: []any{"Deep Learning is a subset of machine learning.", "Machine learning is a field of artificial intelligence."},
-			TopN:      lo.ToPtr(2),
-		}
-	}
-
-	// 先判断是否为 Embedding 模型
-	if strings.Contains(strings.ToLower(model), "embedding") ||
-		strings.HasPrefix(model, "m3e") ||
-		strings.Contains(model, "bge-") {
-		// 返回 EmbeddingRequest
-		return &dto.EmbeddingRequest{
-			Model: model,
-			Input: []any{"hello world"},
-		}
-	}
-
 	// Responses compaction models (must use /v1/responses/compact)
 	if strings.HasSuffix(model, ratio_setting.CompactModelSuffix) {
 		return &dto.OpenAIResponsesCompactionRequest{
 			Model: model,
 			Input: testResponsesInput,
-		}
-	}
-
-	// Responses-only models (e.g. codex series)
-	if strings.Contains(strings.ToLower(model), "codex") {
-		return &dto.OpenAIResponsesRequest{
-			Model:  model,
-			Input:  json.RawMessage(`[{"role":"user","content":"hi"}]`),
-			Stream: lo.ToPtr(isStream),
 		}
 	}
 
@@ -813,11 +701,7 @@ func buildTestRequest(model string, endpointType string, channel *model.Channel,
 }
 
 func TestChannel(c *gin.Context) {
-	channelId, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	channelId := c.Param("id")
 	channel, err := model.CacheGetChannel(channelId)
 	if err != nil {
 		channel, err = model.GetChannelById(channelId, true)

@@ -5,8 +5,10 @@
       "name": "react-template",
       "dependencies": {
         "@douyinfe/semi-icons": "^2.63.1",
+        "@douyinfe/semi-illustrations": "^2.72.2",
         "@douyinfe/semi-ui": "^2.69.1",
         "@lobehub/icons": "^2.0.0",
+        "@stripe/stripe-js": "^9.4.0",
         "@visactor/react-vchart": "~1.8.8",
         "@visactor/vchart": "~1.8.8",
         "@visactor/vchart-semi-theme": "~1.8.8",
@@ -14,12 +16,14 @@
         "clsx": "^2.1.1",
         "dayjs": "^1.11.11",
         "history": "^5.3.0",
+        "highlight.js": "^11.11.1",
         "i18next": "^23.16.8",
         "i18next-browser-languagedetector": "^7.2.0",
         "katex": "^0.16.22",
         "lucide-react": "^0.511.0",
         "marked": "^4.1.1",
         "mermaid": "^11.6.0",
+        "prop-types": "^15.8.1",
         "qrcode.react": "^4.2.0",
         "react": "^18.2.0",
         "react-dom": "^18.2.0",
@@ -29,7 +33,6 @@
         "react-icons": "^5.5.0",
         "react-markdown": "^10.1.0",
         "react-router-dom": "^6.3.0",
-        "react-telegram-login": "^1.1.2",
         "react-toastify": "^9.0.8",
         "react-turnstile": "^1.0.5",
         "rehype-highlight": "^7.0.2",
@@ -537,6 +540,8 @@
     "@splinetool/runtime": ["@splinetool/runtime@0.9.526", "", { "dependencies": { "on-change": "^4.0.0", "semver-compare": "^1.0.0" } }, "sha512-qznHbXA5aKwDbCgESAothCNm1IeEZcmNWG145p5aXj4w5uoqR1TZ9qkTHTKLTsUbHeitCwdhzmRqan1kxboLgQ=="],
 
     "@stitches/react": ["@stitches/react@1.2.8", "", { "peerDependencies": { "react": ">= 16.3.0" } }, "sha512-9g9dWI4gsSVe8bNLlb+lMkBYsnIKCZTmvqvDG+Avnn69XfmHZKiaMrx7cgTaddq7aTPPmXiTsbFcUy0xgI4+wA=="],
+
+    "@stripe/stripe-js": ["@stripe/stripe-js@9.4.0", "", {}, "sha512-zXG86DnoLU5nH2U18tX5ApTE3IAm+txoiPm4YFyEtRS0K5y7ZDH9M8e1Le/cZyI6wvW3BkJn2daZe2FqZOrSSg=="],
 
     "@swc/core": ["@swc/core@1.13.19", "", { "dependencies": { "@swc/counter": "^0.1.3", "@swc/types": "^0.1.25" }, "optionalDependencies": { "@swc/core-darwin-arm64": "1.13.19", "@swc/core-darwin-x64": "1.13.19", "@swc/core-linux-arm-gnueabihf": "1.13.19", "@swc/core-linux-arm64-gnu": "1.13.19", "@swc/core-linux-arm64-musl": "1.13.19", "@swc/core-linux-x64-gnu": "1.13.19", "@swc/core-linux-x64-musl": "1.13.19", "@swc/core-win32-arm64-msvc": "1.13.19", "@swc/core-win32-ia32-msvc": "1.13.19", "@swc/core-win32-x64-msvc": "1.13.19" }, "peerDependencies": { "@swc/helpers": ">=0.5.17" }, "optionalPeers": ["@swc/helpers"] }, "sha512-V1r4wFdjaZIUIZZrV2Mb/prEeu03xvSm6oatPxsvnXKF9lNh5Jtk9QvUdiVfD9rrvi7bXrAVhg9Wpbmv/2Fl1g=="],
 
@@ -1782,8 +1787,6 @@
 
     "react-router-dom": ["react-router-dom@6.28.1", "", { "dependencies": { "@remix-run/router": "1.21.0", "react-router": "6.28.1" }, "peerDependencies": { "react": ">=16.8", "react-dom": ">=16.8" } }, "sha512-YraE27C/RdjcZwl5UCqF/ffXnZDxpJdk9Q6jw38SZHjXs7NNdpViq2l2c7fO7+4uWaEfcwfGCv3RSg4e1By/fQ=="],
 
-    "react-telegram-login": ["react-telegram-login@1.1.2", "", { "dependencies": { "react": "^16.13.1" } }, "sha512-pDP+bvfaklWgnK5O6yvZnIwgky0nnYUU6Zhk0EjdMSkPsLQoOzZRsXIoZnbxyBXhi7346bsxMH+EwwJPTxClDw=="],
-
     "react-toastify": ["react-toastify@9.1.3", "", { "dependencies": { "clsx": "^1.1.1" }, "peerDependencies": { "react": ">=16", "react-dom": ">=16" } }, "sha512-fPfb8ghtn/XMxw3LkxQBk3IyagNpF/LIKjOBflbexr2AWxAH1MJgvnESwEwBn9liLFXgTKWgBSdZpw9m4OTHTg=="],
 
     "react-turnstile": ["react-turnstile@1.1.4", "", { "peerDependencies": { "react": ">= 16.13.1", "react-dom": ">= 16.13.1" } }, "sha512-oluyRWADdsufCt5eMqacW4gfw8/csr6Tk+fmuaMx0PWMKP1SX1iCviLvD2D5w92eAzIYDHi/krUWGHhlfzxTpQ=="],
@@ -2249,8 +2252,6 @@
     "react-draggable/clsx": ["clsx@1.2.1", "", {}, "sha512-EcR6r5a8bj6pu3ycsa/E/cKVGuTgZJZdsyUYHOksG/UHIiKfjxzRxYJpyVBwYaQeOvghal9fcc4PidlgzugAQg=="],
 
     "react-rnd/tslib": ["tslib@2.6.2", "", {}, "sha512-AEYxH93jGFPn/a2iVAwW87VuUIkR1FVUKB77NwMF7nBTDkDrrT/Hpt/IrCJ0QXhW27jTBDcf5ZY7w6RiqTMw2Q=="],
-
-    "react-telegram-login/react": ["react@16.14.0", "", { "dependencies": { "loose-envify": "^1.1.0", "object-assign": "^4.1.1", "prop-types": "^15.6.2" } }, "sha512-0X2CImDkJGApiAlcf0ODKIneSwBPhqJawOa5wCtKbu7ZECrmS26NvtSILynQ66cgkT/RJ4LidJOc3bUESwmU8g=="],
 
     "react-toastify/clsx": ["clsx@1.2.1", "", {}, "sha512-EcR6r5a8bj6pu3ycsa/E/cKVGuTgZJZdsyUYHOksG/UHIiKfjxzRxYJpyVBwYaQeOvghal9fcc4PidlgzugAQg=="],
 

@@ -63,12 +63,12 @@ const sanitizeHtml = (html) => {
 
 /**
  * 通用文档渲染组件
- * @param {string} apiEndpoint - API 接口地址
+ * @param {string} operation - GraphQL API operation
  * @param {string} title - 文档标题
  * @param {string} cacheKey - 本地存储缓存键
  * @param {string} emptyMessage - 空内容时的提示消息
  */
-const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
+const DocumentRenderer = ({ operation, title, cacheKey, emptyMessage }) => {
   const { t } = useTranslation();
   const [content, setContent] = useState('');
   const [loading, setLoading] = useState(true);
@@ -81,7 +81,7 @@ const DocumentRenderer = ({ apiEndpoint, title, cacheKey, emptyMessage }) => {
     }
 
     try {
-      const res = await API.get(apiEndpoint);
+      const res = await API.query(operation);
       const { success, message, data } = res.data;
       if (success && data) {
         setContent(data);

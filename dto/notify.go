@@ -1,10 +1,11 @@
 package dto
 
 type Notify struct {
-	Type    string        `json:"type"`
-	Title   string        `json:"title"`
-	Content string        `json:"content"`
-	Values  []interface{} `json:"values"`
+	Type      string        `json:"type"`
+	Title     string        `json:"title"`
+	Content   string        `json:"content"`
+	Values    []interface{} `json:"values"`
+	Sensitive bool          `json:"sensitive"`
 }
 
 const ContentValueParam = "{{value}}"
@@ -22,4 +23,10 @@ func NewNotify(t string, title string, content string, values []interface{}) Not
 		Content: content,
 		Values:  values,
 	}
+}
+
+func NewSensitiveNotify(t string, title string, content string, values []interface{}) Notify {
+	notify := NewNotify(t, title, content, values)
+	notify.Sensitive = true
+	return notify
 }

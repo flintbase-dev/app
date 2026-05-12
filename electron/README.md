@@ -16,6 +16,14 @@ cp ../new-api-macos ../new-api
 **Option B: Build from source (requires Go)**
 TODO
 
+### 2. PostgreSQL Database (Required)
+
+The desktop wrapper starts the same backend binary as the server deployment. It requires a PostgreSQL database that has already been migrated and bootstrapped by `new-api-migrator`.
+
+```bash
+SQL_DSN="postgresql://user:password@host:5432/new-api" ./new-api-migrator
+```
+
 ### 3. Electron Dependencies
 ```bash
 cd electron
@@ -33,7 +41,7 @@ This will:
 - Start the Go backend on port 3000
 - Open an Electron window with DevTools enabled
 - Create a system tray icon (menu bar on macOS)
-- Store database in `../data/new-api.db`
+- Use the PostgreSQL database configured by `SQL_DSN`
 
 ## Building for Production
 
@@ -66,8 +74,4 @@ const PORT = 3000; // Change to desired port
 ```
 
 ### Database Location
-- **Development**: `../data/new-api.db` (project directory)
-- **Production**:
-  - macOS: `~/Library/Application Support/New API/data/`
-  - Windows: `%APPDATA%/New API/data/`
-  - Linux: `~/.config/New API/data/`
+Set `SQL_DSN` to a PostgreSQL connection string before starting the app. The Electron wrapper does not create or migrate the database; run `new-api-migrator` first.

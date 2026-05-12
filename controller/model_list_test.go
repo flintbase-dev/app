@@ -1,21 +1,18 @@
 package controller
 
 import (
-	"fmt"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
+	"github.com/QuantumNous/new-api/internal/testdb"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/setting/config"
-	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/gin-gonic/gin"
-	"github.com/glebarez/sqlite"
 	"github.com/stretchr/testify/require"
 	"gorm.io/gorm"
 )
@@ -29,68 +26,14 @@ type listModelsResponse struct {
 func setupModelListControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
-	initModelListColumnNames(t)
-
 	gin.SetMode(gin.TestMode)
-	common.UsingSQLite = true
-	common.UsingMySQL = false
-	common.UsingPostgreSQL = false
 	common.RedisEnabled = false
 
-	dsn := fmt.Sprintf("file:%s?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
-	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{})
-	require.NoError(t, err)
+	db := testdb.OpenAndReset(t)
 	model.DB = db
 	model.LOG_DB = db
 
-	require.NoError(t, db.AutoMigrate(&model.User{}, &model.Channel{}, &model.Ability{}, &model.Model{}, &model.Vendor{}))
-
-	t.Cleanup(func() {
-		sqlDB, err := db.DB()
-		if err == nil {
-			_ = sqlDB.Close()
-		}
-	})
-
 	return db
-}
-
-func initModelListColumnNames(t *testing.T) {
-	t.Helper()
-
-	originalIsMasterNode := common.IsMasterNode
-	originalSQLitePath := common.SQLitePath
-	originalUsingSQLite := common.UsingSQLite
-	originalUsingMySQL := common.UsingMySQL
-	originalUsingPostgreSQL := common.UsingPostgreSQL
-	originalSQLDSN, hadSQLDSN := os.LookupEnv("SQL_DSN")
-	defer func() {
-		common.IsMasterNode = originalIsMasterNode
-		common.SQLitePath = originalSQLitePath
-		common.UsingSQLite = originalUsingSQLite
-		common.UsingMySQL = originalUsingMySQL
-		common.UsingPostgreSQL = originalUsingPostgreSQL
-		if hadSQLDSN {
-			require.NoError(t, os.Setenv("SQL_DSN", originalSQLDSN))
-		} else {
-			require.NoError(t, os.Unsetenv("SQL_DSN"))
-		}
-	}()
-
-	common.IsMasterNode = false
-	common.SQLitePath = fmt.Sprintf("file:%s_init?mode=memory&cache=shared", strings.ReplaceAll(t.Name(), "/", "_"))
-	common.UsingSQLite = false
-	common.UsingMySQL = false
-	common.UsingPostgreSQL = false
-	require.NoError(t, os.Setenv("SQL_DSN", "local"))
-
-	require.NoError(t, model.InitDB())
-	if model.DB != nil {
-		sqlDB, err := model.DB.DB()
-		if err == nil {
-			_ = sqlDB.Close()
-		}
-	}
 }
 
 func withTieredBillingConfig(t *testing.T, modes map[string]string, exprs map[string]string) {
@@ -120,16 +63,6 @@ func withTieredBillingConfig(t *testing.T, modes map[string]string, exprs map[st
 	model.InvalidatePricingCache()
 }
 
-func withSelfUseModeDisabled(t *testing.T) {
-	t.Helper()
-
-	original := operation_setting.SelfUseModeEnabled
-	operation_setting.SelfUseModeEnabled = false
-	t.Cleanup(func() {
-		operation_setting.SelfUseModeEnabled = original
-	})
-}
-
 func decodeListModelsResponse(t *testing.T, recorder *httptest.ResponseRecorder) map[string]struct{} {
 	t.Helper()
 
@@ -155,7 +88,6 @@ func pricingByModelName(pricings []model.Pricing) map[string]model.Pricing {
 }
 
 func TestListModelsIncludesTieredBillingModel(t *testing.T) {
-	withSelfUseModeDisabled(t)
 	withTieredBillingConfig(t, map[string]string{
 		"zz-tiered-visible-model":      "tiered_expr",
 		"zz-tiered-empty-expr-model":   "tiered_expr",
@@ -166,24 +98,26 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	})
 
 	db := setupModelListControllerTestDB(t)
+	userID := "usr_ModelList01"
+	channelID := "chn_ModelList01"
 	require.NoError(t, db.Create(&model.User{
-		Id:       1001,
+		Id:       userID,
 		Username: "model-list-user",
-		Password: "password",
+		WorkOSId: "user_model_list_test",
 		Group:    "default",
 		Status:   common.UserStatusEnabled,
 	}).Error)
 	require.NoError(t, db.Create(&[]model.Ability{
-		{Group: "default", Model: "zz-tiered-visible-model", ChannelId: 1, Enabled: true},
-		{Group: "default", Model: "zz-tiered-empty-expr-model", ChannelId: 1, Enabled: true},
-		{Group: "default", Model: "zz-tiered-missing-expr-model", ChannelId: 1, Enabled: true},
-		{Group: "default", Model: "zz-unpriced-model", ChannelId: 1, Enabled: true},
+		{Group: "default", Model: "zz-tiered-visible-model", ChannelId: channelID, Enabled: true},
+		{Group: "default", Model: "zz-tiered-empty-expr-model", ChannelId: channelID, Enabled: true},
+		{Group: "default", Model: "zz-tiered-missing-expr-model", ChannelId: channelID, Enabled: true},
+		{Group: "default", Model: "zz-unpriced-model", ChannelId: channelID, Enabled: true},
 	}).Error)
 
 	recorder := httptest.NewRecorder()
 	ctx, _ := gin.CreateTestContext(recorder)
 	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
-	ctx.Set("id", 1001)
+	ctx.Set("id", userID)
 
 	ListModels(ctx, constant.ChannelTypeOpenAI)
 
@@ -211,7 +145,6 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 }
 
 func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
-	withSelfUseModeDisabled(t)
 	withTieredBillingConfig(t, map[string]string{
 		"zz-token-tiered-visible-model":      "tiered_expr",
 		"zz-token-tiered-empty-expr-model":   "tiered_expr",

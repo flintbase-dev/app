@@ -5,8 +5,6 @@ import (
 	"os"
 	"path/filepath"
 	"time"
-
-	"github.com/google/uuid"
 )
 
 // DiskCacheType 磁盘缓存类型
@@ -45,7 +43,7 @@ func CreateDiskCacheFile(cacheType DiskCacheType) (string, *os.File, error) {
 	}
 
 	dir := GetDiskCacheDir()
-	filename := fmt.Sprintf("%s-%s-%d.tmp", cacheType, uuid.New().String()[:8], time.Now().UnixNano())
+	filename := fmt.Sprintf("%s-%s-%d.tmp", cacheType, MustNewTypedID("tmp", 8), time.Now().UnixNano())
 	filePath := filepath.Join(dir, filename)
 
 	file, err := os.OpenFile(filePath, os.O_CREATE|os.O_RDWR|os.O_EXCL, 0600)

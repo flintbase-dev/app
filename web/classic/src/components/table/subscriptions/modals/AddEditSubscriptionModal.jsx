@@ -39,7 +39,12 @@ import {
   IconSave,
 } from '@douyinfe/semi-icons';
 import { Clock, RefreshCw } from 'lucide-react';
-import { API, showError, showSuccess } from '../../../../helpers';
+import {
+  API,
+  getCurrencyConfig,
+  showError,
+  showSuccess,
+} from '../../../../helpers';
 import {
   quotaToDisplayAmount,
   displayAmountToQuota,
@@ -84,7 +89,6 @@ const AddEditSubscriptionModal = ({
     title: '',
     subtitle: '',
     price_amount: 0,
-    currency: 'USD',
     duration_unit: 'month',
     duration_value: 1,
     custom_seconds: 0,
@@ -96,7 +100,6 @@ const AddEditSubscriptionModal = ({
     total_amount: 0,
     upgrade_group: '',
     stripe_price_id: '',
-    creem_product_id: '',
   });
 
   const buildFormValues = () => {
@@ -108,7 +111,6 @@ const AddEditSubscriptionModal = ({
       title: p.title || '',
       subtitle: p.subtitle || '',
       price_amount: Number(p.price_amount || 0),
-      currency: 'USD',
       duration_unit: p.duration_unit || 'month',
       duration_value: Number(p.duration_value || 1),
       custom_seconds: Number(p.custom_seconds || 0),
@@ -117,19 +119,16 @@ const AddEditSubscriptionModal = ({
       enabled: p.enabled !== false,
       sort_order: Number(p.sort_order || 0),
       max_purchase_per_user: Number(p.max_purchase_per_user || 0),
-      total_amount: Number(
-        quotaToDisplayAmount(p.total_amount || 0).toFixed(2),
-      ),
+      total_amount: quotaToDisplayAmount(p.total_amount || 0),
       upgrade_group: p.upgrade_group || '',
       stripe_price_id: p.stripe_price_id || '',
-      creem_product_id: p.creem_product_id || '',
     };
   };
 
   useEffect(() => {
     if (!visible) return;
     setGroupLoading(true);
-    API.get('/api/group')
+    API.query('groups')
       .then((res) => {
         if (res.data?.success) {
           setGroupOptions(res.data?.data || []);
@@ -152,7 +151,6 @@ const AddEditSubscriptionModal = ({
         plan: {
           ...values,
           price_amount: Number(values.price_amount || 0),
-          currency: 'USD',
           duration_value: Number(values.duration_value || 0),
           custom_seconds: Number(values.custom_seconds || 0),
           quota_reset_period: values.quota_reset_period || 'never',
@@ -167,10 +165,10 @@ const AddEditSubscriptionModal = ({
         },
       };
       if (editingPlan?.plan?.id) {
-        const res = await API.put(
-          `/api/subscription/admin/plans/${editingPlan.plan.id}`,
-          payload,
-        );
+        const res = await API.mutation('updateSubscriptionPlan', {
+          id: editingPlan.plan.id,
+          ...payload,
+        });
         if (res.data?.success) {
           showSuccess(t('更新成功'));
           handleClose();
@@ -179,7 +177,7 @@ const AddEditSubscriptionModal = ({
           showError(res.data?.message || t('更新失败'));
         }
       } else {
-        const res = await API.post('/api/subscription/admin/plans', payload);
+        const res = await API.mutation('createSubscriptionPlan', payload);
         if (res.data?.success) {
           showSuccess(t('创建成功'));
           handleClose();
@@ -298,11 +296,14 @@ const AddEditSubscriptionModal = ({
                     <Col span={12}>
                       <Form.InputNumber
                         field='price_amount'
-                        label={t('实付金额')}
+                        label={t('套餐价格')}
+                        prefix={getCurrencyConfig().symbol}
                         required
                         min={0}
                         precision={2}
-                        rules={[{ required: true, message: t('请输入金额') }]}
+                        rules={[
+                          { required: true, message: t('请输入套餐价格') },
+                        ]}
                         style={{ width: '100%' }}
                       />
                     </Col>
@@ -313,9 +314,10 @@ const AddEditSubscriptionModal = ({
                         label={t('总额度')}
                         required
                         min={0}
-                        precision={2}
+                        step={1}
+                        precision={0}
                         rules={[{ required: true, message: t('请输入总额度') }]}
-                        extraText={`${t('0 表示不限')} · ${t('原生额度')}：${displayAmountToQuota(
+                        extraText={`${t('0 表示不限')} · ${t('站内额度')}：${displayAmountToQuota(
                           values.total_amount,
                         )}`}
                         style={{ width: '100%' }}
@@ -340,15 +342,6 @@ const AddEditSubscriptionModal = ({
                           </Select.Option>
                         ))}
                       </Form.Select>
-                    </Col>
-
-                    <Col span={12}>
-                      <Form.Input
-                        field='currency'
-                        label={t('币种')}
-                        disabled
-                        extraText={t('由全站货币展示设置统一控制')}
-                      />
                     </Col>
 
                     <Col span={12}>
@@ -516,7 +509,7 @@ const AddEditSubscriptionModal = ({
                         {t('第三方支付配置')}
                       </Text>
                       <div className='text-xs text-gray-600'>
-                        {t('Stripe/Creem 商品ID（可选）')}
+                        {t('Stripe 一次性 Price ID（可选）')}
                       </div>
                     </div>
                   </div>
@@ -525,17 +518,8 @@ const AddEditSubscriptionModal = ({
                     <Col span={24}>
                       <Form.Input
                         field='stripe_price_id'
-                        label='Stripe PriceId'
+                        label='Stripe one-off Price ID'
                         placeholder='price_...'
-                        showClear
-                      />
-                    </Col>
-
-                    <Col span={24}>
-                      <Form.Input
-                        field='creem_product_id'
-                        label='Creem ProductId'
-                        placeholder='prod_...'
                         showClear
                       />
                     </Col>

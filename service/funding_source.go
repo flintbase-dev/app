@@ -1,8 +1,10 @@
 package service
 
 import (
+	"fmt"
 	"time"
 
+	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 )
 
@@ -27,17 +29,29 @@ type FundingSource interface {
 // ---------------------------------------------------------------------------
 
 type WalletFunding struct {
-	userId   int
-	consumed int // 实际预扣的用户额度
+	userId    string
+	requestId string
+	modelName string
+	consumed  int // 实际预扣的用户额度
 }
 
 func (w *WalletFunding) Source() string { return BillingSourceWallet }
+
+func walletLedgerSourceId(requestId string, phase string) string {
+	if requestId == "" {
+		return fmt.Sprintf("relay:%s:%s", phase, common.NewRequestID())
+	}
+	return fmt.Sprintf("%s:%s", requestId, phase)
+}
 
 func (w *WalletFunding) PreConsume(amount int) error {
 	if amount <= 0 {
 		return nil
 	}
-	if err := model.DecreaseUserQuota(w.userId, amount, false); err != nil {
+	if err := model.ConsumeUserCreditsForRequest(w.userId, amount, "relay.preconsume", walletLedgerSourceId(w.requestId, "preconsume"), w.requestId, map[string]interface{}{
+		"model": w.modelName,
+		"phase": "preconsume",
+	}); err != nil {
 		return err
 	}
 	w.consumed = amount
@@ -49,18 +63,27 @@ func (w *WalletFunding) Settle(delta int) error {
 		return nil
 	}
 	if delta > 0 {
-		return model.DecreaseUserQuota(w.userId, delta, false)
+		return model.ConsumeUserCreditsForRequest(w.userId, delta, "relay.settle", walletLedgerSourceId(w.requestId, "settle"), w.requestId, map[string]interface{}{
+			"model": w.modelName,
+			"phase": "settle",
+		})
 	}
-	return model.IncreaseUserQuota(w.userId, -delta, false)
+	return model.RefundUserCreditsForRequest(w.userId, -delta, "relay.refund", walletLedgerSourceId(w.requestId, "settle_refund"), w.requestId, map[string]interface{}{
+		"model": w.modelName,
+		"phase": "settle_refund",
+	})
 }
 
 func (w *WalletFunding) Refund() error {
 	if w.consumed <= 0 {
 		return nil
 	}
-	// IncreaseUserQuota 是 quota += N 的非幂等操作，不能重试，否则会多退额度。
+	// Wallet refund is ledgered as a new grant and should not be retried blindly.
 	// 订阅的 RefundSubscriptionPreConsume 有 requestId 幂等保护所以可以重试。
-	return model.IncreaseUserQuota(w.userId, w.consumed, false)
+	return model.RefundUserCreditsForRequest(w.userId, w.consumed, "relay.refund", walletLedgerSourceId(w.requestId, "preconsume_refund"), w.requestId, map[string]interface{}{
+		"model": w.modelName,
+		"phase": "preconsume_refund",
+	})
 }
 
 // ---------------------------------------------------------------------------
@@ -69,15 +92,15 @@ func (w *WalletFunding) Refund() error {
 
 type SubscriptionFunding struct {
 	requestId      string
-	userId         int
+	userId         string
 	modelName      string
 	amount         int64 // 预扣的订阅额度（subConsume）
-	subscriptionId int
+	subscriptionId string
 	preConsumed    int64
 	// 以下字段在 PreConsume 成功后填充，供 RelayInfo 同步使用
 	AmountTotal     int64
 	AmountUsedAfter int64
-	PlanId          int
+	PlanId          string
 	PlanTitle       string
 }
 

@@ -26,13 +26,11 @@ type ClaudeError struct {
 type ErrorType string
 
 const (
-	ErrorTypeNewAPIError     ErrorType = "new_api_error"
-	ErrorTypeOpenAIError     ErrorType = "openai_error"
-	ErrorTypeClaudeError     ErrorType = "claude_error"
-	ErrorTypeMidjourneyError ErrorType = "midjourney_error"
-	ErrorTypeGeminiError     ErrorType = "gemini_error"
-	ErrorTypeRerankError     ErrorType = "rerank_error"
-	ErrorTypeUpstreamError   ErrorType = "upstream_error"
+	ErrorTypeNewAPIError   ErrorType = "new_api_error"
+	ErrorTypeOpenAIError   ErrorType = "openai_error"
+	ErrorTypeClaudeError   ErrorType = "claude_error"
+	ErrorTypeGeminiError   ErrorType = "gemini_error"
+	ErrorTypeUpstreamError ErrorType = "upstream_error"
 )
 
 type ErrorCode string
@@ -333,7 +331,6 @@ func WithOpenAIError(openAIError OpenAIError, statusCode int, ops ...NewAPIError
 		Err:        errors.New(openAIError.Message),
 		errorCode:  ErrorCode(code),
 	}
-	// OpenRouter
 	if len(openAIError.Metadata) > 0 {
 		openAIError.Message = fmt.Sprintf("%s (%s)", openAIError.Message, openAIError.Metadata)
 		e.Metadata = openAIError.Metadata

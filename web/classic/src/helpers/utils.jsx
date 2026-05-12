@@ -18,7 +18,11 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import { Toast, Pagination } from '@douyinfe/semi-ui';
-import { toastConstants, BILLING_PRICING_VARS, BILLING_VAR_REGEX } from '../constants';
+import {
+  toastConstants,
+  BILLING_PRICING_VARS,
+  BILLING_VAR_REGEX,
+} from '../constants';
 import React from 'react';
 import { toast } from 'react-toastify';
 import {
@@ -137,7 +141,7 @@ export function showError(error) {
           Toast.error('错误：服务器内部错误，请联系管理员！');
           break;
         case 405:
-          Toast.info('本站仅作演示之用，无服务端！');
+          Toast.error('错误：请求方法不被允许！');
           break;
         default:
           Toast.error('错误：' + error.message);
@@ -615,7 +619,6 @@ export const calculateModelPrice = ({
   tokenUnit,
   displayPrice,
   currency,
-  quotaDisplayType = 'USD',
   precision = 4,
 }) => {
   // 1. 选择实际使用的分组
@@ -658,8 +661,10 @@ export const calculateModelPrice = ({
   // 3. 根据计费类型计算价格
   if (record.quota_type === 0) {
     // 按量计费
-    const isTokensDisplay = quotaDisplayType === 'TOKENS';
-    const inputRatioPriceUSD = record.model_ratio * 2 * usedGroupRatio;
+    const inputPrice = Number(record.model_price || 0) * usedGroupRatio;
+    const completionPrice =
+      Number(record.completion_price ?? record.model_price ?? 0) *
+      usedGroupRatio;
     const unitDivisor = tokenUnit === 'K' ? 1000 : 1;
     const unitLabel = tokenUnit === 'K' ? 'K' : 'M';
     const hasRatioValue = (value) =>
@@ -668,73 +673,37 @@ export const calculateModelPrice = ({
       value !== '' &&
       Number.isFinite(Number(value));
 
-    const formatRatio = (value) =>
-      hasRatioValue(value) ? Number(Number(value).toFixed(6)) : null;
+    const symbol = currency === 'CNY' ? '¥' : '$';
 
-    if (isTokensDisplay) {
-      return {
-        inputRatio: formatRatio(record.model_ratio),
-        completionRatio: formatRatio(record.completion_ratio),
-        cacheRatio: formatRatio(record.cache_ratio),
-        createCacheRatio: formatRatio(record.create_cache_ratio),
-        imageRatio: formatRatio(record.image_ratio),
-        audioInputRatio: formatRatio(record.audio_ratio),
-        audioOutputRatio: formatRatio(record.audio_completion_ratio),
-        isPerToken: true,
-        isTokensDisplay: true,
-        usedGroup,
-        usedGroupRatio,
-      };
-    }
-
-    let symbol = '$';
-    if (currency === 'CNY') {
-      symbol = '¥';
-    } else if (currency === 'CUSTOM') {
-      try {
-        const statusStr = localStorage.getItem('status');
-        if (statusStr) {
-          const s = JSON.parse(statusStr);
-          symbol = s?.custom_currency_symbol || '¤';
-        } else {
-          symbol = '¤';
-        }
-      } catch (e) {
-        symbol = '¤';
-      }
-    }
-
-    const formatTokenPrice = (priceUSD) => {
-      const rawDisplayPrice = displayPrice(priceUSD);
+    const formatTokenPrice = (price) => {
+      const rawDisplayPrice = displayPrice(price);
       const numericPrice =
         parseFloat(rawDisplayPrice.replace(/[^0-9.]/g, '')) / unitDivisor;
       return `${symbol}${numericPrice.toFixed(precision)}`;
     };
 
-    const inputPrice = formatTokenPrice(inputRatioPriceUSD);
+    const formattedInputPrice = formatTokenPrice(inputPrice);
     const audioInputPrice = hasRatioValue(record.audio_ratio)
-      ? formatTokenPrice(inputRatioPriceUSD * Number(record.audio_ratio))
+      ? formatTokenPrice(inputPrice * Number(record.audio_ratio))
       : null;
 
     return {
-      inputPrice,
-      completionPrice: formatTokenPrice(
-        inputRatioPriceUSD * Number(record.completion_ratio),
-      ),
+      inputPrice: formattedInputPrice,
+      completionPrice: formatTokenPrice(completionPrice),
       cachePrice: hasRatioValue(record.cache_ratio)
-        ? formatTokenPrice(inputRatioPriceUSD * Number(record.cache_ratio))
+        ? formatTokenPrice(inputPrice * Number(record.cache_ratio))
         : null,
       createCachePrice: hasRatioValue(record.create_cache_ratio)
-        ? formatTokenPrice(inputRatioPriceUSD * Number(record.create_cache_ratio))
+        ? formatTokenPrice(inputPrice * Number(record.create_cache_ratio))
         : null,
       imagePrice: hasRatioValue(record.image_ratio)
-        ? formatTokenPrice(inputRatioPriceUSD * Number(record.image_ratio))
+        ? formatTokenPrice(inputPrice * Number(record.image_ratio))
         : null,
       audioInputPrice,
       audioOutputPrice:
         audioInputPrice && hasRatioValue(record.audio_completion_ratio)
           ? formatTokenPrice(
-              inputRatioPriceUSD *
+              inputPrice *
                 Number(record.audio_ratio) *
                 Number(record.audio_completion_ratio),
             )
@@ -749,8 +718,8 @@ export const calculateModelPrice = ({
 
   if (record.quota_type === 1) {
     // 按次计费
-    const priceUSD = parseFloat(record.model_price) * usedGroupRatio;
-    const displayVal = displayPrice(priceUSD);
+    const fixedPrice = parseFloat(record.model_fixed_price) * usedGroupRatio;
+    const displayVal = displayPrice(fixedPrice);
 
     return {
       price: displayVal,
@@ -771,11 +740,7 @@ export const calculateModelPrice = ({
   };
 };
 
-export const getModelPriceItems = (
-  priceData,
-  t,
-  quotaDisplayType = 'USD',
-) => {
+export const getModelPriceItems = (priceData, t) => {
   if (priceData.isDynamicPricing) {
     return [
       {
@@ -789,67 +754,17 @@ export const getModelPriceItems = (
   }
 
   if (priceData.isPerToken) {
-    if (quotaDisplayType === 'TOKENS' || priceData.isTokensDisplay) {
-      return [
-        {
-          key: 'input-ratio',
-          label: t('输入倍率'),
-          value: priceData.inputRatio,
-          suffix: 'x',
-        },
-        {
-          key: 'completion-ratio',
-          label: t('补全倍率'),
-          value: priceData.completionRatio,
-          suffix: 'x',
-        },
-        {
-          key: 'cache-ratio',
-          label: t('缓存读取倍率'),
-          value: priceData.cacheRatio,
-          suffix: 'x',
-        },
-        {
-          key: 'create-cache-ratio',
-          label: t('缓存创建倍率'),
-          value: priceData.createCacheRatio,
-          suffix: 'x',
-        },
-        {
-          key: 'image-ratio',
-          label: t('图片输入倍率'),
-          value: priceData.imageRatio,
-          suffix: 'x',
-        },
-        {
-          key: 'audio-input-ratio',
-          label: t('音频输入倍率'),
-          value: priceData.audioInputRatio,
-          suffix: 'x',
-        },
-        {
-          key: 'audio-output-ratio',
-          label: t('音频补全倍率'),
-          value: priceData.audioOutputRatio,
-          suffix: 'x',
-        },
-      ].filter(
-        (item) =>
-          item.value !== null && item.value !== undefined && item.value !== '',
-      );
-    }
-
     const unitSuffix = ` / 1${priceData.unitLabel} Tokens`;
     return [
       {
         key: 'input',
-        label: t('输入价格'),
+        label: t('模型价格'),
         value: priceData.inputPrice,
         suffix: unitSuffix,
       },
       {
         key: 'completion',
-        label: t('补全价格'),
+        label: t('模型补全价格'),
         value: priceData.completionPrice,
         suffix: unitSuffix,
       },
@@ -883,7 +798,10 @@ export const getModelPriceItems = (
         value: priceData.audioOutputPrice,
         suffix: unitSuffix,
       },
-    ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+    ].filter(
+      (item) =>
+        item.value !== null && item.value !== undefined && item.value !== '',
+    );
   }
 
   return [
@@ -893,26 +811,21 @@ export const getModelPriceItems = (
       value: priceData.price,
       suffix: ` / ${t('次')}`,
     },
-  ].filter((item) => item.value !== null && item.value !== undefined && item.value !== '');
+  ].filter(
+    (item) =>
+      item.value !== null && item.value !== undefined && item.value !== '',
+  );
 };
 
 // 格式化动态计费摘要（用于卡片视图，与 formatPriceInfo 风格统一）
 export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
-  if (!billingExpr) return <span style={{ color: 'var(--semi-color-text-1)' }}>{t('动态计费')}</span>;
+  if (!billingExpr)
+    return (
+      <span style={{ color: 'var(--semi-color-text-1)' }}>{t('动态计费')}</span>
+    );
 
-  const quotaDisplayType = localStorage.getItem('quota_display_type') || 'USD';
-  let symbol = '$';
-  let rate = 1;
-  try {
-    const s = JSON.parse(localStorage.getItem('status') || '{}');
-    if (quotaDisplayType === 'CNY') {
-      symbol = '¥';
-      rate = s?.usd_exchange_rate || 7;
-    } else if (quotaDisplayType === 'CUSTOM') {
-      symbol = s?.custom_currency_symbol || '¤';
-      rate = s?.custom_currency_exchange_rate || 1;
-    }
-  } catch (e) {}
+  const symbol =
+    localStorage.getItem('quota_display_type') === 'CNY' ? '¥' : '$';
 
   const gr = groupRatio || 1;
   const exprBody = billingExpr.replace(/^v\d+:/, '');
@@ -929,7 +842,9 @@ export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
 
   const varLabels = BILLING_PRICING_VARS.map((v) => [v.key, v.label]);
 
-  const hasTimeCondition = /\b(?:hour|minute|weekday|month|day)\(/.test(exprBody);
+  const hasTimeCondition = /\b(?:hour|minute|weekday|month|day)\(/.test(
+    exprBody,
+  );
   const hasRequestCondition = /\b(?:param|header)\(/.test(exprBody);
 
   const tags = [];
@@ -947,42 +862,42 @@ export const formatDynamicPriceSummary = (billingExpr, t, groupRatio = 1) => {
           {varLabels.map(([key, label]) =>
             key in varCoeffs ? (
               <span key={key} style={lineStyle}>
-                {`${t(label)} ${symbol}${(varCoeffs[key] * gr * rate).toFixed(4)}${unitSuffix}`}
+                {`${t(label)} ${symbol}${(varCoeffs[key] * gr).toFixed(4)}${unitSuffix}`}
               </span>
             ) : null,
           )}
         </>
       )}
       {(tierCount > 1 || hasTimeCondition || hasRequestCondition) && (
-      <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
-        <span
-          style={{
-            display: 'inline-block',
-            padding: '1px 6px',
-            borderRadius: 4,
-            fontSize: 11,
-            background: 'var(--semi-color-warning-light-default)',
-            color: 'var(--semi-color-warning)',
-          }}
-        >
-          {t('动态计费')}
-        </span>
-        {tags.map((tag) => (
+        <span style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
           <span
-            key={tag}
             style={{
               display: 'inline-block',
               padding: '1px 6px',
               borderRadius: 4,
               fontSize: 11,
-              background: 'var(--semi-color-fill-1)',
-              color: 'var(--semi-color-text-2)',
+              background: 'var(--semi-color-warning-light-default)',
+              color: 'var(--semi-color-warning)',
             }}
           >
-            {tag}
+            {t('动态计费')}
           </span>
-        ))}
-      </span>
+          {tags.map((tag) => (
+            <span
+              key={tag}
+              style={{
+                display: 'inline-block',
+                padding: '1px 6px',
+                borderRadius: 4,
+                fontSize: 11,
+                background: 'var(--semi-color-fill-1)',
+                color: 'var(--semi-color-text-2)',
+              }}
+            >
+              {tag}
+            </span>
+          ))}
+        </span>
       )}
     </>
   );
@@ -1056,7 +971,6 @@ export const createCardProPagination = ({
 const DEFAULT_PRICING_FILTERS = {
   search: '',
   showWithRecharge: false,
-  currency: 'USD',
   showRatio: false,
   viewMode: 'card',
   tokenUnit: 'M',
@@ -1072,7 +986,6 @@ const DEFAULT_PRICING_FILTERS = {
 export const resetPricingFilters = ({
   handleChange,
   setShowWithRecharge,
-  setCurrency,
   setShowRatio,
   setViewMode,
   setFilterGroup,
@@ -1085,7 +998,6 @@ export const resetPricingFilters = ({
 }) => {
   handleChange?.(DEFAULT_PRICING_FILTERS.search);
   setShowWithRecharge?.(DEFAULT_PRICING_FILTERS.showWithRecharge);
-  setCurrency?.(DEFAULT_PRICING_FILTERS.currency);
   setShowRatio?.(DEFAULT_PRICING_FILTERS.showRatio);
   setViewMode?.(DEFAULT_PRICING_FILTERS.viewMode);
   setTokenUnit?.(DEFAULT_PRICING_FILTERS.tokenUnit);

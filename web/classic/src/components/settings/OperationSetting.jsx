@@ -41,14 +41,10 @@ const OperationSetting = () => {
     /* 通用设置 */
     TopUpLink: '',
     'general_setting.docs_link': '',
-    QuotaPerUnit: 0,
-    USDExchangeRate: 0,
     RetryTimes: 0,
     'general_setting.quota_display_type': 'USD',
     DisplayTokenStatEnabled: false,
     DefaultCollapseSidebar: false,
-    DemoSiteEnabled: false,
-    SelfUseModeEnabled: false,
 
     /* 顶栏模块管理 */
     HeaderNavModules: '',
@@ -60,9 +56,6 @@ const OperationSetting = () => {
     CheckSensitiveEnabled: false,
     CheckSensitiveOnPromptEnabled: false,
     SensitiveWords: '',
-
-    /* 日志设置 */
-    LogConsumeEnabled: false,
 
     /* 监控设置 */
     ChannelDisableThreshold: 0,
@@ -86,7 +79,7 @@ const OperationSetting = () => {
   let [loading, setLoading] = useState(false);
 
   const getOptions = async () => {
-    const res = await API.get('/api/option/');
+    const res = await API.query('options');
     const { success, message, data } = res.data;
     if (success) {
       let newInputs = {};

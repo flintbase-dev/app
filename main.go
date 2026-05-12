@@ -12,15 +12,12 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/controller"
 	"github.com/QuantumNous/new-api/i18n"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
-	"github.com/QuantumNous/new-api/oauth"
 	perfmetrics "github.com/QuantumNous/new-api/pkg/perf_metrics"
-	"github.com/QuantumNous/new-api/relay"
 	"github.com/QuantumNous/new-api/router"
 	"github.com/QuantumNous/new-api/service"
 	_ "github.com/QuantumNous/new-api/setting/performance_setting"
@@ -66,7 +63,6 @@ func main() {
 	}()
 
 	if common.RedisEnabled {
-		// for compatibility with old versions
 		common.MemoryCacheEnabled = true
 	}
 	if common.MemoryCacheEnabled {
@@ -94,9 +90,6 @@ func main() {
 	// 热更新配置
 	go model.SyncOptions(common.SyncFrequency)
 
-	// 数据看板
-	go model.UpdateQuotaData()
-
 	if os.Getenv("CHANNEL_UPDATE_FREQUENCY") != "" {
 		frequency, err := strconv.Atoi(os.Getenv("CHANNEL_UPDATE_FREQUENCY"))
 		if err != nil {
@@ -107,32 +100,12 @@ func main() {
 
 	go controller.AutomaticallyTestChannels()
 
-	// Codex credential auto-refresh check every 10 minutes, refresh when expires within 1 day
-	service.StartCodexCredentialAutoRefreshTask()
-
 	// Subscription quota reset task (daily/weekly/monthly/custom)
 	service.StartSubscriptionQuotaResetTask()
-
-	// Wire task polling adaptor factory (breaks service -> relay import cycle)
-	service.GetTaskAdaptorFunc = func(platform constant.TaskPlatform) service.TaskPollingAdaptor {
-		a := relay.GetTaskAdaptor(platform)
-		if a == nil {
-			return nil
-		}
-		return a
-	}
 
 	// Channel upstream model update check task
 	controller.StartChannelUpstreamModelUpdateTask()
 
-	if common.IsMasterNode && constant.UpdateTask {
-		gopool.Go(func() {
-			controller.UpdateMidjourneyTaskBulk()
-		})
-		gopool.Go(func() {
-			controller.UpdateTaskBulk()
-		})
-	}
 	if os.Getenv("BATCH_UPDATE_ENABLED") == "true" {
 		common.BatchUpdateEnabled = true
 		common.SysLog("batch update enabled with interval " + strconv.Itoa(common.BatchUpdateInterval) + "s")
@@ -141,7 +114,15 @@ func main() {
 
 	if os.Getenv("ENABLE_PPROF") == "true" {
 		gopool.Go(func() {
-			log.Println(http.ListenAndServe("0.0.0.0:8005", nil))
+			pprofAddr := common.GetEnvOrDefaultString("PPROF_ADDR", "127.0.0.1:8005")
+			pprofServer := &http.Server{
+				Addr:              pprofAddr,
+				Handler:           http.DefaultServeMux,
+				ReadHeaderTimeout: 5 * time.Second,
+				IdleTimeout:       60 * time.Second,
+				MaxHeaderBytes:    1 << 20,
+			}
+			log.Println(pprofServer.ListenAndServe())
 		})
 		go common.Monitor()
 		common.SysLog("pprof enabled")
@@ -176,9 +157,28 @@ func main() {
 		MaxAge:   2592000, // 30 days
 		HttpOnly: true,
 		Secure:   false,
-		SameSite: http.SameSiteStrictMode,
+		SameSite: http.SameSiteLaxMode,
 	})
 	server.Use(sessions.Sessions("session", store))
+
+	var port = os.Getenv("PORT")
+	if port == "" {
+		port = strconv.Itoa(*common.Port)
+	}
+
+	var newFrontendURL string
+	var stopNewFrontend func()
+	frontendBaseURL := os.Getenv("FRONTEND_BASE_URL")
+	if frontendBaseURL == "" || common.IsMasterNode {
+		newFrontendURL, stopNewFrontend, err = router.StartNewFrontendRuntime(port)
+		if err != nil {
+			common.FatalLog("failed to start web/new frontend runtime: " + err.Error())
+			return
+		}
+		if stopNewFrontend != nil {
+			defer stopNewFrontend()
+		}
+	}
 
 	InjectUmamiAnalytics()
 	InjectGoogleAnalytics()
@@ -187,17 +187,21 @@ func main() {
 	router.SetRouter(server, router.WebAssets{
 		ClassicBuildFS:   classicBuildFS,
 		ClassicIndexPage: classicIndexPage,
+		NewFrontendURL:   newFrontendURL,
 	})
-	var port = os.Getenv("PORT")
-	if port == "" {
-		port = strconv.Itoa(*common.Port)
-	}
 
 	// Log startup success message
 	common.LogStartupSuccess(startTime, port)
 
-	err = server.Run(":" + port)
-	if err != nil {
+	httpServer := &http.Server{
+		Addr:              ":" + port,
+		Handler:           server,
+		ReadHeaderTimeout: 10 * time.Second,
+		IdleTimeout:       120 * time.Second,
+		MaxHeaderBytes:    1 << 20,
+	}
+	err = httpServer.ListenAndServe()
+	if err != nil && err != http.ErrServerClosed {
 		common.FatalLog("failed to start HTTP server: " + err.Error())
 	}
 }
@@ -279,7 +283,7 @@ func InitResources() error {
 	// Initialize options, should after model.InitDB()
 	model.InitOptionMap()
 
-	// 清理旧的磁盘缓存文件
+	// 清理过期的磁盘缓存文件
 	common.CleanupOldCacheFiles()
 
 	// 初始化模型
@@ -312,13 +316,6 @@ func InitResources() error {
 	}
 	// Register user language loader for lazy loading
 	i18n.SetUserLangLoader(model.GetUserLanguage)
-
-	// Load custom OAuth providers from database
-	err = oauth.LoadCustomProviders()
-	if err != nil {
-		common.SysError("failed to load custom OAuth providers: " + err.Error())
-		// Don't return error, custom OAuth is not critical
-	}
 
 	return nil
 }

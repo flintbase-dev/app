@@ -34,9 +34,7 @@ export default function SettingsGeneralPayment(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     ServerAddress: '',
-    CustomCallbackAddress: '',
     TopupGroupRatio: '',
-    PayMethods: '',
     AmountOptions: '',
     AmountDiscount: '',
   });
@@ -47,9 +45,7 @@ export default function SettingsGeneralPayment(props) {
     if (props.options && formApiRef.current) {
       const currentInputs = {
         ServerAddress: props.options.ServerAddress || '',
-        CustomCallbackAddress: props.options.CustomCallbackAddress || '',
         TopupGroupRatio: props.options.TopupGroupRatio || '',
-        PayMethods: props.options.PayMethods || '',
         AmountOptions: props.options.AmountOptions || '',
         AmountDiscount: props.options.AmountDiscount || '',
       };
@@ -69,14 +65,6 @@ export default function SettingsGeneralPayment(props) {
       !verifyJSON(inputs.TopupGroupRatio)
     ) {
       showError(t('充值分组倍率不是合法的 JSON 字符串'));
-      return;
-    }
-
-    if (
-      originInputs.PayMethods !== inputs.PayMethods &&
-      !verifyJSON(inputs.PayMethods)
-    ) {
-      showError(t('充值方式设置不是合法的 JSON 字符串'));
       return;
     }
 
@@ -107,17 +95,8 @@ export default function SettingsGeneralPayment(props) {
         },
       ];
 
-      if (inputs.CustomCallbackAddress !== '') {
-        options.push({
-          key: 'CustomCallbackAddress',
-          value: removeTrailingSlash(inputs.CustomCallbackAddress),
-        });
-      }
       if (originInputs.TopupGroupRatio !== inputs.TopupGroupRatio) {
         options.push({ key: 'TopupGroupRatio', value: inputs.TopupGroupRatio });
-      }
-      if (originInputs.PayMethods !== inputs.PayMethods) {
-        options.push({ key: 'PayMethods', value: inputs.PayMethods });
       }
       if (originInputs.AmountOptions !== inputs.AmountOptions) {
         options.push({
@@ -134,7 +113,7 @@ export default function SettingsGeneralPayment(props) {
 
       const results = await Promise.all(
         options.map((option) =>
-          API.put('/api/option/', {
+          API.mutation('updateOption', {
             key: option.key,
             value: option.value,
           }),
@@ -174,21 +153,8 @@ export default function SettingsGeneralPayment(props) {
               '该服务器地址将影响支付回调地址以及默认首页展示的地址，请确保正确配置',
             )}
           />
-          <Row
-            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-            style={{ marginTop: 16 }}
-          >
-            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-              <Form.Input
-                field='CustomCallbackAddress'
-                label={t('回调地址')}
-                placeholder={t('例如：https://yourdomain.com')}
-                extraText={t(
-                  '留空时默认使用服务器地址作为回调地址，填写后将覆盖默认值',
-                )}
-              />
-            </Col>
-            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+          <Row style={{ marginTop: 16 }}>
+            <Col span={24}>
               <Form.TextArea
                 field='TopupGroupRatio'
                 label={t('充值分组倍率')}
@@ -197,19 +163,8 @@ export default function SettingsGeneralPayment(props) {
               />
             </Col>
           </Row>
-          <Row
-            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
-            style={{ marginTop: 16 }}
-          >
-            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
-              <Form.TextArea
-                field='PayMethods'
-                label={t('充值方式设置')}
-                placeholder={t('为一个 JSON 文本')}
-                autosize
-              />
-            </Col>
-            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+          <Row style={{ marginTop: 16 }}>
+            <Col span={24}>
               <Form.TextArea
                 field='AmountOptions'
                 label={t('自定义充值数量选项')}

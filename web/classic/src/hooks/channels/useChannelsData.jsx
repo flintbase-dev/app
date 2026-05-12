@@ -25,7 +25,6 @@ import {
   showInfo,
   showSuccess,
   loadChannelModels,
-  copy,
   toBoolean,
 } from '../../helpers';
 import {
@@ -37,8 +36,6 @@ import { useIsMobile } from '../common/useIsMobile';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import { useChannelUpstreamUpdates } from './useChannelUpstreamUpdates';
 import { parseUpstreamUpdateMeta } from './upstreamUpdateUtils';
-import { Modal, Button } from '@douyinfe/semi-ui';
-import { openCodexUsageModal } from '../../components/table/channels/modals/CodexUsageModal';
 
 export const useChannelsData = () => {
   const { t } = useTranslation();
@@ -95,7 +92,7 @@ export const useChannelsData = () => {
 
   const fetchGlobalPassThroughEnabled = async () => {
     try {
-      const res = await API.get('/api/option/');
+      const res = await API.query('options');
       const { success, data } = res?.data || {};
       if (!success || !Array.isArray(data)) {
         return;
@@ -344,11 +341,14 @@ export const useChannelsData = () => {
 
     const reqId = ++requestCounter.current;
     setLoading(true);
-    const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
-    const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
-    const res = await API.get(
-      `/api/channel/?p=${page}&page_size=${pageSize}&id_sort=${idSort}&tag_mode=${enableTagMode}${typeParam}${statusParam}`,
-    );
+    const res = await API.query('channels', {
+      p: page,
+      page_size: pageSize,
+      id_sort: idSort,
+      tag_mode: enableTagMode,
+      ...(typeKey !== 'all' ? { type: typeKey } : {}),
+      ...(statusF !== 'all' ? { status: statusF } : {}),
+    });
 
     if (res === undefined || reqId !== requestCounter.current) {
       return;
@@ -396,11 +396,17 @@ export const useChannelsData = () => {
         return;
       }
 
-      const typeParam = typeKey !== 'all' ? `&type=${typeKey}` : '';
-      const statusParam = statusF !== 'all' ? `&status=${statusF}` : '';
-      const res = await API.get(
-        `/api/channel/search?keyword=${searchKeyword}&group=${searchGroup}&model=${searchModel}&id_sort=${sortFlag}&tag_mode=${enableTagMode}&p=${page}&page_size=${pageSz}${typeParam}${statusParam}`,
-      );
+      const res = await API.query('searchChannels', {
+        keyword: searchKeyword,
+        group: searchGroup,
+        model: searchModel,
+        id_sort: sortFlag,
+        tag_mode: enableTagMode,
+        p: page,
+        page_size: pageSz,
+        ...(typeKey !== 'all' ? { type: typeKey } : {}),
+        ...(statusF !== 'all' ? { status: statusF } : {}),
+      });
       const { success, message, data } = res.data;
       if (success) {
         const { items = [], total = 0, type_counts = {} } = data;
@@ -422,15 +428,19 @@ export const useChannelsData = () => {
 
   // Refresh
   const refresh = async (page = activePage) => {
+    const normalizedPage =
+      Number.isInteger(Number(page)) && Number(page) > 0
+        ? Number(page)
+        : activePage;
     const { searchKeyword, searchGroup, searchModel } = getFormValues();
     if (searchKeyword === '' && searchGroup === '' && searchModel === '') {
-      await loadChannels(page, pageSize, idSort, enableTagMode);
+      await loadChannels(normalizedPage, pageSize, idSort, enableTagMode);
     } else {
       await searchChannels(
         enableTagMode,
         activeTypeKey,
         statusFilter,
-        page,
+        normalizedPage,
         pageSize,
         idSort,
       );
@@ -445,31 +455,31 @@ export const useChannelsData = () => {
     let res;
     switch (action) {
       case 'delete':
-        res = await API.delete(`/api/channel/${id}/`);
+        res = await API.mutation('deleteChannel', { id });
         break;
       case 'enable':
         data.status = 1;
-        res = await API.put('/api/channel/', data);
+        res = await API.mutation('updateChannel', data);
         break;
       case 'disable':
         data.status = 2;
-        res = await API.put('/api/channel/', data);
+        res = await API.mutation('updateChannel', data);
         break;
       case 'priority':
         if (value === '') return;
         data.priority = parseInt(value);
-        res = await API.put('/api/channel/', data);
+        res = await API.mutation('updateChannel', data);
         break;
       case 'weight':
         if (value === '') return;
         data.weight = parseInt(value);
         if (data.weight < 0) data.weight = 0;
-        res = await API.put('/api/channel/', data);
+        res = await API.mutation('updateChannel', data);
         break;
       case 'enable_all':
         data.channel_info = record.channel_info;
         data.channel_info.multi_key_status_list = {};
-        res = await API.put('/api/channel/', data);
+        res = await API.mutation('updateChannel', data);
         break;
     }
     const { success, message } = res.data;
@@ -491,10 +501,10 @@ export const useChannelsData = () => {
     let res;
     switch (action) {
       case 'enable':
-        res = await API.post('/api/channel/tag/enabled', { tag: tag });
+        res = await API.mutation('enableTagChannels', { tag: tag });
         break;
       case 'disable':
-        res = await API.post('/api/channel/tag/disabled', { tag: tag });
+        res = await API.mutation('disableTagChannels', { tag: tag });
         break;
     }
     const { success, message } = res.data;
@@ -560,7 +570,7 @@ export const useChannelsData = () => {
   // Fetch groups
   const fetchGroups = async () => {
     try {
-      let res = await API.get(`/api/group/`);
+      let res = await API.query('groups');
       if (res === undefined) return;
       setGroupOptions(
         res.data.data.map((group) => ({
@@ -576,7 +586,9 @@ export const useChannelsData = () => {
   // Copy channel
   const copySelectedChannel = async (record) => {
     try {
-      const res = await API.post(`/api/channel/copy/${record.id}`);
+      const res = await API.mutation('copyChannel', {
+        id: record.id,
+      });
       if (res?.data?.success) {
         showSuccess(t('渠道复制成功'));
         await refresh();
@@ -639,7 +651,7 @@ export const useChannelsData = () => {
     }
 
     try {
-      const res = await API.put('/api/channel/tag', data);
+      const res = await API.mutation('editTagChannels', data);
       if (res?.data?.success) {
         showSuccess('更新成功！');
         await refresh();
@@ -678,7 +690,7 @@ export const useChannelsData = () => {
       return;
     }
     let ids = selectedChannels.map((channel) => channel.id);
-    const res = await API.post('/api/channel/batch/tag', {
+    const res = await API.mutation('batchSetChannelTag', {
       ids: ids,
       tag: batchSetTagValue === '' ? null : batchSetTagValue,
     });
@@ -703,7 +715,7 @@ export const useChannelsData = () => {
     selectedChannels.forEach((channel) => {
       ids.push(channel.id);
     });
-    const res = await API.post(`/api/channel/batch`, { ids: ids });
+    const res = await API.mutation('deleteChannels', { ids: ids });
     const { success, message, data } = res.data;
     if (success) {
       showSuccess(t('已删除 ${data} 个通道！').replace('${data}', data));
@@ -721,7 +733,7 @@ export const useChannelsData = () => {
 
   // Channel operations
   const testAllChannels = async () => {
-    const res = await API.get(`/api/channel/test`);
+    const res = await API.mutation('testAllChannels');
     const { success, message } = res.data;
     if (success) {
       showInfo(t('已成功开始测试所有已启用通道，请刷新页面查看结果。'));
@@ -731,7 +743,7 @@ export const useChannelsData = () => {
   };
 
   const deleteAllDisabledChannels = async () => {
-    const res = await API.delete(`/api/channel/disabled`);
+    const res = await API.mutation('deleteDisabledChannels');
     const { success, message, data } = res.data;
     if (success) {
       showSuccess(
@@ -744,7 +756,7 @@ export const useChannelsData = () => {
   };
 
   const updateAllChannelsBalance = async () => {
-    const res = await API.get(`/api/channel/update_balance`);
+    const res = await API.mutation('updateAllChannelBalance');
     const { success, message } = res.data;
     if (success) {
       showInfo(t('已更新完毕所有已启用通道余额！'));
@@ -754,20 +766,9 @@ export const useChannelsData = () => {
   };
 
   const updateChannelBalance = async (record) => {
-    if (record?.type === 57) {
-      openCodexUsageModal({
-        t,
-        record,
-        onCopy: async (text) => {
-          const ok = await copy(text);
-          if (ok) showSuccess(t('已复制'));
-          else showError(t('复制失败'));
-        },
-      });
-      return;
-    }
-
-    const res = await API.get(`/api/channel/update_balance/${record.id}/`);
+    const res = await API.mutation('updateChannelBalance', {
+      id: record.id,
+    });
     const { success, message, balance } = res.data;
     if (success) {
       updateChannelProperty(record.id, (channel) => {
@@ -783,7 +784,7 @@ export const useChannelsData = () => {
   };
 
   const fixChannelsAbilities = async () => {
-    const res = await API.post(`/api/channel/fix`);
+    const res = await API.mutation('fixChannelsAbilities');
     const { success, message, data } = res.data;
     if (success) {
       showSuccess(
@@ -794,67 +795,6 @@ export const useChannelsData = () => {
       await refresh();
     } else {
       showError(message);
-    }
-  };
-
-  const checkOllamaVersion = async (record) => {
-    try {
-      const res = await API.get(`/api/channel/ollama/version/${record.id}`);
-      const { success, message, data } = res.data;
-
-      if (success) {
-        const version = data?.version || '-';
-        const infoMessage = t('当前 Ollama 版本为 ${version}').replace(
-          '${version}',
-          version,
-        );
-
-        const handleCopyVersion = async () => {
-          if (!version || version === '-') {
-            showInfo(t('暂无可复制的版本信息'));
-            return;
-          }
-
-          const copied = await copy(version);
-          if (copied) {
-            showSuccess(t('已复制版本号'));
-          } else {
-            showError(t('复制失败，请手动复制'));
-          }
-        };
-
-        Modal.info({
-          title: t('Ollama 版本信息'),
-          content: infoMessage,
-          centered: true,
-          footer: (
-            <div className='flex justify-end gap-2'>
-              <Button type='tertiary' onClick={handleCopyVersion}>
-                {t('复制版本号')}
-              </Button>
-              <Button
-                type='primary'
-                theme='solid'
-                onClick={() => Modal.destroyAll()}
-              >
-                {t('关闭')}
-              </Button>
-            </div>
-          ),
-          hasCancel: false,
-          hasOk: false,
-          closable: true,
-          maskClosable: true,
-        });
-      } else {
-        showError(message || t('获取 Ollama 版本失败'));
-      }
-    } catch (error) {
-      const errMsg =
-        error?.response?.data?.message ||
-        error?.message ||
-        t('获取 Ollama 版本失败');
-      showError(errMsg);
     }
   };
 
@@ -876,14 +816,14 @@ export const useChannelsData = () => {
     setTestingModels((prev) => new Set([...prev, model]));
 
     try {
-      let url = `/api/channel/test/${record.id}?model=${model}`;
-      if (endpointType) {
-        url += `&endpoint_type=${endpointType}`;
-      }
-      if (stream) {
-        url += `&stream=true`;
-      }
-      const res = await API.get(url);
+      const res = await API.mutation('testChannel', {
+        input: { id: record.id },
+        params: {
+          model,
+          ...(endpointType ? { endpoint_type: endpointType } : {}),
+          ...(stream ? { stream: true } : {}),
+        },
+      });
 
       // 检查是否在请求期间被停止
       if (shouldStopBatchTestingRef.current && isBatchTesting) {
@@ -1234,7 +1174,6 @@ export const useChannelsData = () => {
     updateAllChannelsBalance,
     updateChannelBalance,
     fixChannelsAbilities,
-    checkOllamaVersion,
     testChannel,
     batchTestModels,
     handleCloseModal,

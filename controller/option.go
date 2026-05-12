@@ -11,94 +11,28 @@ import (
 	"github.com/QuantumNous/new-api/setting/console_setting"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
-	"github.com/QuantumNous/new-api/setting/system_setting"
 
 	"github.com/gin-gonic/gin"
 )
 
-var completionRatioMetaOptionKeys = []string{
-	"ModelPrice",
-	"ModelRatio",
-	"CompletionRatio",
-	"CacheRatio",
-	"CreateCacheRatio",
-	"ImageRatio",
-	"AudioRatio",
-	"AudioCompletionRatio",
-}
-
 func isVisiblePublicKeyOption(key string) bool {
-	switch key {
-	case "WaffoPancakeWebhookPublicKey", "WaffoPancakeWebhookTestKey":
-		return true
-	default:
-		return false
-	}
-}
-
-func collectModelNamesFromOptionValue(raw string, modelNames map[string]struct{}) {
-	if strings.TrimSpace(raw) == "" {
-		return
-	}
-
-	var parsed map[string]any
-	if err := common.UnmarshalJsonStr(raw, &parsed); err != nil {
-		return
-	}
-
-	for modelName := range parsed {
-		modelNames[modelName] = struct{}{}
-	}
-}
-
-func buildCompletionRatioMetaValue(optionValues map[string]string) string {
-	modelNames := make(map[string]struct{})
-	for _, key := range completionRatioMetaOptionKeys {
-		collectModelNamesFromOptionValue(optionValues[key], modelNames)
-	}
-
-	meta := make(map[string]ratio_setting.CompletionRatioInfo, len(modelNames))
-	for modelName := range modelNames {
-		meta[modelName] = ratio_setting.GetCompletionRatioInfo(modelName)
-	}
-
-	jsonBytes, err := common.Marshal(meta)
-	if err != nil {
-		return "{}"
-	}
-	return string(jsonBytes)
+	return false
 }
 
 func GetOptions(c *gin.Context) {
 	var options []*model.Option
-	optionValues := make(map[string]string)
-	common.OptionMapRWMutex.Lock()
+	common.OptionMapRWMutex.RLock()
 	for k, v := range common.OptionMap {
 		value := common.Interface2String(v)
-		isSensitiveKey := strings.HasSuffix(k, "Token") ||
-			strings.HasSuffix(k, "Secret") ||
-			strings.HasSuffix(k, "Key") ||
-			strings.HasSuffix(k, "secret") ||
-			strings.HasSuffix(k, "api_key")
-		if isSensitiveKey && !isVisiblePublicKeyOption(k) {
+		if model.IsSensitiveOptionKey(k) && !isVisiblePublicKeyOption(k) {
 			continue
 		}
 		options = append(options, &model.Option{
 			Key:   k,
 			Value: value,
 		})
-		for _, optionKey := range completionRatioMetaOptionKeys {
-			if optionKey == k {
-				optionValues[k] = value
-				break
-			}
-		}
 	}
-	common.OptionMapRWMutex.Unlock()
-	options = append(options, &model.Option{
-		Key:   "CompletionRatioMeta",
-		Value: buildCompletionRatioMetaValue(optionValues),
-	})
+	common.OptionMapRWMutex.RUnlock()
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
@@ -108,8 +42,10 @@ func GetOptions(c *gin.Context) {
 }
 
 type OptionUpdateRequest struct {
-	Key   string `json:"key"`
-	Value any    `json:"value"`
+	Key                  string `json:"key"`
+	Value                any    `json:"value"`
+	Reason               string `json:"reason"`
+	RollbackOfRevisionId string `json:"rollback_of_revision_id"`
 }
 
 func UpdateOption(c *gin.Context) {
@@ -122,6 +58,14 @@ func UpdateOption(c *gin.Context) {
 		})
 		return
 	}
+	option.Key = strings.TrimSpace(option.Key)
+	if option.Key == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "option key is required",
+		})
+		return
+	}
 	switch option.Value.(type) {
 	case bool:
 		option.Value = common.Interface2String(option.Value.(bool))
@@ -129,58 +73,12 @@ func UpdateOption(c *gin.Context) {
 		option.Value = common.Interface2String(option.Value.(float64))
 	case int:
 		option.Value = common.Interface2String(option.Value.(int))
+	case nil:
+		option.Value = ""
 	default:
 		option.Value = fmt.Sprintf("%v", option.Value)
 	}
 	switch option.Key {
-	case "GitHubOAuthEnabled":
-		if option.Value == "true" && common.GitHubClientId == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "无法启用 GitHub OAuth，请先填入 GitHub Client Id 以及 GitHub Client Secret！",
-			})
-			return
-		}
-	case "discord.enabled":
-		if option.Value == "true" && system_setting.GetDiscordSettings().ClientId == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "无法启用 Discord OAuth，请先填入 Discord Client Id 以及 Discord Client Secret！",
-			})
-			return
-		}
-	case "oidc.enabled":
-		if option.Value == "true" && system_setting.GetOIDCSettings().ClientId == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "无法启用 OIDC 登录，请先填入 OIDC Client Id 以及 OIDC Client Secret！",
-			})
-			return
-		}
-	case "LinuxDOOAuthEnabled":
-		if option.Value == "true" && common.LinuxDOClientId == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "无法启用 LinuxDO OAuth，请先填入 LinuxDO Client Id 以及 LinuxDO Client Secret！",
-			})
-			return
-		}
-	case "EmailDomainRestrictionEnabled":
-		if option.Value == "true" && len(common.EmailDomainWhitelist) == 0 {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "无法启用邮箱域名限制，请先填入限制的邮箱域名！",
-			})
-			return
-		}
-	case "WeChatAuthEnabled":
-		if option.Value == "true" && common.WeChatServerAddress == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "无法启用微信登录，请先填入微信登录相关配置信息！",
-			})
-			return
-		}
 	case "TurnstileCheckEnabled":
 		if option.Value == "true" && common.TurnstileSiteKey == "" {
 			c.JSON(http.StatusOK, gin.H{
@@ -188,14 +86,6 @@ func UpdateOption(c *gin.Context) {
 				"message": "无法启用 Turnstile 校验，请先填入 Turnstile 校验相关配置信息！",
 			})
 
-			return
-		}
-	case "TelegramOAuthEnabled":
-		if option.Value == "true" && common.TelegramBotToken == "" {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "无法启用 Telegram OAuth，请先填入 Telegram Bot Token！",
-			})
 			return
 		}
 	case "GroupRatio":
@@ -222,6 +112,33 @@ func UpdateOption(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{
 				"success": false,
 				"message": "音频倍率设置失败: " + err.Error(),
+			})
+			return
+		}
+	case "ModelPrice":
+		err = ratio_setting.UpdateModelPriceByJSONString(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型价格设置失败: " + err.Error(),
+			})
+			return
+		}
+	case "CompletionPrice":
+		err = ratio_setting.UpdateCompletionPriceByJSONString(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型补全价格设置失败: " + err.Error(),
+			})
+			return
+		}
+	case "ModelFixedPrice":
+		err = ratio_setting.UpdateModelFixedPriceByJSONString(option.Value.(string))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "模型按次价格设置失败: " + err.Error(),
 			})
 			return
 		}
@@ -279,15 +196,6 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
-	case "console_setting.announcements":
-		err = console_setting.ValidateConsoleSettings(option.Value.(string), "Announcements")
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": err.Error(),
-			})
-			return
-		}
 	case "console_setting.faq":
 		err = console_setting.ValidateConsoleSettings(option.Value.(string), "FAQ")
 		if err != nil {
@@ -306,15 +214,68 @@ func UpdateOption(c *gin.Context) {
 			})
 			return
 		}
+	case "general_setting.quota_display_type":
+		value := option.Value.(string)
+		if value != operation_setting.QuotaDisplayTypeUSD && value != operation_setting.QuotaDisplayTypeCNY {
+			c.JSON(http.StatusOK, gin.H{
+				"success": false,
+				"message": "货币仅支持 USD 或 CNY",
+			})
+			return
+		}
 	}
-	err = model.UpdateOption(option.Key, option.Value.(string))
+	result, err := model.UpdateOptionWithRevision(option.Key, option.Value.(string), model.OptionUpdateMetadata{
+		ActorUserId:          c.GetString("id"),
+		RequestId:            c.GetString(common.RequestIdKey),
+		Reason:               option.Reason,
+		RollbackOfRevisionId: option.RollbackOfRevisionId,
+	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
+	revisionID := ""
+	auditOther := map[string]interface{}{
+		"key":       option.Key,
+		"reason":    strings.TrimSpace(option.Reason),
+		"old_value": nil,
+		"new_value": nil,
+	}
+	if result != nil && result.Revision != nil {
+		revisionID = result.Revision.Id
+		auditOther["revision_id"] = result.Revision.Id
+		auditOther["old_value_snapshot"] = result.Revision.OldValueSnapshot
+		auditOther["new_value_snapshot"] = result.Revision.NewValueSnapshot
+		auditOther["old_value_sha256"] = result.Revision.OldValueSHA256
+		auditOther["new_value_sha256"] = result.Revision.NewValueSHA256
+		auditOther["is_sensitive"] = result.Revision.IsSensitive
+		auditOther["rollback_of_revision_id"] = result.Revision.RollbackOfRevisionId
+	}
+	model.RecordAuditEventWithContext(c, model.LogEventParams{
+		Event:        "admin.option.update",
+		Content:      "system option updated",
+		ResourceType: "option",
+		ResourceId:   option.Key,
+		Other:        auditOther,
+	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data": gin.H{
+			"revision_id": revisionID,
+		},
 	})
 	return
+}
+
+func GetOptionRevisions(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	revisions, total, err := model.GetOptionRevisions(c.Query("key"), pageInfo.GetStartIdx(), pageInfo.GetPageSize())
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(revisions)
+	common.ApiSuccess(c, pageInfo)
 }

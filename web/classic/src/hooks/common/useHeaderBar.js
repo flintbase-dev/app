@@ -37,7 +37,9 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const [collapsed, toggleCollapsed] = useSidebarCollapsed();
   const [logoLoaded, setLogoLoaded] = useState(false);
   const navigate = useNavigate();
-  const [currentLang, setCurrentLang] = useState(normalizeLanguage(i18n.language));
+  const [currentLang, setCurrentLang] = useState(
+    normalizeLanguage(i18n.language),
+  );
   const location = useLocation();
 
   const loading = statusState?.status === undefined;
@@ -48,9 +50,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   const currentDate = new Date();
   const isNewYear = currentDate.getMonth() === 0 && currentDate.getDate() === 1;
 
-  const isSelfUseMode = statusState?.status?.self_use_mode_enabled || false;
   const docsLink = statusState?.status?.docs_link || '';
-  const isDemoSiteMode = statusState?.status?.demo_site_enabled || false;
 
   // 获取顶栏模块配置
   const headerNavModulesConfig = statusState?.status?.HeaderNavModules;
@@ -60,14 +60,6 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     if (headerNavModulesConfig) {
       try {
         const modules = JSON.parse(headerNavModulesConfig);
-
-        // 处理向后兼容性：如果pricing是boolean，转换为对象格式
-        if (typeof modules.pricing === 'boolean') {
-          modules.pricing = {
-            enabled: modules.pricing,
-            requireAuth: false, // 默认不需要登录鉴权
-          };
-        }
 
         return modules;
       } catch (error) {
@@ -81,11 +73,9 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
   // 获取模型广场权限配置
   const pricingRequireAuth = useMemo(() => {
     if (headerNavModules?.pricing) {
-      return typeof headerNavModules.pricing === 'object'
-        ? headerNavModules.pricing.requireAuth
-        : false; // 默认不需要登录
+      return headerNavModules.pricing.requireAuth === true;
     }
-    return false; // 默认不需要登录
+    return false;
   }, [headerNavModules]);
 
   const isConsoleRoute = location.pathname.startsWith('/console');
@@ -140,12 +130,11 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
 
   // Actions
   const logout = useCallback(async () => {
-    await API.get('/api/user/logout');
-    showSuccess(t('注销成功!'));
     userDispatch({ type: 'logout' });
     localStorage.removeItem('user');
-    navigate('/login');
-  }, [navigate, t, userDispatch]);
+    showSuccess(t('注销成功!'));
+    await API.redirect('workosLogout');
+  }, [t, userDispatch]);
 
   const handleLanguageChange = useCallback(
     async (lang) => {
@@ -157,7 +146,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
       // If user is logged in, save preference to backend
       if (userState?.user?.id) {
         try {
-          const res = await API.put('/api/user/self', {
+          const res = await API.mutation('updateSelf', {
             language: lang,
           });
           if (res.data.success) {
@@ -230,9 +219,7 @@ export const useHeaderBar = ({ onMobileMenuToggle, drawerOpen }) => {
     systemName,
     logo,
     isNewYear,
-    isSelfUseMode,
     docsLink,
-    isDemoSiteMode,
     isConsoleRoute,
     theme,
     drawerOpen,

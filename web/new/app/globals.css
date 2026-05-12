@@ -1,0 +1,266 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-plex-mono);
+  --font-heading: var(--font-geist-sans);
+
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-border-emphasis: var(--border-emphasis);
+
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+
+  /* Flint brand — orange ramp (opt-in, never auto-applied as primary) */
+  --color-brand: var(--brand);
+  --color-brand-foreground: var(--brand-foreground);
+  --color-brand-subtle: var(--brand-subtle);
+  --color-brand-emphasis: var(--brand-emphasis);
+  --color-brand-hover: var(--brand-hover);
+  --color-brand-50: var(--brand-50);
+  --color-brand-100: var(--brand-100);
+  --color-brand-200: var(--brand-200);
+  --color-brand-300: var(--brand-300);
+  --color-brand-400: var(--brand-400);
+  --color-brand-500: var(--brand-500);
+  --color-brand-600: var(--brand-600);
+  --color-brand-700: var(--brand-700);
+  --color-brand-800: var(--brand-800);
+  --color-brand-950: var(--brand-950);
+
+  /* Semantic — info/success/warning/danger with -bg/-dark variants */
+  --color-info: var(--info);
+  --color-info-bg: var(--info-bg);
+  --color-info-dark: var(--info-dark);
+  --color-success: var(--success);
+  --color-success-bg: var(--success-bg);
+  --color-success-dark: var(--success-dark);
+  --color-warning: var(--warning);
+  --color-warning-bg: var(--warning-bg);
+  --color-warning-dark: var(--warning-dark);
+  --color-danger: var(--danger);
+  --color-danger-bg: var(--danger-bg);
+  --color-danger-dark: var(--danger-dark);
+
+  /* Radius scale — Flint: sm 4 / md 6 / lg 8 / xl 12 / 2xl 16 (base = 8px) */
+  --radius-xs: 2px;
+  --radius-sm: 4px;
+  --radius-md: 6px;
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --radius-2xl: calc(var(--radius) + 8px);
+  --radius-3xl: calc(var(--radius) + 16px);
+  --radius-4xl: calc(var(--radius) + 24px);
+}
+
+:root {
+  /* Brand — Flint orange */
+  --brand-50: #fef2ec;
+  --brand-100: #fdd5bc;
+  --brand-200: #fab48a;
+  --brand-300: #f78f55;
+  --brand-400: #f26b1f;
+  --brand-500: #d45512;
+  --brand-600: #a83e0a;
+  --brand-700: #7c2a05;
+  --brand-800: #511803;
+  --brand-950: #270900;
+
+  --brand: var(--brand-400);
+  --brand-foreground: var(--brand-50);
+  --brand-subtle: var(--brand-50);
+  --brand-emphasis: var(--brand-700);
+  --brand-hover: var(--brand-500);
+
+  /* Neutral — Obsidian warm-gray */
+  --neutral-50: #f6f4f1;
+  --neutral-100: #e3e0d9;
+  --neutral-200: #c5c2b9;
+  --neutral-300: #9c9a91;
+  --neutral-400: #6f6d65;
+  --neutral-500: #4c4a43;
+  --neutral-600: #33312b;
+  --neutral-700: #201f1a;
+  --neutral-800: #141310;
+  --neutral-950: #0f0e0d;
+
+  /* Semantic — info / success / warning / danger */
+  --info: #2d6db8;
+  --info-bg: #eef4fb;
+  --info-dark: #0d305a;
+
+  --success: #3b6d18;
+  --success-bg: #eef5e8;
+  --success-dark: #163006;
+
+  --warning: #c08c0a;
+  --warning-bg: #fef8e6;
+  --warning-dark: #291b00;
+
+  --danger: #bc2c2c;
+  --danger-bg: #fdeeee;
+  --danger-dark: #2a0404;
+
+  /* Surfaces & text — light mode */
+  --background: #ffffff;
+  --foreground: var(--neutral-950);
+
+  --card: #ffffff;
+  --card-foreground: var(--neutral-950);
+
+  --popover: #ffffff;
+  --popover-foreground: var(--neutral-950);
+
+  /* Primary kept neutral — brand is opt-in via --brand-* */
+  --primary: var(--neutral-950);
+  --primary-foreground: var(--neutral-50);
+
+  --secondary: var(--neutral-50);
+  --secondary-foreground: var(--neutral-950);
+
+  --muted: var(--neutral-50);
+  --muted-foreground: var(--neutral-500);
+
+  --accent: var(--neutral-50);
+  --accent-foreground: var(--neutral-950);
+
+  --destructive: var(--danger);
+  --destructive-foreground: var(--danger-bg);
+
+  --border: var(--neutral-100);
+  --border-emphasis: var(--neutral-200);
+  --input: var(--neutral-200);
+  --ring: var(--brand-400);
+
+  /* Charts — Flint palette: brand + warm neutrals + semantics */
+  --chart-1: var(--brand-400);
+  --chart-2: var(--info);
+  --chart-3: var(--success);
+  --chart-4: var(--warning);
+  --chart-5: var(--neutral-500);
+
+  --radius: 0.5rem; /* 8px = Flint lg */
+
+  /* Sidebar — uses neutral surface */
+  --sidebar: var(--neutral-50);
+  --sidebar-foreground: var(--neutral-950);
+  --sidebar-primary: var(--neutral-950);
+  --sidebar-primary-foreground: var(--neutral-50);
+  --sidebar-accent: #ffffff;
+  --sidebar-accent-foreground: var(--neutral-950);
+  --sidebar-border: var(--neutral-100);
+  --sidebar-ring: var(--brand-400);
+}
+
+.dark {
+  /* Brand shifts one stop lighter for dark surfaces */
+  --brand: var(--brand-300);
+  --brand-foreground: var(--brand-950);
+  --brand-subtle: color-mix(in oklab, var(--brand-400) 18%, transparent);
+  --brand-emphasis: var(--brand-100);
+  --brand-hover: var(--brand-200);
+
+  /* Surfaces & text — dark mode (Obsidian layers) */
+  --background: var(--neutral-950);
+  --foreground: var(--neutral-50);
+
+  --card: var(--neutral-800);
+  --card-foreground: var(--neutral-50);
+
+  --popover: var(--neutral-800);
+  --popover-foreground: var(--neutral-50);
+
+  --primary: var(--neutral-50);
+  --primary-foreground: var(--neutral-950);
+
+  --secondary: var(--neutral-700);
+  --secondary-foreground: var(--neutral-50);
+
+  --muted: var(--neutral-700);
+  --muted-foreground: var(--neutral-300);
+
+  --accent: var(--neutral-700);
+  --accent-foreground: var(--neutral-50);
+
+  --destructive: var(--danger);
+  --destructive-foreground: var(--danger-bg);
+
+  --border: color-mix(in oklab, var(--neutral-50) 10%, transparent);
+  --border-emphasis: color-mix(in oklab, var(--neutral-50) 18%, transparent);
+  --input: color-mix(in oklab, var(--neutral-50) 15%, transparent);
+  --ring: var(--brand-300);
+
+  /* Semantic surfaces in dark mode use the -dark tokens */
+  --info-bg: color-mix(in oklab, var(--info) 22%, var(--neutral-800));
+  --success-bg: color-mix(in oklab, var(--success) 22%, var(--neutral-800));
+  --warning-bg: color-mix(in oklab, var(--warning) 22%, var(--neutral-800));
+  --danger-bg: color-mix(in oklab, var(--danger) 22%, var(--neutral-800));
+
+  --chart-1: var(--brand-300);
+  --chart-2: var(--info);
+  --chart-3: var(--success);
+  --chart-4: var(--warning);
+  --chart-5: var(--neutral-300);
+
+  --sidebar: var(--neutral-950);
+  --sidebar-foreground: var(--neutral-50);
+  --sidebar-primary: var(--brand-300);
+  --sidebar-primary-foreground: var(--neutral-950);
+  --sidebar-accent: var(--neutral-800);
+  --sidebar-accent-foreground: var(--neutral-50);
+  --sidebar-border: color-mix(in oklab, var(--neutral-50) 10%, transparent);
+  --sidebar-ring: var(--brand-300);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    @apply bg-background text-foreground;
+  }
+  html {
+    @apply font-sans;
+  }
+}

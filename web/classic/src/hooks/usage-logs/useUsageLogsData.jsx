@@ -37,7 +37,6 @@ import {
   renderClaudeModelPrice,
   renderModelPrice,
   renderTieredModelPrice,
-  renderTaskBillingProcess,
 } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
@@ -45,6 +44,7 @@ import ParamOverrideEntry from '../../components/table/usage-logs/components/Par
 
 export const useLogsData = () => {
   const { t } = useTranslation();
+  const DEFAULT_LOG_CATEGORY = 'usage';
 
   // Define column keys for selection
   const COLUMN_KEYS = {
@@ -73,7 +73,7 @@ export const useLogsData = () => {
   const [activePage, setActivePage] = useState(1);
   const [logCount, setLogCount] = useState(0);
   const [pageSize, setPageSize] = useState(ITEMS_PER_PAGE);
-  const [logType, setLogType] = useState(0);
+  const [logCategory, setLogCategory] = useState(DEFAULT_LOG_CATEGORY);
 
   // User and admin
   const isAdminUser = isAdmin();
@@ -105,7 +105,7 @@ export const useLogsData = () => {
       timestamp2string(getTodayStartTimestamp()),
       timestamp2string(now.getTime() / 1000 + 3600),
     ],
-    logType: '0',
+    logCategory: DEFAULT_LOG_CATEGORY,
   };
 
   // Get default column visibility based on user role
@@ -158,13 +158,13 @@ export const useLogsData = () => {
     if (savedMode === 'price' || savedMode === 'ratio') {
       return savedMode;
     }
-    return localStorage.getItem('quota_display_type') === 'TOKENS'
-      ? 'ratio'
-      : 'price';
+    return 'price';
   };
 
   // Column visibility state
-  const [visibleColumns, setVisibleColumns] = useState(getInitialVisibleColumns);
+  const [visibleColumns, setVisibleColumns] = useState(
+    getInitialVisibleColumns,
+  );
   const [showColumnSelector, setShowColumnSelector] = useState(false);
   const [billingDisplayMode, setBillingDisplayMode] = useState(
     getInitialBillingDisplayMode,
@@ -257,26 +257,23 @@ export const useLogsData = () => {
       channel: formValues.channel || '',
       group: formValues.group || '',
       request_id: formValues.request_id || '',
-      logType: formValues.logType ? parseInt(formValues.logType) : 0,
+      logCategory: formValues.logCategory || DEFAULT_LOG_CATEGORY,
     };
   };
 
   // Statistics functions
   const getLogSelfStat = async () => {
-    const {
-      token_name,
-      model_name,
-      start_timestamp,
-      end_timestamp,
-      group,
-      logType: formLogType,
-    } = getFormValues();
-    const currentLogType = formLogType !== undefined ? formLogType : logType;
+    const { token_name, model_name, start_timestamp, end_timestamp, group } =
+      getFormValues();
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    let url = `/api/log/self/stat?type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}`;
-    url = encodeURI(url);
-    let res = await API.get(url);
+    let res = await API.query('logsSelfStat', {
+      token_name,
+      model_name,
+      start_timestamp: localStartTimestamp,
+      end_timestamp: localEndTimestamp,
+      group,
+    });
     const { success, message, data } = res.data;
     if (success) {
       setStat(data);
@@ -294,14 +291,18 @@ export const useLogsData = () => {
       end_timestamp,
       channel,
       group,
-      logType: formLogType,
     } = getFormValues();
-    const currentLogType = formLogType !== undefined ? formLogType : logType;
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    let url = `/api/log/stat?type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}`;
-    url = encodeURI(url);
-    let res = await API.get(url);
+    let res = await API.query('logsStat', {
+      username,
+      token_name,
+      model_name,
+      start_timestamp: localStartTimestamp,
+      end_timestamp: localEndTimestamp,
+      channel,
+      group,
+    });
     const { success, message, data } = res.data;
     if (success) {
       setStat(data);
@@ -315,6 +316,12 @@ export const useLogsData = () => {
       return;
     }
     setLoadingStat(true);
+    if (getFormValues().logCategory !== 'usage') {
+      setStat({ quota: 0, rpm: 0, tpm: 0 });
+      setShowStat(true);
+      setLoadingStat(false);
+      return;
+    }
     if (isAdminUser) {
       await getLogStat();
     } else {
@@ -329,7 +336,7 @@ export const useLogsData = () => {
     if (!isAdminUser) {
       return;
     }
-    const res = await API.get(`/api/user/${userId}`);
+    const res = await API.query('user', { id: userId });
     const { success, message, data } = res.data;
     if (success) {
       setUserInfoData(data);
@@ -364,6 +371,11 @@ export const useLogsData = () => {
     setShowParamOverrideModal(true);
   };
 
+  const getLogCategory = (log) => log?.category || '';
+  const isUsageLog = (log) => getLogCategory(log) === 'usage';
+  const isErrorLog = (log) => getLogCategory(log) === 'error';
+  const isRequestLog = (log) => isUsageLog(log) || isErrorLog(log);
+
   // Format logs data
   const setLogsFormat = (logs) => {
     const requestConversionDisplayValue = (conversionChain) => {
@@ -383,7 +395,7 @@ export const useLogsData = () => {
       let other = getLogOther(logs[i].other);
       let expandDataLocal = [];
 
-      if (isAdminUser && (logs[i].type === 0 || logs[i].type === 2 || logs[i].type === 6)) {
+      if (isAdminUser && isRequestLog(logs[i])) {
         expandDataLocal.push({
           key: t('渠道信息'),
           value: `${logs[i].channel} - ${logs[i].channel_name || '[未知]'}`,
@@ -425,12 +437,15 @@ export const useLogsData = () => {
           value: other.cache_creation_tokens,
         });
       }
-      if (logs[i].type === 2) {
+      if (isUsageLog(logs[i])) {
         if (other?.billing_mode !== 'tiered_expr') {
           expandDataLocal.push({
             key: t('日志详情'),
             value: other?.claude
-              ? renderClaudeLogContent({ ...other, displayMode: billingDisplayMode })
+              ? renderClaudeLogContent({
+                  ...other,
+                  displayMode: billingDisplayMode,
+                })
               : renderLogContent({ ...other, displayMode: billingDisplayMode }),
           });
         }
@@ -447,7 +462,7 @@ export const useLogsData = () => {
           });
         }
       }
-      if (logs[i].type === 2) {
+      if (isUsageLog(logs[i])) {
         let modelMapped =
           other?.is_model_mapped &&
           other?.upstream_model_name &&
@@ -476,10 +491,7 @@ export const useLogsData = () => {
             completion_tokens: logs[i].completion_tokens,
             displayMode: billingDisplayMode,
           };
-          const isTaskLog = other?.is_task === true || other?.task_id != null;
-          if (isTaskLog && other?.model_price === -1) {
-            content = renderTaskBillingProcess(other, logs[i].content);
-          } else if (other?.ws || other?.audio) {
+          if (other?.ws || other?.audio) {
             content = renderAudioModelPrice(logOpts);
           } else if (other?.claude) {
             content = renderClaudeModelPrice(logOpts);
@@ -509,18 +521,19 @@ export const useLogsData = () => {
           });
         }
       }
-      if (logs[i].type === 6) {
-        if (other?.task_id) {
-          expandDataLocal.push({
-            key: t('任务ID'),
-            value: other.task_id,
-          });
-        }
+      if (isErrorLog(logs[i])) {
         if (other?.reason) {
           expandDataLocal.push({
             key: t('失败原因'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'normal', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'normal',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {other.reason}
               </div>
             ),
@@ -537,7 +550,8 @@ export const useLogsData = () => {
         const ss = other.stream_status;
         const isOk = ss.status === 'ok';
         const statusLabel = isOk ? '✓ ' + t('正常') : '✗ ' + t('异常');
-        let streamValue = statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
+        let streamValue =
+          statusLabel + ' (' + (ss.end_reason || 'unknown') + ')';
         if (ss.error_count > 0) {
           streamValue += ` [${t('软错误')}: ${ss.error_count}]`;
         }
@@ -552,7 +566,14 @@ export const useLogsData = () => {
           expandDataLocal.push({
             key: t('流错误详情'),
             value: (
-              <div style={{ maxWidth: 600, whiteSpace: 'pre-line', wordBreak: 'break-word', lineHeight: 1.6 }}>
+              <div
+                style={{
+                  maxWidth: 600,
+                  whiteSpace: 'pre-line',
+                  wordBreak: 'break-word',
+                  lineHeight: 1.6,
+                }}
+              >
                 {ss.errors.join('\n')}
               </div>
             ),
@@ -623,13 +644,13 @@ export const useLogsData = () => {
           ),
         });
       }
-      if (isAdminUser && logs[i].type !== 6 && logs[i].type !== 1) {
+      if (isAdminUser && isUsageLog(logs[i])) {
         expandDataLocal.push({
           key: t('请求转换'),
           value: requestConversionDisplayValue(other?.request_conversion),
         });
       }
-      if (isAdminUser && logs[i].type !== 6 && logs[i].type !== 1) {
+      if (isAdminUser && isUsageLog(logs[i])) {
         let localCountMode = '';
         if (other?.admin_info?.local_count_tokens) {
           localCountMode = t('本地计费');
@@ -641,8 +662,12 @@ export const useLogsData = () => {
           value: localCountMode,
         });
       }
-      if (isAdminUser && logs[i].type === 1) {
-        const adminInfo = other?.admin_info;
+      if (
+        isAdminUser &&
+        logs[i].category === 'audit' &&
+        logs[i].event?.startsWith('billing.topup')
+      ) {
+        const adminInfo = other?.admin_info || other;
         if (adminInfo) {
           if (adminInfo.payment_method) {
             expandDataLocal.push({
@@ -685,16 +710,14 @@ export const useLogsData = () => {
             key: t('审计信息'),
             value: (
               <span style={{ color: 'var(--semi-color-warning)' }}>
-                {t(
-                  '该记录由旧版本实例写入，缺少审计信息，建议将实例升级至最新版本以便记录服务器IP、回调IP、支付方式与系统版本等审计字段。',
-                )}
+                {t('该记录缺少审计信息。')}
               </span>
             ),
           });
         }
       }
-      if (isAdminUser && logs[i].type === 3 && other?.admin_info) {
-        const adminInfo = other.admin_info;
+      if (isAdminUser && logs[i].category === 'audit') {
+        const adminInfo = other?.admin_info || other;
         const hasUsername =
           adminInfo.admin_username !== undefined &&
           adminInfo.admin_username !== null &&
@@ -726,7 +749,7 @@ export const useLogsData = () => {
   };
 
   // Load logs function
-  const loadLogs = async (startIdx, pageSize, customLogType = null) => {
+  const loadLogs = async (startIdx, pageSize, customLogCategory = null) => {
     setLoading(true);
 
     let url = '';
@@ -739,25 +762,28 @@ export const useLogsData = () => {
       channel,
       group,
       request_id,
-      logType: formLogType,
+      logCategory: formLogCategory,
     } = getFormValues();
 
-    const currentLogType =
-      customLogType !== null
-        ? customLogType
-        : formLogType !== undefined
-          ? formLogType
-          : logType;
+    const currentLogCategory =
+      customLogCategory !== null
+        ? customLogCategory
+        : formLogCategory || logCategory;
 
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    if (isAdminUser) {
-      url = `/api/log/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&username=${username}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&channel=${channel}&group=${group}&request_id=${request_id}`;
-    } else {
-      url = `/api/log/self/?p=${startIdx}&page_size=${pageSize}&type=${currentLogType}&token_name=${token_name}&model_name=${model_name}&start_timestamp=${localStartTimestamp}&end_timestamp=${localEndTimestamp}&group=${group}&request_id=${request_id}`;
-    }
-    url = encodeURI(url);
-    const res = await API.get(url);
+    const res = await API.query(isAdminUser ? 'logs' : 'userLogs', {
+      p: startIdx,
+      page_size: pageSize,
+      category: currentLogCategory,
+      ...(isAdminUser ? { username, channel } : {}),
+      token_name,
+      model_name,
+      start_timestamp: localStartTimestamp,
+      end_timestamp: localEndTimestamp,
+      group,
+      request_id,
+    });
     const { success, message, data } = res.data;
     if (success) {
       const newPageData = data.items;
@@ -842,7 +868,7 @@ export const useLogsData = () => {
     activePage,
     logCount,
     pageSize,
-    logType,
+    logCategory,
     stat,
     isAdminUser,
 
@@ -891,7 +917,7 @@ export const useLogsData = () => {
     handleEyeClick,
     setLogsFormat,
     hasExpandableRows,
-    setLogType,
+    setLogCategory,
     openParamOverrideModal,
 
     // Translation

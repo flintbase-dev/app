@@ -48,7 +48,7 @@ const chatCompletionsToResponsesPolicyExample = JSON.stringify(
   {
     enabled: true,
     all_channels: false,
-    channel_ids: [1, 2],
+    channel_ids: ['chn_Example01', 'chn_Example02'],
     channel_types: [1],
     model_patterns: ['^gpt-4o.*$', '^gpt-5.*$'],
   },
@@ -116,7 +116,7 @@ export default function SettingGlobalModel(props) {
       );
       let value = String(normalizedValue);
 
-      return API.put('/api/option/', {
+      return API.mutation('updateOption', {
         key: item.key,
         value,
       });

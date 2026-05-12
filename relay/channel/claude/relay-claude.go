@@ -1,6 +1,7 @@
 package claude
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -11,7 +12,6 @@ import (
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
-	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/relay/reasonmap"
@@ -223,22 +223,6 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 		}
 	}
 
-	// 指定了 reasoning 参数,覆盖 budgetTokens
-	if textRequest.Reasoning != nil {
-		var reasoning openrouter.RequestReasoning
-		if err := common.Unmarshal(textRequest.Reasoning, &reasoning); err != nil {
-			return nil, err
-		}
-
-		budgetTokens := reasoning.MaxTokens
-		if budgetTokens > 0 {
-			claudeRequest.Thinking = &dto.Thinking{
-				Type:         "enabled",
-				BudgetTokens: &budgetTokens,
-			}
-		}
-	}
-
 	if textRequest.Stop != nil {
 		// stop maybe string/array string, convert to array string
 		switch textRequest.Stop.(type) {
@@ -392,8 +376,20 @@ func RequestOpenAI2ClaudeMessage(c *gin.Context, textRequest dto.GeneralOpenAIRe
 						}
 						if strings.HasPrefix(mimeType, "application/pdf") {
 							claudeMediaMessage.Type = "document"
-						} else {
+						} else if strings.HasPrefix(mimeType, "image/") {
 							claudeMediaMessage.Type = "image"
+						} else if strings.HasPrefix(mimeType, "text/") {
+							textBytes, err := base64.StdEncoding.DecodeString(base64Data)
+							if err != nil {
+								return nil, fmt.Errorf("decode text file failed: %s", err.Error())
+							}
+							claudeMediaMessages = append(claudeMediaMessages, dto.ClaudeMediaMessage{
+								Type: "text",
+								Text: common.GetPointer(string(textBytes)),
+							})
+							continue
+						} else {
+							continue
 						}
 
 						claudeMediaMessage.Source.MediaType = mimeType
@@ -521,7 +517,7 @@ func StreamResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.ChatCo
 func ResponseClaude2OpenAI(claudeResponse *dto.ClaudeResponse) *dto.OpenAITextResponse {
 	choices := make([]dto.OpenAITextResponseChoice, 0)
 	fullTextResponse := dto.OpenAITextResponse{
-		Id:      fmt.Sprintf("chatcmpl-%s", common.GetUUID()),
+		Id:      fmt.Sprintf("chatcmpl-%s", common.MustNewNanoIDKey(16)),
 		Object:  "chat.completion",
 		Created: common.GetTimestamp(),
 	}

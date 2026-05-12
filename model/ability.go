@@ -16,7 +16,7 @@ import (
 type Ability struct {
 	Group     string  `json:"group" gorm:"type:varchar(64);primaryKey;autoIncrement:false"`
 	Model     string  `json:"model" gorm:"type:varchar(255);primaryKey;autoIncrement:false"`
-	ChannelId int     `json:"channel_id" gorm:"primaryKey;autoIncrement:false;index"`
+	ChannelId string  `json:"channel_id" gorm:"type:varchar(32);primaryKey;autoIncrement:false;index"`
 	Enabled   bool    `json:"enabled"`
 	Priority  *int64  `json:"priority" gorm:"bigint;default:0;index"`
 	Weight    uint    `json:"weight" gorm:"default:0;index"`
@@ -111,11 +111,7 @@ func GetChannel(group string, model string, retry int) (*Channel, error) {
 	if err != nil {
 		return nil, err
 	}
-	if common.UsingSQLite || common.UsingPostgreSQL {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
-	} else {
-		err = channelQuery.Order("weight DESC").Find(&abilities).Error
-	}
+	err = channelQuery.Order("weight DESC").Find(&abilities).Error
 	if err != nil {
 		return nil, err
 	}
@@ -260,7 +256,7 @@ func (channel *Channel) UpdateAbilities(tx *gorm.DB) error {
 	return nil
 }
 
-func UpdateAbilityStatus(channelId int, status bool) error {
+func UpdateAbilityStatus(channelId string, status bool) error {
 	return DB.Model(&Ability{}).Where("channel_id = ?", channelId).Select("enabled").Update("enabled", status).Error
 }
 
@@ -291,19 +287,9 @@ func FixAbility() (int, int, error) {
 	}
 	defer fixLock.Unlock()
 
-	// truncate abilities table
-	if common.UsingSQLite {
-		err := DB.Exec("DELETE FROM abilities").Error
-		if err != nil {
-			common.SysLog(fmt.Sprintf("Delete abilities failed: %s", err.Error()))
-			return 0, 0, err
-		}
-	} else {
-		err := DB.Exec("TRUNCATE TABLE abilities").Error
-		if err != nil {
-			common.SysLog(fmt.Sprintf("Truncate abilities failed: %s", err.Error()))
-			return 0, 0, err
-		}
+	if err := DB.Exec("TRUNCATE TABLE abilities").Error; err != nil {
+		common.SysLog(fmt.Sprintf("Truncate abilities failed: %s", err.Error()))
+		return 0, 0, err
 	}
 	var channels []*Channel
 	// Find all channels
@@ -317,7 +303,7 @@ func FixAbility() (int, int, error) {
 	successCount := 0
 	failCount := 0
 	for _, chunk := range lo.Chunk(channels, 50) {
-		ids := lo.Map(chunk, func(c *Channel, _ int) int { return c.Id })
+		ids := lo.Map(chunk, func(c *Channel, _ int) string { return c.Id })
 		// Delete all abilities of this channel
 		err = DB.Where("channel_id IN ?", ids).Delete(&Ability{}).Error
 		if err != nil {
@@ -329,7 +315,7 @@ func FixAbility() (int, int, error) {
 		for _, channel := range chunk {
 			err = channel.AddAbilities(nil)
 			if err != nil {
-				common.SysLog(fmt.Sprintf("Add abilities for channel %d failed: %s", channel.Id, err.Error()))
+				common.SysLog(fmt.Sprintf("Add abilities for channel %s failed: %s", channel.Id, err.Error()))
 				failCount++
 			} else {
 				successCount++

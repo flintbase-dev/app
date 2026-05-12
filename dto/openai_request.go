@@ -3,6 +3,7 @@ package dto
 import (
 	"encoding/json"
 	"fmt"
+	"path/filepath"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -70,7 +71,7 @@ type GeneralOpenAIRequest struct {
 	SafetyIdentifier json.RawMessage `json:"safety_identifier,omitempty"`
 	// Whether or not to store the output of this chat completion request for use in our model distillation or evals products.
 	// 是否存储此次请求数据供 OpenAI 用于评估和优化产品
-	// 注意：默认允许透传，可通过 disable_store 禁用；禁用后可能导致 Codex 无法正常使用
+	// 注意：默认允许透传，可通过 disable_store 禁用
 	Store json.RawMessage `json:"store,omitempty"`
 	// Used by OpenAI to cache responses for similar requests to optimize your cache hit rates. Replaces the user field
 	PromptCacheKey       string          `json:"prompt_cache_key,omitempty"`
@@ -80,32 +81,8 @@ type GeneralOpenAIRequest struct {
 	Prediction           json.RawMessage `json:"prediction,omitempty"`
 	// gemini
 	ExtraBody json.RawMessage `json:"extra_body,omitempty"`
-	//xai
-	SearchParameters json.RawMessage `json:"search_parameters,omitempty"`
 	// claude
 	WebSearchOptions *WebSearchOptions `json:"web_search_options,omitempty"`
-	// OpenRouter Params
-	Usage     json.RawMessage `json:"usage,omitempty"`
-	Reasoning json.RawMessage `json:"reasoning,omitempty"`
-	// Ali Qwen Params
-	VlHighResolutionImages json.RawMessage `json:"vl_high_resolution_images,omitempty"`
-	EnableThinking         json.RawMessage `json:"enable_thinking,omitempty"`
-	ChatTemplateKwargs     json.RawMessage `json:"chat_template_kwargs,omitempty"`
-	EnableSearch           json.RawMessage `json:"enable_search,omitempty"`
-	// ollama Params
-	Think json.RawMessage `json:"think,omitempty"`
-	// baidu v2
-	WebSearch json.RawMessage `json:"web_search,omitempty"`
-	// doubao,zhipu_v4
-	THINKING json.RawMessage `json:"thinking,omitempty"`
-	// pplx Params
-	SearchDomainFilter     json.RawMessage `json:"search_domain_filter,omitempty"`
-	SearchRecencyFilter    json.RawMessage `json:"search_recency_filter,omitempty"`
-	ReturnImages           *bool           `json:"return_images,omitempty"`
-	ReturnRelatedQuestions *bool           `json:"return_related_questions,omitempty"`
-	SearchMode             json.RawMessage `json:"search_mode,omitempty"`
-	// Minimax
-	ReasoningSplit json.RawMessage `json:"reasoning_split,omitempty"`
 }
 
 func (r *GeneralOpenAIRequest) GetTokenCountMeta() *types.TokenCountMeta {
@@ -294,8 +271,6 @@ type MediaContent struct {
 	InputAudio any    `json:"input_audio,omitempty"`
 	File       any    `json:"file,omitempty"`
 	VideoUrl   any    `json:"video_url,omitempty"`
-	// OpenRouter Params
-	CacheControl json.RawMessage `json:"cache_control,omitempty"`
 }
 
 func (m *MediaContent) GetImageMedia() *MessageImageUrl {
@@ -386,7 +361,7 @@ func (m *MediaContent) ToFileSource() types.FileSource {
 		if file == nil || file.FileData == "" {
 			return nil
 		}
-		return types.NewFileSourceFromData(file.FileData, "")
+		return types.NewFileSourceFromData(file.FileData, inferFileMimeType(file.FileName))
 	case ContentTypeVideoUrl:
 		video := m.GetVideoUrl()
 		if video == nil || video.Url == "" {
@@ -395,6 +370,17 @@ func (m *MediaContent) ToFileSource() types.FileSource {
 		return types.NewFileSourceFromData(video.Url, "")
 	}
 	return nil
+}
+
+func inferFileMimeType(fileName string) string {
+	switch strings.ToLower(strings.TrimPrefix(filepath.Ext(fileName), ".")) {
+	case "pdf":
+		return "application/pdf"
+	case "txt", "md", "markdown", "csv", "json", "xml", "html", "htm":
+		return "text/plain"
+	default:
+		return "application/octet-stream"
+	}
 }
 
 type MessageImageUrl struct {

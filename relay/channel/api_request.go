@@ -14,7 +14,6 @@ import (
 	common2 "github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/relay/common"
-	"github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/relay/helper"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/operation_setting"
@@ -22,20 +21,13 @@ import (
 
 	"github.com/bytedance/gopkg/util/gopool"
 	"github.com/gin-gonic/gin"
-	"github.com/gorilla/websocket"
 )
 
 func SetupApiRequestHeader(info *common.RelayInfo, c *gin.Context, req *http.Header) {
-	if info.RelayMode == constant.RelayModeAudioTranscription || info.RelayMode == constant.RelayModeAudioTranslation {
-		// multipart/form-data
-	} else if info.RelayMode == constant.RelayModeRealtime {
-		// websocket
-	} else {
-		req.Set("Content-Type", c.Request.Header.Get("Content-Type"))
-		req.Set("Accept", c.Request.Header.Get("Accept"))
-		if info.IsStream && c.Request.Header.Get("Accept") == "" {
-			req.Set("Accept", "text/event-stream")
-		}
+	req.Set("Content-Type", c.Request.Header.Get("Content-Type"))
+	req.Set("Accept", c.Request.Header.Get("Accept"))
+	if info.IsStream && c.Request.Header.Get("Accept") == "" {
+		req.Set("Accept", "text/event-stream")
 	}
 }
 
@@ -351,36 +343,6 @@ func DoFormRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBod
 	return resp, nil
 }
 
-func DoWssRequest(a Adaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*websocket.Conn, error) {
-	fullRequestURL, err := a.GetRequestURL(info)
-	if err != nil {
-		return nil, fmt.Errorf("get request url failed: %w", err)
-	}
-	targetHeader := http.Header{}
-	err = a.SetupRequestHeader(c, &targetHeader, info)
-	if err != nil {
-		return nil, fmt.Errorf("setup request header failed: %w", err)
-	}
-	// 在 SetupRequestHeader 之后应用 Header Override，确保用户设置优先级最高
-	// 这样可以覆盖默认的 Authorization header 设置
-	headerOverride, err := processHeaderOverride(info, c)
-	if err != nil {
-		return nil, err
-	}
-	for key, value := range headerOverride {
-		targetHeader.Set(key, value)
-	}
-	targetHeader.Set("Content-Type", c.Request.Header.Get("Content-Type"))
-	targetConn, _, err := websocket.DefaultDialer.Dial(fullRequestURL, targetHeader)
-	if err != nil {
-		return nil, fmt.Errorf("dial failed to %s: %w", fullRequestURL, err)
-	}
-	// send request body
-	//all, err := io.ReadAll(requestBody)
-	//err = service.WssString(c, targetConn, string(all))
-	return targetConn, nil
-}
-
 func startPingKeepAlive(c *gin.Context, pingInterval time.Duration) context.CancelFunc {
 	pingerCtx, stopPinger := context.WithCancel(context.Background())
 
@@ -526,29 +488,5 @@ func doRequest(c *gin.Context, req *http.Request, info *common.RelayInfo) (*http
 
 	_ = req.Body.Close()
 	_ = c.Request.Body.Close()
-	return resp, nil
-}
-
-func DoTaskApiRequest(a TaskAdaptor, c *gin.Context, info *common.RelayInfo, requestBody io.Reader) (*http.Response, error) {
-	fullRequestURL, err := a.BuildRequestURL(info)
-	if err != nil {
-		return nil, err
-	}
-	req, err := http.NewRequest(c.Request.Method, fullRequestURL, requestBody)
-	if err != nil {
-		return nil, fmt.Errorf("new request failed: %w", err)
-	}
-	req.GetBody = func() (io.ReadCloser, error) {
-		return io.NopCloser(requestBody), nil
-	}
-
-	err = a.BuildRequestHeader(c, req, info)
-	if err != nil {
-		return nil, fmt.Errorf("setup request header failed: %w", err)
-	}
-	resp, err := doRequest(c, req, info)
-	if err != nil {
-		return nil, fmt.Errorf("do request failed: %w", err)
-	}
 	return resp, nil
 }

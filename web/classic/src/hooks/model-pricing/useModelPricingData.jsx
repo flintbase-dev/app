@@ -41,7 +41,9 @@ export const useModelPricingData = () => {
   const [filterTag, setFilterTag] = useState('all'); // 模型标签筛选: 'all' | string
   const [pageSize, setPageSize] = useState(20);
   const [currentPage, setCurrentPage] = useState(1);
-  const [currency, setCurrency] = useState('USD');
+  const [currency, setCurrency] = useState(() =>
+    localStorage.getItem('quota_display_type') === 'CNY' ? 'CNY' : 'USD',
+  );
   const [showWithRecharge, setShowWithRecharge] = useState(false);
   const [tokenUnit, setTokenUnit] = useState('M');
   const [models, setModels] = useState([]);
@@ -55,45 +57,18 @@ export const useModelPricingData = () => {
   const [statusState] = useContext(StatusContext);
   const [userState] = useContext(UserContext);
 
-  // 充值汇率（price）与美元兑人民币汇率（usd_exchange_rate）
-  const priceRate = useMemo(
-    () => statusState?.status?.price ?? 1,
-    [statusState],
-  );
-  const usdExchangeRate = useMemo(
-    () => statusState?.status?.usd_exchange_rate ?? priceRate,
-    [statusState, priceRate],
-  );
-  const customExchangeRate = useMemo(
-    () => statusState?.status?.custom_currency_exchange_rate ?? 1,
-    [statusState],
-  );
-  const customCurrencySymbol = useMemo(
-    () => statusState?.status?.custom_currency_symbol ?? '¤',
-    [statusState],
-  );
-
-  // 默认货币与站点展示类型同步；TOKENS 由视图层走倍率展示
   const siteDisplayType = useMemo(
-    () => statusState?.status?.quota_display_type || 'USD',
+    () => (statusState?.status?.quota_display_type === 'CNY' ? 'CNY' : 'USD'),
     [statusState],
   );
+
   useEffect(() => {
-    if (
-      siteDisplayType === 'USD' ||
-      siteDisplayType === 'CNY' ||
-      siteDisplayType === 'CUSTOM'
-    ) {
-      setCurrency(siteDisplayType);
-    }
+    setCurrency(siteDisplayType);
   }, [siteDisplayType]);
 
   useEffect(() => {
-    if (siteDisplayType === 'TOKENS') {
-      setShowWithRecharge(false);
-      setCurrency('USD');
-    }
-  }, [siteDisplayType]);
+    setShowWithRecharge(false);
+  }, []);
 
   const filteredModels = useMemo(() => {
     let result = models;
@@ -178,18 +153,9 @@ export const useModelPricingData = () => {
     [selectedRowKeys],
   );
 
-  const displayPrice = (usdPrice) => {
-    let priceInUSD = usdPrice;
-    if (showWithRecharge) {
-      priceInUSD = (usdPrice * priceRate) / usdExchangeRate;
-    }
-
-    if (currency === 'CNY') {
-      return `¥${(priceInUSD * usdExchangeRate).toFixed(3)}`;
-    } else if (currency === 'CUSTOM') {
-      return `${customCurrencySymbol}${(priceInUSD * customExchangeRate).toFixed(3)}`;
-    }
-    return `$${priceInUSD.toFixed(3)}`;
+  const displayPrice = (price) => {
+    const symbol = currency === 'CNY' ? '¥' : '$';
+    return `${symbol}${Number(price || 0).toFixed(3)}`;
   };
 
   const setModelsFormat = (models, groupRatio, vendorMap) => {
@@ -227,8 +193,7 @@ export const useModelPricingData = () => {
 
   const loadPricing = async () => {
     setLoading(true);
-    let url = '/api/pricing';
-    const res = await API.get(url);
+    const res = await API.query('pricing');
     const {
       success,
       message,
@@ -376,8 +341,6 @@ export const useModelPricingData = () => {
     autoGroups,
 
     // 计算属性
-    priceRate,
-    usdExchangeRate,
     filteredModels,
     rowSelection,
 

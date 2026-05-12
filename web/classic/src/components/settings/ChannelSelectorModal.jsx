@@ -35,11 +35,11 @@ import {
 } from '@douyinfe/semi-ui';
 import { IconSearch } from '@douyinfe/semi-icons';
 
-const OFFICIAL_RATIO_PRESET_ID = -100;
+const OFFICIAL_PRICING_PRESET_ID = -100;
 const MODELS_DEV_PRESET_ID = -101;
-const OFFICIAL_RATIO_PRESET_NAME = '官方倍率预设';
+const OFFICIAL_PRICING_PRESET_NAME = '官方价格预设';
 const MODELS_DEV_PRESET_NAME = 'models.dev 价格预设';
-const OFFICIAL_RATIO_PRESET_BASE_URL = 'https://basellm.github.io';
+const OFFICIAL_PRICING_PRESET_BASE_URL = 'https://basellm.github.io';
 const MODELS_DEV_PRESET_BASE_URL = 'https://models.dev';
 
 const ChannelSelectorModal = forwardRef(
@@ -77,11 +77,11 @@ const ChannelSelectorModal = forwardRef(
       const base = record?._originalData?.base_url || '';
       const name = record?.label || '';
       return (
-        id === OFFICIAL_RATIO_PRESET_ID ||
+        id === OFFICIAL_PRICING_PRESET_ID ||
         id === MODELS_DEV_PRESET_ID ||
-        base === OFFICIAL_RATIO_PRESET_BASE_URL ||
+        base === OFFICIAL_PRICING_PRESET_BASE_URL ||
         base === MODELS_DEV_PRESET_BASE_URL ||
-        name === OFFICIAL_RATIO_PRESET_NAME ||
+        name === OFFICIAL_PRICING_PRESET_NAME ||
         name === MODELS_DEV_PRESET_NAME
       );
     };
@@ -125,9 +125,8 @@ const ChannelSelectorModal = forwardRef(
       const currentEndpoint = channelEndpoints[channelId] || '';
 
       const getEndpointType = (ep) => {
-        if (ep === '/api/ratio_config') return 'ratio_config';
-        if (ep === '/api/pricing') return 'pricing';
-        if (ep === 'openrouter') return 'openrouter';
+        if (ep === 'ratioConfig') return 'ratio_config';
+        if (ep === 'pricing') return 'pricing';
         return 'custom';
       };
 
@@ -135,11 +134,9 @@ const ChannelSelectorModal = forwardRef(
 
       const handleTypeChange = (val) => {
         if (val === 'ratio_config') {
-          updateEndpoint(channelId, '/api/ratio_config');
+          updateEndpoint(channelId, 'ratioConfig');
         } else if (val === 'pricing') {
-          updateEndpoint(channelId, '/api/pricing');
-        } else if (val === 'openrouter') {
-          updateEndpoint(channelId, 'openrouter');
+          updateEndpoint(channelId, 'pricing');
         } else {
           if (currentType !== 'custom') {
             updateEndpoint(channelId, '');
@@ -157,7 +154,6 @@ const ChannelSelectorModal = forwardRef(
             optionList={[
               { label: 'pricing', value: 'pricing' },
               { label: 'ratio_config', value: 'ratio_config' },
-              { label: 'OpenRouter', value: 'openrouter' },
               { label: 'custom', value: 'custom' },
             ]}
           />

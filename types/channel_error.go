@@ -1,7 +1,7 @@
 package types
 
 type ChannelError struct {
-	ChannelId   int    `json:"channel_id"`
+	ChannelId   string `json:"channel_id"`
 	ChannelType int    `json:"channel_type"`
 	ChannelName string `json:"channel_name"`
 	IsMultiKey  bool   `json:"is_multi_key"`
@@ -9,7 +9,7 @@ type ChannelError struct {
 	UsingKey    string `json:"using_key"`
 }
 
-func NewChannelError(channelId int, channelType int, channelName string, isMultiKey bool, usingKey string, autoBan bool) *ChannelError {
+func NewChannelError(channelId string, channelType int, channelName string, isMultiKey bool, usingKey string, autoBan bool) *ChannelError {
 	return &ChannelError{
 		ChannelId:   channelId,
 		ChannelType: channelType,

@@ -8,3 +8,8 @@ docs
 .eslintcache
 .gocache
 /web/node_modules
+web/classic/node_modules
+web/classic/dist
+web/new/node_modules
+web/new/.next
+web/new/out

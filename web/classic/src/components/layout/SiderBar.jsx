@@ -34,19 +34,18 @@ const routerMap = {
   home: '/',
   channel: '/console/channel',
   token: '/console/token',
+  messages: '/console/messages',
   redemption: '/console/redemption',
   topup: '/console/topup',
   user: '/console/user',
   subscription: '/console/subscription',
+  messageManagement: '/console/message-management',
   log: '/console/log',
-  midjourney: '/console/midjourney',
   setting: '/console/setting',
   about: '/about',
   detail: '/console',
   pricing: '/pricing',
-  task: '/console/task',
   models: '/console/models',
-  deployment: '/console/deployment',
   playground: '/console/playground',
   personal: '/console/personal',
 };
@@ -90,20 +89,9 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/log',
       },
       {
-        text: t('绘图日志'),
-        itemKey: 'midjourney',
-        to: '/midjourney',
-        className:
-          localStorage.getItem('enable_drawing') === 'true'
-            ? ''
-            : 'tableHiddle',
-      },
-      {
-        text: t('任务日志'),
-        itemKey: 'task',
-        to: '/task',
-        className:
-          localStorage.getItem('enable_task') === 'true' ? '' : 'tableHiddle',
+        text: t('我的消息'),
+        itemKey: 'messages',
+        to: '/messages',
       },
     ];
 
@@ -114,13 +102,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     });
 
     return filteredItems;
-  }, [
-    localStorage.getItem('enable_data_export'),
-    localStorage.getItem('enable_drawing'),
-    localStorage.getItem('enable_task'),
-    t,
-    isModuleVisible,
-  ]);
+  }, [localStorage.getItem('enable_data_export'), t, isModuleVisible]);
 
   const financeItems = useMemo(() => {
     const items = [
@@ -166,12 +148,6 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {
-        text: t('模型部署'),
-        itemKey: 'deployment',
-        to: '/deployment',
-        className: isAdmin() ? '' : 'tableHiddle',
-      },
-      {
         text: t('兑换码管理'),
         itemKey: 'redemption',
         to: '/redemption',
@@ -181,6 +157,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('用户管理'),
         itemKey: 'user',
         to: '/user',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('消息管理'),
+        itemKey: 'messageManagement',
+        to: '/message-management',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

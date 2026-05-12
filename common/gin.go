@@ -344,7 +344,7 @@ func parseBoundary(contentType string) (string, error) {
 	if contentType == "" {
 		return "", errBoundaryNotFound
 	}
-	// Boundary-UUID / boundary-------xxxxxx
+	// ParseMediaType extracts the opaque multipart boundary token.
 	_, params, err := mime.ParseMediaType(contentType)
 	if err != nil {
 		return "", err

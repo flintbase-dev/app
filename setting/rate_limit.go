@@ -22,7 +22,7 @@ func ModelRequestRateLimitGroup2JSONString() string {
 
 	jsonBytes, err := json.Marshal(ModelRequestRateLimitGroup)
 	if err != nil {
-		common.SysLog("error marshalling model ratio: " + err.Error())
+		common.SysLog("error marshalling model request rate-limit group: " + err.Error())
 	}
 	return string(jsonBytes)
 }

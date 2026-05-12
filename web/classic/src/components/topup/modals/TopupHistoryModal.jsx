@@ -27,14 +27,15 @@ import {
   Button,
   Input,
   Tag,
+  Space,
 } from '@douyinfe/semi-ui';
 import {
   IllustrationNoResult,
   IllustrationNoResultDark,
 } from '@douyinfe/semi-illustrations';
-import { Coins } from 'lucide-react';
+import { Coins, CreditCard, Download, ExternalLink, FileText } from 'lucide-react';
 import { IconSearch } from '@douyinfe/semi-icons';
-import { API, timestamp2string } from '../../../helpers';
+import { API, formatSiteCurrency, timestamp2string } from '../../../helpers';
 import { isAdmin } from '../../../helpers/utils';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 const { Text } = Typography;
@@ -50,10 +51,9 @@ const STATUS_CONFIG = {
 // 支付方式映射
 const PAYMENT_METHOD_MAP = {
   stripe: 'Stripe',
-  creem: 'Creem',
-  waffo: 'Waffo',
-  alipay: '支付宝',
-  wxpay: '微信',
+  card: 'Card',
+  alipay: 'Alipay',
+  wechat_pay: 'WeChat Pay',
 };
 
 const TopupHistoryModal = ({ visible, onCancel, t }) => {
@@ -68,12 +68,11 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   const loadTopups = async (currentPage, currentPageSize) => {
     setLoading(true);
     try {
-      const base = isAdmin() ? '/api/user/topup' : '/api/user/topup/self';
-      const qs =
-        `p=${currentPage}&page_size=${currentPageSize}` +
-        (keyword ? `&keyword=${encodeURIComponent(keyword)}` : '');
-      const endpoint = `${base}?${qs}`;
-      const res = await API.get(endpoint);
+      const res = await API.query(isAdmin() ? 'adminTopups' : 'userTopups', {
+        p: currentPage,
+        page_size: currentPageSize,
+        ...(keyword ? { keyword } : {}),
+      });
       const { success, message, data } = res.data;
       if (success) {
         setTopups(data.items || []);
@@ -108,30 +107,56 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
     setPage(1);
   };
 
-  // 管理员补单
-  const handleAdminComplete = async (tradeNo) => {
+  const openBillingPortal = async () => {
     try {
-      const res = await API.post('/api/user/topup/complete', {
-        trade_no: tradeNo,
-      });
-      const { success, message } = res.data;
+      const res = await API.mutation('stripeBillingPortal');
+      const { success, message, data } = res.data;
       if (success) {
-        Toast.success({ content: t('补单成功') });
-        await loadTopups(page, pageSize);
+        window.open(data?.url, '_blank');
       } else {
-        Toast.error({ content: message || t('补单失败') });
+        Toast.error({ content: message || t('打开失败') });
       }
     } catch (e) {
-      Toast.error({ content: t('补单失败') });
+      Toast.error({ content: t('打开失败') });
     }
   };
 
-  const confirmAdminComplete = (tradeNo) => {
-    Modal.confirm({
-      title: t('确认补单'),
-      content: t('是否将该订单标记为成功并为用户入账？'),
-      onOk: () => handleAdminComplete(tradeNo),
-    });
+  const exportCsv = () => {
+    const headers = [
+      'invoice_id',
+      'invoice_number',
+      'user_id',
+      'kind',
+      'payment_method',
+      'amount',
+      'currency',
+      'status',
+      'created_at',
+      'paid_at',
+    ];
+    const rows = topups.map((item) =>
+      headers
+        .map((key) => {
+          const value =
+            key === 'amount'
+              ? item.money
+              : key === 'created_at'
+                ? timestamp2string(item.create_time)
+                : key === 'paid_at'
+                  ? timestamp2string(item.complete_time)
+                  : item[key] ?? '';
+          return `"${String(value).replaceAll('"', '""')}"`;
+        })
+        .join(','),
+    );
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `stripe-invoices-${Date.now()}.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
   };
 
   // 渲染状态徽章
@@ -152,8 +177,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
   };
 
   const isSubscriptionTopup = (record) => {
-    const tradeNo = (record?.trade_no || '').toLowerCase();
-    return Number(record?.amount || 0) === 0 && tradeNo.startsWith('sub');
+    return String(record?.kind || '').startsWith('subscription');
   };
 
   // 检查是否为管理员
@@ -172,10 +196,17 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
           ]
         : []),
       {
-        title: t('订单号'),
-        dataIndex: 'trade_no',
-        key: 'trade_no',
-        render: (text) => <Text copyable>{text}</Text>,
+        title: t('Invoice'),
+        dataIndex: 'invoice_number',
+        key: 'invoice_number',
+        render: (text, record) => (
+          <div className='min-w-0'>
+            <Text copyable>{text || record.invoice_id}</Text>
+            {record.invoice_id && text ? (
+              <div className='text-xs text-gray-500'>{record.invoice_id}</div>
+            ) : null}
+          </div>
+        ),
       },
       {
         title: t('支付方式'),
@@ -191,7 +222,9 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
           if (isSubscriptionTopup(record)) {
             return (
               <Tag color='purple' shape='circle' size='small'>
-                {t('订阅套餐')}
+                {record.kind === 'subscription_switch'
+                  ? t('订阅切换')
+                  : t('订阅套餐')}
               </Tag>
             );
           }
@@ -207,7 +240,9 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
         title: t('支付金额'),
         dataIndex: 'money',
         key: 'money',
-        render: (money) => <Text type='danger'>¥{money.toFixed(2)}</Text>,
+        render: (money) => (
+          <Text type='danger'>{formatSiteCurrency(Number(money || 0), 2)}</Text>
+        ),
       },
       {
         title: t('状态'),
@@ -217,30 +252,44 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       },
     ];
 
-    // 管理员才显示操作列
-    if (userIsAdmin) {
-      baseColumns.push({
-        title: t('操作'),
-        key: 'action',
-        render: (_, record) => {
-          const actions = [];
-          if (record.status === 'pending') {
-            actions.push(
-              <Button
-                key="complete"
-                size='small'
-                type='primary'
-                theme='outline'
-                onClick={() => confirmAdminComplete(record.trade_no)}
-              >
-                {t('补单')}
-              </Button>
-            );
-          }
-          return actions.length > 0 ? <>{actions}</> : null;
-        },
-      });
-    }
+    baseColumns.push({
+      title: t('凭证'),
+      key: 'links',
+      render: (_, record) => (
+        <Space>
+          {record.hosted_invoice_url ? (
+            <Button
+              size='small'
+              theme='borderless'
+              icon={<ExternalLink size={14} />}
+              onClick={() => window.open(record.hosted_invoice_url, '_blank')}
+            >
+              {t('Invoice')}
+            </Button>
+          ) : null}
+          {record.invoice_pdf ? (
+            <Button
+              size='small'
+              theme='borderless'
+              icon={<FileText size={14} />}
+              onClick={() => window.open(record.invoice_pdf, '_blank')}
+            >
+              PDF
+            </Button>
+          ) : null}
+          {record.receipt_url ? (
+            <Button
+              size='small'
+              theme='borderless'
+              icon={<CreditCard size={14} />}
+              onClick={() => window.open(record.receipt_url, '_blank')}
+            >
+              {t('Receipt')}
+            </Button>
+          ) : null}
+        </Space>
+      ),
+    });
 
     baseColumns.push({
       title: t('创建时间'),
@@ -260,14 +309,29 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
       footer={null}
       size={isMobile ? 'full-width' : 'large'}
     >
-      <div className='mb-3'>
+      <div className='mb-3 flex flex-col sm:flex-row gap-2 sm:items-center sm:justify-between'>
         <Input
           prefix={<IconSearch />}
-          placeholder={t('订单号')}
+          placeholder={t('Invoice ID / Number')}
           value={keyword}
           onChange={handleKeywordChange}
           showClear
+          style={{ maxWidth: 360 }}
         />
+        <Space>
+          {!userIsAdmin && (
+            <Button
+              icon={<CreditCard size={14} />}
+              theme='light'
+              onClick={openBillingPortal}
+            >
+              {t('Billing portal')}
+            </Button>
+          )}
+          <Button icon={<Download size={14} />} theme='light' onClick={exportCsv}>
+            CSV
+          </Button>
+        </Space>
       </div>
       <Table
         columns={columns}
@@ -290,7 +354,7 @@ const TopupHistoryModal = ({ visible, onCancel, t }) => {
             darkModeImage={
               <IllustrationNoResultDark style={{ width: 150, height: 150 }} />
             }
-            description={t('暂无充值记录')}
+            description={t('暂无 Stripe Invoice')}
             style={{ padding: 30 }}
           />
         }

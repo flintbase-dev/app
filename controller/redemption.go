@@ -2,7 +2,6 @@ package controller
 
 import (
 	"net/http"
-	"strconv"
 	"unicode/utf8"
 
 	"github.com/QuantumNous/new-api/common"
@@ -40,11 +39,7 @@ func SearchRedemptions(c *gin.Context) {
 }
 
 func GetRedemption(c *gin.Context) {
-	id, err := strconv.Atoi(c.Param("id"))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	id := c.Param("id")
 	redemption, err := model.GetRedemptionById(id)
 	if err != nil {
 		common.ApiError(c, err)
@@ -83,9 +78,9 @@ func AddRedemption(c *gin.Context) {
 	}
 	var keys []string
 	for i := 0; i < redemption.Count; i++ {
-		key := common.GetUUID()
+		key := common.MustNewNanoIDKey(24)
 		cleanRedemption := model.Redemption{
-			UserId:      c.GetInt("id"),
+			UserId:      c.GetString("id"),
 			Name:        redemption.Name,
 			Key:         key,
 			CreatedTime: common.GetTimestamp(),
@@ -113,7 +108,7 @@ func AddRedemption(c *gin.Context) {
 }
 
 func DeleteRedemption(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
+	id := c.Param("id")
 	err := model.DeleteRedemptionById(id)
 	if err != nil {
 		common.ApiError(c, err)

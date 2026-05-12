@@ -14,15 +14,15 @@ import (
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
 )
 
-var group2model2channels map[string]map[string][]int // enabled channel
-var channelsIDM map[int]*Channel                     // all channels include disabled
+var group2model2channels map[string]map[string][]string // enabled channel
+var channelsIDM map[string]*Channel                     // all channels include disabled
 var channelSyncLock sync.RWMutex
 
 func InitChannelCache() {
 	if !common.MemoryCacheEnabled {
 		return
 	}
-	newChannelId2channel := make(map[int]*Channel)
+	newChannelId2channel := make(map[string]*Channel)
 	var channels []*Channel
 	DB.Find(&channels)
 	for _, channel := range channels {
@@ -34,9 +34,9 @@ func InitChannelCache() {
 	for _, ability := range abilities {
 		groups[ability.Group] = true
 	}
-	newGroup2model2channels := make(map[string]map[string][]int)
+	newGroup2model2channels := make(map[string]map[string][]string)
 	for group := range groups {
-		newGroup2model2channels[group] = make(map[string][]int)
+		newGroup2model2channels[group] = make(map[string][]string)
 	}
 	for _, channel := range channels {
 		if channel.Status != common.ChannelStatusEnabled {
@@ -47,7 +47,7 @@ func InitChannelCache() {
 			models := strings.Split(channel.Models, ",")
 			for _, model := range models {
 				if _, ok := newGroup2model2channels[group][model]; !ok {
-					newGroup2model2channels[group][model] = make([]int, 0)
+					newGroup2model2channels[group][model] = make([]string, 0)
 				}
 				newGroup2model2channels[group][model] = append(newGroup2model2channels[group][model], channel.Id)
 			}
@@ -119,7 +119,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		if channel, ok := channelsIDM[channels[0]]; ok {
 			return channel, nil
 		}
-		return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channels[0])
+		return nil, fmt.Errorf("数据库一致性错误，渠道# %s 不存在，请联系管理员修复", channels[0])
 	}
 
 	uniquePriorities := make(map[int]bool)
@@ -127,7 +127,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 		if channel, ok := channelsIDM[channelId]; ok {
 			uniquePriorities[int(channel.GetPriority())] = true
 		} else {
-			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %s 不存在，请联系管理员修复", channelId)
 		}
 	}
 	var sortedUniquePriorities []int
@@ -151,7 +151,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 				targetChannels = append(targetChannels, channel)
 			}
 		} else {
-			return nil, fmt.Errorf("数据库一致性错误，渠道# %d 不存在，请联系管理员修复", channelId)
+			return nil, fmt.Errorf("数据库一致性错误，渠道# %s 不存在，请联系管理员修复", channelId)
 		}
 	}
 
@@ -190,7 +190,7 @@ func GetRandomSatisfiedChannel(group string, model string, retry int) (*Channel,
 	return nil, errors.New("channel not found")
 }
 
-func CacheGetChannel(id int) (*Channel, error) {
+func CacheGetChannel(id string) (*Channel, error) {
 	if !common.MemoryCacheEnabled {
 		return GetChannelById(id, true)
 	}
@@ -199,12 +199,12 @@ func CacheGetChannel(id int) (*Channel, error) {
 
 	c, ok := channelsIDM[id]
 	if !ok {
-		return nil, fmt.Errorf("渠道# %d，已不存在", id)
+		return nil, fmt.Errorf("渠道# %s，已不存在", id)
 	}
 	return c, nil
 }
 
-func CacheGetChannelInfo(id int) (*ChannelInfo, error) {
+func CacheGetChannelInfo(id string) (*ChannelInfo, error) {
 	if !common.MemoryCacheEnabled {
 		channel, err := GetChannelById(id, true)
 		if err != nil {
@@ -217,12 +217,12 @@ func CacheGetChannelInfo(id int) (*ChannelInfo, error) {
 
 	c, ok := channelsIDM[id]
 	if !ok {
-		return nil, fmt.Errorf("渠道# %d，已不存在", id)
+		return nil, fmt.Errorf("渠道# %s，已不存在", id)
 	}
 	return &c.ChannelInfo, nil
 }
 
-func CacheUpdateChannelStatus(id int, status int) {
+func CacheUpdateChannelStatus(id string, status int) {
 	if !common.MemoryCacheEnabled {
 		return
 	}

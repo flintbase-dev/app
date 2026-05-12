@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"net/http"
-	"strconv"
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
@@ -77,7 +76,7 @@ func recordRedisRequest(ctx context.Context, rdb *redis.Client, key string, maxC
 // Redis限流处理器
 func redisRateLimitHandler(duration int64, totalMaxCount, successMaxCount int) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		userId := strconv.Itoa(c.GetInt("id"))
+		userId := c.GetString("id")
 		ctx := context.Background()
 		rdb := common.RDB
 
@@ -133,7 +132,7 @@ func memoryRateLimitHandler(duration int64, totalMaxCount, successMaxCount int) 
 	inMemoryRateLimiter.Init(time.Duration(setting.ModelRequestRateLimitDurationMinutes) * time.Minute)
 
 	return func(c *gin.Context) {
-		userId := strconv.Itoa(c.GetInt("id"))
+		userId := c.GetString("id")
 		totalKey := ModelRequestRateLimitCountMark + userId
 		successKey := ModelRequestRateLimitSuccessCountMark + userId
 
@@ -191,7 +190,7 @@ func ModelRequestRateLimit() func(c *gin.Context) {
 		}
 
 		// 根据存储类型选择并执行限流处理器
-		if common.RedisEnabled {
+		if common.RedisAvailable() {
 			redisRateLimitHandler(duration, totalMaxCount, successMaxCount)(c)
 		} else {
 			memoryRateLimitHandler(duration, totalMaxCount, successMaxCount)(c)

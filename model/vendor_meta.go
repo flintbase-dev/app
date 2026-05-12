@@ -13,7 +13,7 @@ import (
 // 本表同样遵循 3NF 设计范式
 
 type Vendor struct {
-	Id          int            `json:"id"`
+	Id          string         `json:"id" gorm:"primaryKey;type:varchar(32)"`
 	Name        string         `json:"name" gorm:"size:128;not null;uniqueIndex:uk_vendor_name_delete_at,priority:1"`
 	Description string         `json:"description,omitempty" gorm:"type:text"`
 	Icon        string         `json:"icon,omitempty" gorm:"type:varchar(128)"`
@@ -32,7 +32,7 @@ func (v *Vendor) Insert() error {
 }
 
 // IsVendorNameDuplicated 检查供应商名称是否重复（排除自身 ID）
-func IsVendorNameDuplicated(id int, name string) (bool, error) {
+func IsVendorNameDuplicated(id string, name string) (bool, error) {
 	if name == "" {
 		return false, nil
 	}
@@ -53,9 +53,9 @@ func (v *Vendor) Delete() error {
 }
 
 // GetVendorByID 根据 ID 获取供应商
-func GetVendorByID(id int) (*Vendor, error) {
+func GetVendorByID(id string) (*Vendor, error) {
 	var v Vendor
-	err := DB.First(&v, id).Error
+	err := DB.First(&v, "id = ?", id).Error
 	if err != nil {
 		return nil, err
 	}

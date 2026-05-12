@@ -21,7 +21,7 @@ import React, { useState } from 'react';
 import { Radio, RadioGroup } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import ModelPricingEditor from './components/ModelPricingEditor';
-import ModelRatioSettings from './ModelRatioSettings';
+import ModelPriceSettings from './ModelPriceSettings';
 
 export default function ModelPricingCombined({ options, refresh }) {
   const { t } = useTranslation();
@@ -43,7 +43,7 @@ export default function ModelPricingCombined({ options, refresh }) {
       {editMode === 'visual' ? (
         <ModelPricingEditor options={options} refresh={refresh} />
       ) : (
-        <ModelRatioSettings options={options} refresh={refresh} />
+        <ModelPriceSettings options={options} refresh={refresh} />
       )}
     </div>
   );

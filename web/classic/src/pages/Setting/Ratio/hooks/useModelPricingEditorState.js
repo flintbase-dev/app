@@ -24,7 +24,7 @@ import {
 } from '../components/requestRuleExpr';
 
 export const PAGE_SIZE = 10;
-export const PRICE_SUFFIX = '$/1M tokens';
+export const PRICE_SUFFIX = '/Mtk';
 const EMPTY_CANDIDATE_MODEL_NAMES = [];
 
 const EMPTY_MODEL = {
@@ -33,8 +33,6 @@ const EMPTY_MODEL = {
   fixedPrice: '',
   inputPrice: '',
   completionPrice: '',
-  lockedCompletionRatio: '',
-  completionRatioLocked: false,
   cachePrice: '',
   createCachePrice: '',
   imagePrice: '',
@@ -43,8 +41,6 @@ const EMPTY_MODEL = {
   billingExpr: '',
   requestRuleExpr: '',
   rawRatios: {
-    modelRatio: '',
-    completionRatio: '',
     cacheRatio: '',
     createCacheRatio: '',
     imageRatio: '',
@@ -101,26 +97,6 @@ const parseOptionJSON = (rawValue) => {
   }
 };
 
-const ratioToBasePrice = (ratio) => {
-  const num = toNumberOrNull(ratio);
-  if (num === null) return '';
-  return formatNumber(num * 2);
-};
-
-const normalizeCompletionRatioMeta = (rawMeta) => {
-  if (!rawMeta || typeof rawMeta !== 'object' || Array.isArray(rawMeta)) {
-    return {
-      locked: false,
-      ratio: '',
-    };
-  }
-
-  return {
-    locked: Boolean(rawMeta.locked),
-    ratio: toNumericString(rawMeta.ratio),
-  };
-};
-
 const buildModelState = (name, sourceMaps) => {
   const billingMode = sourceMaps.ModelBillingMode?.[name];
   if (billingMode === 'tiered_expr') {
@@ -138,11 +114,8 @@ const buildModelState = (name, sourceMaps) => {
     };
   }
 
-  const modelRatio = toNumericString(sourceMaps.ModelRatio[name]);
-  const completionRatio = toNumericString(sourceMaps.CompletionRatio[name]);
-  const completionRatioMeta = normalizeCompletionRatioMeta(
-    sourceMaps.CompletionRatioMeta?.[name],
-  );
+  const inputPrice = toNumericString(sourceMaps.ModelPrice[name]);
+  const completionPrice = toNumericString(sourceMaps.CompletionPrice[name]);
   const cacheRatio = toNumericString(sourceMaps.CacheRatio[name]);
   const createCacheRatio = toNumericString(sourceMaps.CreateCacheRatio[name]);
   const imageRatio = toNumericString(sourceMaps.ImageRatio[name]);
@@ -150,8 +123,7 @@ const buildModelState = (name, sourceMaps) => {
   const audioCompletionRatio = toNumericString(
     sourceMaps.AudioCompletionRatio[name],
   );
-  const fixedPrice = toNumericString(sourceMaps.ModelPrice[name]);
-  const inputPrice = ratioToBasePrice(modelRatio);
+  const fixedPrice = toNumericString(sourceMaps.ModelFixedPrice[name]);
   const inputPriceNumber = toNumberOrNull(inputPrice);
   const audioInputPrice =
     inputPriceNumber !== null && hasValue(audioRatio)
@@ -164,24 +136,7 @@ const buildModelState = (name, sourceMaps) => {
     billingMode: hasValue(fixedPrice) ? 'per-request' : 'per-token',
     fixedPrice,
     inputPrice,
-    completionRatioLocked: completionRatioMeta.locked,
-    lockedCompletionRatio: completionRatioMeta.ratio,
-    completionPrice:
-      inputPriceNumber !== null &&
-      hasValue(
-        completionRatioMeta.locked
-          ? completionRatioMeta.ratio
-          : completionRatio,
-      )
-        ? formatNumber(
-            inputPriceNumber *
-              Number(
-                completionRatioMeta.locked
-                  ? completionRatioMeta.ratio
-                  : completionRatio,
-              ),
-          )
-        : '',
+    completionPrice,
     cachePrice:
       inputPriceNumber !== null && hasValue(cacheRatio)
         ? formatNumber(inputPriceNumber * Number(cacheRatio))
@@ -201,8 +156,6 @@ const buildModelState = (name, sourceMaps) => {
         : '',
     requestRuleExpr: '',
     rawRatios: {
-      modelRatio,
-      completionRatio,
       cacheRatio,
       createCacheRatio,
       imageRatio,
@@ -212,8 +165,8 @@ const buildModelState = (name, sourceMaps) => {
     hasConflict:
       hasValue(fixedPrice) &&
       [
-        modelRatio,
-        completionRatio,
+        inputPrice,
+        completionPrice,
         cacheRatio,
         createCacheRatio,
         imageRatio,
@@ -225,7 +178,8 @@ const buildModelState = (name, sourceMaps) => {
 
 export const isBasePricingUnset = (model) =>
   model.billingMode !== 'tiered_expr' &&
-  !hasValue(model.fixedPrice) && !hasValue(model.inputPrice);
+  !hasValue(model.fixedPrice) &&
+  !hasValue(model.inputPrice);
 
 export const getModelWarnings = (model, t) => {
   if (!model) {
@@ -254,7 +208,6 @@ export const getModelWarnings = (model, t) => {
   if (
     !hasValue(model.inputPrice) &&
     [
-      model.rawRatios.completionRatio,
       model.rawRatios.cacheRatio,
       model.rawRatios.createCacheRatio,
       model.rawRatios.imageRatio,
@@ -264,7 +217,7 @@ export const getModelWarnings = (model, t) => {
   ) {
     warnings.push(
       t(
-        '当前模型存在未显式设置输入倍率的扩展倍率；填写输入价格后会自动换算为价格字段。',
+        '当前模型存在依赖模型价格的扩展倍率；填写模型价格后会自动换算为价格字段。',
       ),
     );
   }
@@ -291,8 +244,8 @@ export const getModelWarnings = (model, t) => {
 export const buildSummaryText = (model, t) => {
   const requestRuleSuffix =
     model.billingMode === 'tiered_expr' && model.requestRuleExpr
-    ? `，${t('请求规则')}`
-    : '';
+      ? `，${t('请求规则')}`
+      : '';
   if (model.billingMode === 'tiered_expr') {
     const expr = model.billingExpr;
     if (!expr) return `${t('表达式计费')}${requestRuleSuffix}`;
@@ -325,8 +278,7 @@ export const buildSummaryText = (model, t) => {
 };
 
 export const buildOptionalFieldToggles = (model) => ({
-  completionPrice:
-    model.completionRatioLocked || hasValue(model.completionPrice),
+  completionPrice: hasValue(model.completionPrice),
   cachePrice: hasValue(model.cachePrice),
   createCachePrice: hasValue(model.createCachePrice),
   imagePrice: hasValue(model.imagePrice),
@@ -337,8 +289,8 @@ export const buildOptionalFieldToggles = (model) => ({
 const serializeModel = (model, t) => {
   const result = {
     ModelPrice: null,
-    ModelRatio: null,
-    CompletionRatio: null,
+    CompletionPrice: null,
+    ModelFixedPrice: null,
     CacheRatio: null,
     CreateCacheRatio: null,
     ImageRatio: null,
@@ -348,7 +300,7 @@ const serializeModel = (model, t) => {
 
   if (model.billingMode === 'per-request') {
     if (hasValue(model.fixedPrice)) {
-      result.ModelPrice = toNormalizedNumber(model.fixedPrice);
+      result.ModelFixedPrice = toNormalizedNumber(model.fixedPrice);
     }
     return result;
   }
@@ -373,23 +325,12 @@ const serializeModel = (model, t) => {
   if (inputPrice === null) {
     if (hasDependentPrice) {
       throw new Error(
-        t(
-          '模型 {{name}} 缺少输入价格，无法计算补全/缓存/图片/音频价格对应的倍率',
-          {
-            name: model.name,
-          },
-        ),
+        t('模型 {{name}} 缺少模型价格，无法计算缓存/图片/音频价格对应的倍率', {
+          name: model.name,
+        }),
       );
     }
 
-    if (hasValue(model.rawRatios.modelRatio)) {
-      result.ModelRatio = toNormalizedNumber(model.rawRatios.modelRatio);
-    }
-    if (hasValue(model.rawRatios.completionRatio)) {
-      result.CompletionRatio = toNormalizedNumber(
-        model.rawRatios.completionRatio,
-      );
-    }
     if (hasValue(model.rawRatios.cacheRatio)) {
       result.CacheRatio = toNormalizedNumber(model.rawRatios.cacheRatio);
     }
@@ -412,17 +353,10 @@ const serializeModel = (model, t) => {
     return result;
   }
 
-  result.ModelRatio = toNormalizedNumber(inputPrice / 2);
+  result.ModelPrice = toNormalizedNumber(inputPrice);
 
-  if (!model.completionRatioLocked && completionPrice !== null) {
-    result.CompletionRatio = toNormalizedNumber(completionPrice / inputPrice);
-  } else if (
-    model.completionRatioLocked &&
-    hasValue(model.rawRatios.completionRatio)
-  ) {
-    result.CompletionRatio = toNormalizedNumber(
-      model.rawRatios.completionRatio,
-    );
+  if (completionPrice !== null) {
+    result.CompletionPrice = toNormalizedNumber(completionPrice);
   }
   if (cachePrice !== null) {
     result.CacheRatio = toNormalizedNumber(cachePrice / inputPrice);
@@ -490,8 +424,8 @@ export const buildPreviewRows = (model, t) => {
   if (model.billingMode === 'per-request') {
     const rows = [
       {
-        key: 'ModelPrice',
-        label: 'ModelPrice',
+        key: 'ModelFixedPrice',
+        label: 'ModelFixedPrice',
         value: hasValue(model.fixedPrice) ? model.fixedPrice : t('空'),
       },
     ];
@@ -502,17 +436,15 @@ export const buildPreviewRows = (model, t) => {
   if (inputPrice === null) {
     const rows = [
       {
-        key: 'ModelRatio',
-        label: 'ModelRatio',
-        value: hasValue(model.rawRatios.modelRatio)
-          ? model.rawRatios.modelRatio
-          : t('空'),
+        key: 'ModelPrice',
+        label: 'ModelPrice',
+        value: t('空'),
       },
       {
-        key: 'CompletionRatio',
-        label: 'CompletionRatio',
-        value: hasValue(model.rawRatios.completionRatio)
-          ? model.rawRatios.completionRatio
+        key: 'CompletionPrice',
+        label: 'CompletionPrice',
+        value: hasValue(model.completionPrice)
+          ? model.completionPrice
           : t('空'),
       },
       {
@@ -563,18 +495,14 @@ export const buildPreviewRows = (model, t) => {
 
   const rows = [
     {
-      key: 'ModelRatio',
-      label: 'ModelRatio',
-      value: formatNumber(inputPrice / 2),
+      key: 'ModelPrice',
+      label: 'ModelPrice',
+      value: formatNumber(inputPrice),
     },
     {
-      key: 'CompletionRatio',
-      label: 'CompletionRatio',
-      value: model.completionRatioLocked
-        ? `${model.lockedCompletionRatio || t('空')} (${t('后端固定')})`
-        : completionPrice !== null
-          ? formatNumber(completionPrice / inputPrice)
-          : t('空'),
+      key: 'CompletionPrice',
+      label: 'CompletionPrice',
+      value: completionPrice !== null ? formatNumber(completionPrice) : t('空'),
     },
     {
       key: 'CacheRatio',
@@ -638,24 +566,26 @@ export function useModelPricingEditorState({
   useEffect(() => {
     const sourceMaps = {
       ModelPrice: parseOptionJSON(options.ModelPrice),
-      ModelRatio: parseOptionJSON(options.ModelRatio),
-      CompletionRatio: parseOptionJSON(options.CompletionRatio),
-      CompletionRatioMeta: parseOptionJSON(options.CompletionRatioMeta),
+      CompletionPrice: parseOptionJSON(options.CompletionPrice),
+      ModelFixedPrice: parseOptionJSON(options.ModelFixedPrice),
       CacheRatio: parseOptionJSON(options.CacheRatio),
       CreateCacheRatio: parseOptionJSON(options.CreateCacheRatio),
       ImageRatio: parseOptionJSON(options.ImageRatio),
       AudioRatio: parseOptionJSON(options.AudioRatio),
       AudioCompletionRatio: parseOptionJSON(options.AudioCompletionRatio),
-      ModelBillingMode: parseOptionJSON(options['billing_setting.billing_mode']),
-      ModelBillingExpr: parseOptionJSON(options['billing_setting.billing_expr']),
+      ModelBillingMode: parseOptionJSON(
+        options['billing_setting.billing_mode'],
+      ),
+      ModelBillingExpr: parseOptionJSON(
+        options['billing_setting.billing_expr'],
+      ),
     };
 
     const names = new Set([
       ...candidateModelNames,
       ...Object.keys(sourceMaps.ModelPrice),
-      ...Object.keys(sourceMaps.ModelRatio),
-      ...Object.keys(sourceMaps.CompletionRatio),
-      ...Object.keys(sourceMaps.CompletionRatioMeta),
+      ...Object.keys(sourceMaps.CompletionPrice),
+      ...Object.keys(sourceMaps.ModelFixedPrice),
       ...Object.keys(sourceMaps.CacheRatio),
       ...Object.keys(sourceMaps.CreateCacheRatio),
       ...Object.keys(sourceMaps.ImageRatio),
@@ -819,13 +749,7 @@ export function useModelPricingEditorState({
 
     return {
       ...model,
-      completionPrice:
-        model.completionRatioLocked && hasValue(model.lockedCompletionRatio)
-          ? formatNumber(baseNumber * Number(model.lockedCompletionRatio))
-          : !hasValue(model.completionPrice) &&
-              hasValue(model.rawRatios.completionRatio)
-            ? formatNumber(baseNumber * Number(model.rawRatios.completionRatio))
-            : model.completionPrice,
+      completionPrice: model.completionPrice,
       cachePrice:
         !hasValue(model.cachePrice) && hasValue(model.rawRatios.cacheRatio)
           ? formatNumber(baseNumber * Number(model.rawRatios.cacheRatio))
@@ -975,18 +899,6 @@ export function useModelPricingEditorState({
           requestRuleExpr: selectedModel.requestRuleExpr || '',
         };
 
-        if (
-          nextModel.billingMode === 'per-token' &&
-          nextModel.completionRatioLocked &&
-          hasValue(nextModel.inputPrice) &&
-          hasValue(nextModel.lockedCompletionRatio)
-        ) {
-          nextModel.completionPrice = formatNumber(
-            Number(nextModel.inputPrice) *
-              Number(nextModel.lockedCompletionRatio),
-          );
-        }
-
         return nextModel;
       }),
     );
@@ -996,9 +908,7 @@ export function useModelPricingEditorState({
       selectedModelNames.forEach((modelName) => {
         const targetModel = models.find((item) => item.name === modelName);
         next[modelName] = {
-          completionPrice: targetModel?.completionRatioLocked
-            ? true
-            : Boolean(sourceToggles.completionPrice),
+          completionPrice: Boolean(sourceToggles.completionPrice),
           cachePrice: Boolean(sourceToggles.cachePrice),
           createCachePrice: Boolean(sourceToggles.createCachePrice),
           imagePrice: Boolean(sourceToggles.imagePrice),
@@ -1025,8 +935,8 @@ export function useModelPricingEditorState({
     try {
       const output = {
         ModelPrice: {},
-        ModelRatio: {},
-        CompletionRatio: {},
+        CompletionPrice: {},
+        ModelFixedPrice: {},
         CacheRatio: {},
         CreateCacheRatio: {},
         ImageRatio: {},
@@ -1046,12 +956,14 @@ export function useModelPricingEditorState({
             model.requestRuleExpr,
           );
           if (finalBillingExpr) {
-            tieredOutput['billing_setting.billing_mode'][model.name] = 'tiered_expr';
-            tieredOutput['billing_setting.billing_expr'][model.name] = finalBillingExpr;
+            tieredOutput['billing_setting.billing_mode'][model.name] =
+              'tiered_expr';
+            tieredOutput['billing_setting.billing_expr'][model.name] =
+              finalBillingExpr;
           }
         }
 
-        // Always serialize ratio/price values for all models (including
+        // Always serialize price values for all models (including
         // tiered_expr) so they serve as fallback during multi-instance sync
         // delay.  ModelPriceHelper checks billing_mode first, so these values
         // are only used when billing_setting hasn't propagated yet.
@@ -1071,13 +983,13 @@ export function useModelPricingEditorState({
 
       const requestQueue = [
         ...Object.entries(output).map(([key, value]) =>
-          API.put('/api/option/', {
+          API.mutation('updateOption', {
             key,
             value: JSON.stringify(value, null, 2),
           }),
         ),
         ...Object.entries(tieredOutput).map(([key, value]) =>
-          API.put('/api/option/', {
+          API.mutation('updateOption', {
             key,
             value: JSON.stringify(value, null, 2),
           }),

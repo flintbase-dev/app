@@ -12,8 +12,8 @@ import (
 )
 
 type Token struct {
-	Id                 int            `json:"id"`
-	UserId             int            `json:"user_id" gorm:"index"`
+	Id                 string         `json:"id" gorm:"primaryKey;type:varchar(32)"`
+	UserId             string         `json:"user_id" gorm:"type:varchar(32);index"`
 	Key                string         `json:"key" gorm:"type:varchar(128);uniqueIndex"`
 	Status             int            `json:"status" gorm:"default:1"`
 	Name               string         `json:"name" gorm:"index" `
@@ -78,7 +78,7 @@ func (token *Token) GetIpLimits() []string {
 	return ipLimits
 }
 
-func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
+func GetAllUserTokens(userId string, startIdx int, num int) ([]*Token, error) {
 	var tokens []*Token
 	var err error
 	err = DB.Where("user_id = ?", userId).Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
@@ -87,14 +87,14 @@ func GetAllUserTokens(userId int, startIdx int, num int) ([]*Token, error) {
 
 // sanitizeLikePattern 校验并清洗用户输入的 LIKE 搜索模式。
 // 规则：
-//  1. 转义 ! 和 _（使用 ! 作为 ESCAPE 字符，兼容 MySQL/PostgreSQL/SQLite）
+//  1. 转义 ! 和 _（使用 ! 作为 ESCAPE 字符，兼容 PostgreSQL）
 //  2. 连续的 % 合并为单个 %
 //  3. 最多允许 2 个 %
 //  4. 含 % 时（模糊搜索），去掉 % 后关键词长度必须 >= 2
 //  5. 不含 % 时按精确匹配
 func sanitizeLikePattern(input string) (string, error) {
 	// 1. 先转义 ESCAPE 字符 ! 自身，再转义 _
-	//    使用 ! 而非 \ 作为 ESCAPE 字符，避免 MySQL 中反斜杠的字符串转义问题
+	//    使用 ! 而非 \ 作为 ESCAPE 字符，避免反斜杠的字符串转义问题
 	input = strings.ReplaceAll(input, "!", "!!")
 	input = strings.ReplaceAll(input, `_`, `!_`)
 
@@ -124,7 +124,7 @@ func sanitizeLikePattern(input string) (string, error) {
 
 const searchHardLimit = 100
 
-func SearchUserTokens(userId int, keyword string, token string, offset int, limit int) (tokens []*Token, total int64, err error) {
+func SearchUserTokens(userId string, keyword string, token string, offset int, limit int) (tokens []*Token, total int64, err error) {
 	// model 层强制截断
 	if limit <= 0 || limit > searchHardLimit {
 		limit = searchHardLimit
@@ -225,8 +225,8 @@ func ValidateUserToken(key string) (token *Token, err error) {
 	return nil, fmt.Errorf("%w: %v", ErrDatabase, err)
 }
 
-func GetTokenByIds(id int, userId int) (*Token, error) {
-	if id == 0 || userId == 0 {
+func GetTokenByIds(id string, userId string) (*Token, error) {
+	if common.IsEmptyID(id) || common.IsEmptyID(userId) {
 		return nil, errors.New("id 或 userId 为空！")
 	}
 	token := Token{Id: id, UserId: userId}
@@ -235,8 +235,8 @@ func GetTokenByIds(id int, userId int) (*Token, error) {
 	return &token, err
 }
 
-func GetTokenById(id int) (*Token, error) {
-	if id == 0 {
+func GetTokenById(id string) (*Token, error) {
+	if common.IsEmptyID(id) {
 		return nil, errors.New("id 为空！")
 	}
 	token := Token{Id: id}
@@ -349,7 +349,7 @@ func (token *Token) GetModelLimitsMap() map[string]bool {
 	return limitsMap
 }
 
-func DisableModelLimits(tokenId int) error {
+func DisableModelLimits(tokenId string) error {
 	token, err := GetTokenById(tokenId)
 	if err != nil {
 		return err
@@ -359,9 +359,9 @@ func DisableModelLimits(tokenId int) error {
 	return token.Update()
 }
 
-func DeleteTokenById(id int, userId int) (err error) {
+func DeleteTokenById(id string, userId string) (err error) {
 	// Why we need userId here? In case user want to delete other's token.
-	if id == 0 || userId == 0 {
+	if common.IsEmptyID(id) || common.IsEmptyID(userId) {
 		return errors.New("id 或 userId 为空！")
 	}
 	token := Token{Id: id, UserId: userId}
@@ -372,7 +372,7 @@ func DeleteTokenById(id int, userId int) (err error) {
 	return token.Delete()
 }
 
-func IncreaseTokenQuota(tokenId int, key string, quota int) (err error) {
+func IncreaseTokenQuota(tokenId string, key string, quota int) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
@@ -391,7 +391,7 @@ func IncreaseTokenQuota(tokenId int, key string, quota int) (err error) {
 	return increaseTokenQuota(tokenId, quota)
 }
 
-func increaseTokenQuota(id int, quota int) (err error) {
+func increaseTokenQuota(id string, quota int) (err error) {
 	err = DB.Model(&Token{}).Where("id = ?", id).Updates(
 		map[string]interface{}{
 			"remain_quota":  gorm.Expr("remain_quota + ?", quota),
@@ -402,7 +402,7 @@ func increaseTokenQuota(id int, quota int) (err error) {
 	return err
 }
 
-func DecreaseTokenQuota(id int, key string, quota int) (err error) {
+func DecreaseTokenQuota(id string, key string, quota int) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
@@ -421,7 +421,7 @@ func DecreaseTokenQuota(id int, key string, quota int) (err error) {
 	return decreaseTokenQuota(id, quota)
 }
 
-func decreaseTokenQuota(id int, quota int) (err error) {
+func decreaseTokenQuota(id string, quota int) (err error) {
 	err = DB.Model(&Token{}).Where("id = ?", id).Updates(
 		map[string]interface{}{
 			"remain_quota":  gorm.Expr("remain_quota - ?", quota),
@@ -433,14 +433,14 @@ func decreaseTokenQuota(id int, quota int) (err error) {
 }
 
 // CountUserTokens returns total number of tokens for the given user, used for pagination
-func CountUserTokens(userId int) (int64, error) {
+func CountUserTokens(userId string) (int64, error) {
 	var total int64
 	err := DB.Model(&Token{}).Where("user_id = ?", userId).Count(&total).Error
 	return total, err
 }
 
 // BatchDeleteTokens 删除指定用户的一组令牌，返回成功删除数量
-func BatchDeleteTokens(ids []int, userId int) (int, error) {
+func BatchDeleteTokens(ids []string, userId string) (int, error) {
 	if len(ids) == 0 {
 		return 0, errors.New("ids 不能为空！")
 	}
@@ -473,7 +473,7 @@ func BatchDeleteTokens(ids []int, userId int) (int, error) {
 	return len(tokens), nil
 }
 
-func GetTokenKeysByIds(ids []int, userId int) ([]Token, error) {
+func GetTokenKeysByIds(ids []string, userId string) ([]Token, error) {
 	var tokens []Token
 	err := DB.Select("id", commonKeyCol).
 		Where("user_id = ? AND id IN (?)", userId, ids).
@@ -484,11 +484,11 @@ func GetTokenKeysByIds(ids []int, userId int) ([]Token, error) {
 // InvalidateUserTokensCache 清理指定用户所有令牌在 Redis 中的缓存，
 // 配合 InvalidateUserCache 使用，可在用户被禁用/删除时立即阻断其令牌的请求。
 // 下一次请求将从数据库重新加载令牌及用户状态，从而立即识别出被禁用的用户。
-func InvalidateUserTokensCache(userId int) error {
+func InvalidateUserTokensCache(userId string) error {
 	if !common.RedisEnabled {
 		return nil
 	}
-	if userId <= 0 {
+	if common.IsEmptyID(userId) {
 		return errors.New("userId 无效")
 	}
 	var tokens []Token

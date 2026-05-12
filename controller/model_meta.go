@@ -2,8 +2,8 @@ package controller
 
 import (
 	"encoding/json"
+	"fmt"
 	"sort"
-	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -62,14 +62,9 @@ func SearchModelsMeta(c *gin.Context) {
 
 // GetModelMeta 根据 ID 获取单条模型信息
 func GetModelMeta(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	id := c.Param("id")
 	var m model.Model
-	if err := model.DB.First(&m, id).Error; err != nil {
+	if err := model.DB.First(&m, "id = ?", id).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -89,7 +84,7 @@ func CreateModelMeta(c *gin.Context) {
 		return
 	}
 	// 名称冲突检查
-	if dup, err := model.IsModelNameDuplicated(0, m.ModelName); err != nil {
+	if dup, err := model.IsModelNameDuplicated("", m.ModelName); err != nil {
 		common.ApiError(c, err)
 		return
 	} else if dup {
@@ -114,7 +109,7 @@ func UpdateModelMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if m.Id == 0 {
+	if common.IsEmptyID(m.Id) {
 		common.ApiErrorMsg(c, "缺少模型 ID")
 		return
 	}
@@ -146,13 +141,8 @@ func UpdateModelMeta(c *gin.Context) {
 
 // DeleteModelMeta 删除模型
 func DeleteModelMeta(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if err := model.DB.Delete(&model.Model{}, id).Error; err != nil {
+	id := c.Param("id")
+	if err := model.DB.Delete(&model.Model{}, "id = ?", id).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -311,7 +301,7 @@ func enrichModels(models []*model.Model) {
 		channelSet := make(map[string]model.BoundChannel)
 		for _, n := range names {
 			for _, ch := range matchedChannelsByModel[n] {
-				key := ch.Name + "_" + strconv.Itoa(ch.Type)
+				key := fmt.Sprintf("%s_%d", ch.Name, ch.Type)
 				channelSet[key] = ch
 			}
 		}

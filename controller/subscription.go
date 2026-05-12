@@ -1,7 +1,6 @@
 package controller
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
@@ -31,15 +30,13 @@ func GetSubscriptionPlans(c *gin.Context) {
 	}
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
-		result = append(result, SubscriptionPlanDTO{
-			Plan: p,
-		})
+		result = append(result, SubscriptionPlanDTO{Plan: p})
 	}
 	common.ApiSuccess(c, result)
 }
 
 func GetSubscriptionSelf(c *gin.Context) {
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	settingMap, _ := model.GetUserSetting(userId, false)
 	pref := common.NormalizeBillingPreference(settingMap.BillingPreference)
 
@@ -48,8 +45,6 @@ func GetSubscriptionSelf(c *gin.Context) {
 	if err != nil {
 		allSubscriptions = []model.SubscriptionSummary{}
 	}
-
-	// Get active subscriptions for backward compatibility
 	activeSubscriptions, err := model.GetAllActiveUserSubscriptions(userId)
 	if err != nil {
 		activeSubscriptions = []model.SubscriptionSummary{}
@@ -57,13 +52,13 @@ func GetSubscriptionSelf(c *gin.Context) {
 
 	common.ApiSuccess(c, gin.H{
 		"billing_preference": pref,
-		"subscriptions":      activeSubscriptions, // all active subscriptions
-		"all_subscriptions":  allSubscriptions,    // all subscriptions including expired
+		"subscriptions":      activeSubscriptions,
+		"all_subscriptions":  allSubscriptions, // all subscriptions including expired
 	})
 }
 
 func UpdateSubscriptionPreference(c *gin.Context) {
-	userId := c.GetInt("id")
+	userId := c.GetString("id")
 	var req BillingPreferenceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiErrorMsg(c, "参数错误")
@@ -96,9 +91,7 @@ func AdminListSubscriptionPlans(c *gin.Context) {
 	}
 	result := make([]SubscriptionPlanDTO, 0, len(plans))
 	for _, p := range plans {
-		result = append(result, SubscriptionPlanDTO{
-			Plan: p,
-		})
+		result = append(result, SubscriptionPlanDTO{Plan: p})
 	}
 	common.ApiSuccess(c, result)
 }
@@ -113,7 +106,7 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
-	req.Plan.Id = 0
+	req.Plan.Id = ""
 	if strings.TrimSpace(req.Plan.Title) == "" {
 		common.ApiErrorMsg(c, "套餐标题不能为空")
 		return
@@ -126,10 +119,6 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 		common.ApiErrorMsg(c, "价格不能超过9999")
 		return
 	}
-	if req.Plan.Currency == "" {
-		req.Plan.Currency = "USD"
-	}
-	req.Plan.Currency = "USD"
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
 	}
@@ -166,8 +155,8 @@ func AdminCreateSubscriptionPlan(c *gin.Context) {
 }
 
 func AdminUpdateSubscriptionPlan(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
-	if id <= 0 {
+	id := c.Param("id")
+	if common.IsEmptyID(id) {
 		common.ApiErrorMsg(c, "无效的ID")
 		return
 	}
@@ -189,10 +178,6 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 		return
 	}
 	req.Plan.Id = id
-	if req.Plan.Currency == "" {
-		req.Plan.Currency = "USD"
-	}
-	req.Plan.Currency = "USD"
 	if req.Plan.DurationUnit == "" {
 		req.Plan.DurationUnit = model.SubscriptionDurationMonth
 	}
@@ -226,14 +211,12 @@ func AdminUpdateSubscriptionPlan(c *gin.Context) {
 			"title":                      req.Plan.Title,
 			"subtitle":                   req.Plan.Subtitle,
 			"price_amount":               req.Plan.PriceAmount,
-			"currency":                   req.Plan.Currency,
 			"duration_unit":              req.Plan.DurationUnit,
 			"duration_value":             req.Plan.DurationValue,
 			"custom_seconds":             req.Plan.CustomSeconds,
 			"enabled":                    req.Plan.Enabled,
 			"sort_order":                 req.Plan.SortOrder,
 			"stripe_price_id":            req.Plan.StripePriceId,
-			"creem_product_id":           req.Plan.CreemProductId,
 			"max_purchase_per_user":      req.Plan.MaxPurchasePerUser,
 			"total_amount":               req.Plan.TotalAmount,
 			"upgrade_group":              req.Plan.UpgradeGroup,
@@ -259,8 +242,8 @@ type AdminUpdateSubscriptionPlanStatusRequest struct {
 }
 
 func AdminUpdateSubscriptionPlanStatus(c *gin.Context) {
-	id, _ := strconv.Atoi(c.Param("id"))
-	if id <= 0 {
+	id := c.Param("id")
+	if common.IsEmptyID(id) {
 		common.ApiErrorMsg(c, "无效的ID")
 		return
 	}
@@ -278,13 +261,13 @@ func AdminUpdateSubscriptionPlanStatus(c *gin.Context) {
 }
 
 type AdminBindSubscriptionRequest struct {
-	UserId int `json:"user_id"`
-	PlanId int `json:"plan_id"`
+	UserId string `json:"user_id"`
+	PlanId string `json:"plan_id"`
 }
 
 func AdminBindSubscription(c *gin.Context) {
 	var req AdminBindSubscriptionRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.UserId <= 0 || req.PlanId <= 0 {
+	if err := c.ShouldBindJSON(&req); err != nil || common.IsEmptyID(req.UserId) || common.IsEmptyID(req.PlanId) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
@@ -303,8 +286,8 @@ func AdminBindSubscription(c *gin.Context) {
 // ---- Admin: user subscription management ----
 
 func AdminListUserSubscriptions(c *gin.Context) {
-	userId, _ := strconv.Atoi(c.Param("id"))
-	if userId <= 0 {
+	userId := c.Param("id")
+	if common.IsEmptyID(userId) {
 		common.ApiErrorMsg(c, "无效的用户ID")
 		return
 	}
@@ -317,18 +300,18 @@ func AdminListUserSubscriptions(c *gin.Context) {
 }
 
 type AdminCreateUserSubscriptionRequest struct {
-	PlanId int `json:"plan_id"`
+	PlanId string `json:"plan_id"`
 }
 
 // AdminCreateUserSubscription creates a new user subscription from a plan (no payment).
 func AdminCreateUserSubscription(c *gin.Context) {
-	userId, _ := strconv.Atoi(c.Param("id"))
-	if userId <= 0 {
+	userId := c.Param("id")
+	if common.IsEmptyID(userId) {
 		common.ApiErrorMsg(c, "无效的用户ID")
 		return
 	}
 	var req AdminCreateUserSubscriptionRequest
-	if err := c.ShouldBindJSON(&req); err != nil || req.PlanId <= 0 {
+	if err := c.ShouldBindJSON(&req); err != nil || common.IsEmptyID(req.PlanId) {
 		common.ApiErrorMsg(c, "参数错误")
 		return
 	}
@@ -346,8 +329,8 @@ func AdminCreateUserSubscription(c *gin.Context) {
 
 // AdminInvalidateUserSubscription cancels a user subscription immediately.
 func AdminInvalidateUserSubscription(c *gin.Context) {
-	subId, _ := strconv.Atoi(c.Param("id"))
-	if subId <= 0 {
+	subId := c.Param("id")
+	if common.IsEmptyID(subId) {
 		common.ApiErrorMsg(c, "无效的订阅ID")
 		return
 	}
@@ -365,8 +348,8 @@ func AdminInvalidateUserSubscription(c *gin.Context) {
 
 // AdminDeleteUserSubscription hard-deletes a user subscription.
 func AdminDeleteUserSubscription(c *gin.Context) {
-	subId, _ := strconv.Atoi(c.Param("id"))
-	if subId <= 0 {
+	subId := c.Param("id")
+	if common.IsEmptyID(subId) {
 		common.ApiErrorMsg(c, "无效的订阅ID")
 		return
 	}

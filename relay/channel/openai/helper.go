@@ -98,8 +98,6 @@ func processTokens(relayMode int, streamItems []string, responseTextBuilder *str
 	switch relayMode {
 	case relayconstant.RelayModeChatCompletions:
 		return processChatCompletions(streamResp, streamItems, responseTextBuilder, toolCount)
-	case relayconstant.RelayModeCompletions:
-		return processCompletions(streamResp, streamItems, responseTextBuilder)
 	}
 	return nil
 }
@@ -135,32 +133,6 @@ func processChatCompletions(streamResp string, streamItems []string, responseTex
 					responseTextBuilder.WriteString(tool.Function.Arguments)
 				}
 			}
-		}
-	}
-	return nil
-}
-
-func processCompletions(streamResp string, streamItems []string, responseTextBuilder *strings.Builder) error {
-	var streamResponses []dto.CompletionsStreamResponse
-	if err := json.Unmarshal(common.StringToByteSlice(streamResp), &streamResponses); err != nil {
-		// 一次性解析失败，逐个解析
-		common.SysLog("error unmarshalling stream response: " + err.Error())
-		for _, item := range streamItems {
-			var streamResponse dto.CompletionsStreamResponse
-			if err := json.Unmarshal(common.StringToByteSlice(item), &streamResponse); err != nil {
-				continue
-			}
-			for _, choice := range streamResponse.Choices {
-				responseTextBuilder.WriteString(choice.Text)
-			}
-		}
-		return nil
-	}
-
-	// 批量处理所有响应
-	for _, streamResponse := range streamResponses {
-		for _, choice := range streamResponse.Choices {
-			responseTextBuilder.WriteString(choice.Text)
 		}
 	}
 	return nil

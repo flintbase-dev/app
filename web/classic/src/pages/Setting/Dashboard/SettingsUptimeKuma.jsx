@@ -139,7 +139,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
   ];
 
   const updateOption = async (key, value) => {
-    const res = await API.put('/api/option/', {
+    const res = await API.mutation('updateOption', {
       key,
       value,
     });
@@ -294,7 +294,7 @@ const SettingsUptimeKuma = ({ options, refresh }) => {
   const handleToggleEnabled = async (checked) => {
     const newValue = checked ? 'true' : 'false';
     try {
-      const res = await API.put('/api/option/', {
+      const res = await API.mutation('updateOption', {
         key: 'console_setting.uptime_kuma_enabled',
         value: newValue,
       });

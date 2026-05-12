@@ -40,7 +40,6 @@ const LEGAL_PRIVACY_POLICY_KEY = 'legal.privacy_policy';
 const OtherSetting = () => {
   const { t } = useTranslation();
   let [inputs, setInputs] = useState({
-    Notice: '',
     [LEGAL_USER_AGREEMENT_KEY]: '',
     [LEGAL_PRIVACY_POLICY_KEY]: '',
     SystemName: '',
@@ -51,7 +50,7 @@ const OtherSetting = () => {
   });
   let [loading, setLoading] = useState(false);
   const [showUpdateModal, setShowUpdateModal] = useState(false);
-  const [statusState, statusDispatch] = useContext(StatusContext);
+  const [statusState] = useContext(StatusContext);
   const [updateData, setUpdateData] = useState({
     tag_name: '',
     content: '',
@@ -59,7 +58,7 @@ const OtherSetting = () => {
 
   const updateOption = async (key, value) => {
     setLoading(true);
-    const res = await API.put('/api/option/', {
+    const res = await API.mutation('updateOption', {
       key,
       value,
     });
@@ -73,7 +72,6 @@ const OtherSetting = () => {
   };
 
   const [loadingInput, setLoadingInput] = useState({
-    Notice: false,
     [LEGAL_USER_AGREEMENT_KEY]: false,
     [LEGAL_PRIVACY_POLICY_KEY]: false,
     SystemName: false,
@@ -90,19 +88,6 @@ const OtherSetting = () => {
 
   // 通用设置
   const formAPISettingGeneral = useRef();
-  // 通用设置 - Notice
-  const submitNotice = async () => {
-    try {
-      setLoadingInput((loadingInput) => ({ ...loadingInput, Notice: true }));
-      await updateOption('Notice', inputs.Notice);
-      showSuccess(t('公告已更新'));
-    } catch (error) {
-      console.error(t('公告更新失败'), error);
-      showError(t('公告更新失败'));
-    } finally {
-      setLoadingInput((loadingInput) => ({ ...loadingInput, Notice: false }));
-    }
-  };
   // 通用设置 - UserAgreement
   const submitUserAgreement = async () => {
     try {
@@ -235,12 +220,6 @@ const OtherSetting = () => {
         CheckUpdate: true,
       }));
       // Use a CORS proxy to avoid direct cross-origin requests to GitHub API
-      // Option 1: Use a public CORS proxy service
-      // const proxyUrl = 'https://cors-anywhere.herokuapp.com/';
-      // const res = await API.get(
-      //   `${proxyUrl}https://api.github.com/repos/Calcium-Ion/new-api/releases/latest`,
-      // );
-
       // Option 2: Use the JSON proxy approach which often works better with GitHub API
       const res = await fetch(
         'https://api.github.com/repos/Calcium-Ion/new-api/releases/latest',
@@ -253,10 +232,6 @@ const OtherSetting = () => {
           },
         },
       ).then((response) => response.json());
-
-      // Option 3: Use a local proxy endpoint
-      // Create a cached version of the response to avoid frequent GitHub API calls
-      // const res = await API.get('/api/status/github-latest-release');
 
       const { tag_name, body } = res;
       if (tag_name === statusState?.status?.version) {
@@ -280,7 +255,7 @@ const OtherSetting = () => {
   };
 
   const getOptions = async () => {
-    const res = await API.get('/api/option/');
+    const res = await API.query('options');
     const { success, message, data } = res.data;
     if (success) {
       let newInputs = {};
@@ -363,19 +338,6 @@ const OtherSetting = () => {
         >
           <Card>
             <Form.Section text={t('通用设置')}>
-              <Form.TextArea
-                label={t('公告')}
-                placeholder={t(
-                  '在此输入新的公告内容，支持 Markdown & HTML 代码',
-                )}
-                field={'Notice'}
-                onChange={handleInputChange}
-                style={{ fontFamily: 'JetBrains Mono, Consolas' }}
-                autosize={{ minRows: 6, maxRows: 12 }}
-              />
-              <Button onClick={submitNotice} loading={loadingInput['Notice']}>
-                {t('设置公告')}
-              </Button>
               <Form.TextArea
                 label={t('用户协议')}
                 placeholder={t(

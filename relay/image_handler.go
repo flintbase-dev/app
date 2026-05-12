@@ -8,7 +8,6 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
 	"github.com/QuantumNous/new-api/logger"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
@@ -94,15 +93,10 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 		httpResp = resp.(*http.Response)
 		info.IsStream = info.IsStream || strings.HasPrefix(httpResp.Header.Get("Content-Type"), "text/event-stream")
 		if httpResp.StatusCode != http.StatusOK {
-			if httpResp.StatusCode == http.StatusCreated && info.ApiType == constant.APITypeReplicate {
-				// replicate channel returns 201 Created when using Prefer: wait, treat it as success.
-				httpResp.StatusCode = http.StatusOK
-			} else {
-				newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
-				// reset status code 重置状态码
-				service.ResetStatusCode(newAPIError, statusCodeMappingStr)
-				return newAPIError
-			}
+			newAPIError = service.RelayErrorHandler(c.Request.Context(), httpResp, false)
+			// reset status code 重置状态码
+			service.ResetStatusCode(newAPIError, statusCodeMappingStr)
+			return newAPIError
 		}
 	}
 
@@ -122,7 +116,7 @@ func ImageHelper(c *gin.Context, info *relaycommon.RelayInfo) (newAPIError *type
 	// calculation (both price-based and ratio-based paths).
 	// Adaptors may have already set a more accurate count from the
 	// upstream response; only set the default when they haven't.
-	if info.PriceData.UsePrice { // only price model use N ratio
+	if info.PriceData.UseFixedPrice { // only fixed-price models use N ratio
 		if _, hasN := info.PriceData.OtherRatios["n"]; !hasN {
 			info.PriceData.AddOtherRatio("n", float64(imageN))
 		}

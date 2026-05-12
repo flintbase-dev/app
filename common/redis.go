@@ -14,7 +14,11 @@ import (
 )
 
 var RDB *redis.Client
-var RedisEnabled = true
+var RedisEnabled = false
+
+func RedisAvailable() bool {
+	return RedisEnabled && RDB != nil
+}
 
 func RedisKeyCacheSeconds() int {
 	return SyncFrequency
@@ -22,8 +26,9 @@ func RedisKeyCacheSeconds() int {
 
 // InitRedisClient This function is called after init()
 func InitRedisClient() (err error) {
+	RedisEnabled = false
+	RDB = nil
 	if os.Getenv("REDIS_CONN_STRING") == "" {
-		RedisEnabled = false
 		SysLog("REDIS_CONN_STRING not set, Redis is not enabled")
 		return nil
 	}
@@ -46,6 +51,7 @@ func InitRedisClient() (err error) {
 	if err != nil {
 		FatalLog("Redis ping test failed: " + err.Error())
 	}
+	RedisEnabled = true
 	if DebugEnabled {
 		SysLog(fmt.Sprintf("Redis connected to %s", opt.Addr))
 		SysLog(fmt.Sprintf("Redis database: %d", opt.DB))

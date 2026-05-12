@@ -1,8 +1,6 @@
 package controller
 
 import (
-	"strconv"
-
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
 
@@ -40,12 +38,7 @@ func SearchVendors(c *gin.Context) {
 
 // GetVendorMeta 根据 ID 获取供应商
 func GetVendorMeta(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
+	id := c.Param("id")
 	v, err := model.GetVendorByID(id)
 	if err != nil {
 		common.ApiError(c, err)
@@ -66,7 +59,7 @@ func CreateVendorMeta(c *gin.Context) {
 		return
 	}
 	// 创建前先检查名称
-	if dup, err := model.IsVendorNameDuplicated(0, v.Name); err != nil {
+	if dup, err := model.IsVendorNameDuplicated("", v.Name); err != nil {
 		common.ApiError(c, err)
 		return
 	} else if dup {
@@ -88,7 +81,7 @@ func UpdateVendorMeta(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	if v.Id == 0 {
+	if common.IsEmptyID(v.Id) {
 		common.ApiErrorMsg(c, "缺少供应商 ID")
 		return
 	}
@@ -110,13 +103,8 @@ func UpdateVendorMeta(c *gin.Context) {
 
 // DeleteVendorMeta 删除供应商
 func DeleteVendorMeta(c *gin.Context) {
-	idStr := c.Param("id")
-	id, err := strconv.Atoi(idStr)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if err := model.DB.Delete(&model.Vendor{}, id).Error; err != nil {
+	id := c.Param("id")
+	if err := model.DB.Delete(&model.Vendor{}, "id = ?", id).Error; err != nil {
 		common.ApiError(c, err)
 		return
 	}

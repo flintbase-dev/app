@@ -2,86 +2,64 @@ package model
 
 import (
 	"strings"
+
+	"github.com/QuantumNous/new-api/constant"
+
+	"github.com/samber/lo"
 )
 
 // 简化的供应商映射规则
 var defaultVendorRules = map[string]string{
-	"gpt":      "OpenAI",
-	"dall-e":   "OpenAI",
-	"whisper":  "OpenAI",
-	"o1":       "OpenAI",
-	"o3":       "OpenAI",
-	"claude":   "Anthropic",
-	"gemini":   "Google",
-	"moonshot": "Moonshot",
-	"kimi":     "Moonshot",
-	"chatglm":  "智谱",
-	"glm-":     "智谱",
-	"qwen":     "阿里巴巴",
-	"deepseek": "DeepSeek",
-	"abab":     "MiniMax",
-	"ernie":    "百度",
-	"spark":    "讯飞",
-	"hunyuan":  "腾讯",
-	"command":  "Cohere",
-	"@cf/":     "Cloudflare",
-	"360":      "360",
-	"yi":       "零一万物",
-	"jina":     "Jina",
-	"mistral":  "Mistral",
-	"grok":     "xAI",
-	"llama":    "Meta",
-	"doubao":   "字节跳动",
-	"kling":    "快手",
-	"jimeng":   "即梦",
-	"vidu":     "Vidu",
+	"gpt":     "OpenAI",
+	"dall-e":  "OpenAI",
+	"whisper": "OpenAI",
+	"o1":      "OpenAI",
+	"o3":      "OpenAI",
+	"claude":  "Anthropic",
+	"gemini":  "Gemini",
 }
 
 // 供应商默认图标映射
 var defaultVendorIcons = map[string]string{
-	"OpenAI":     "OpenAI",
-	"Anthropic":  "Claude.Color",
-	"Google":     "Gemini.Color",
-	"Moonshot":   "Moonshot",
-	"智谱":         "Zhipu.Color",
-	"阿里巴巴":       "Qwen.Color",
-	"DeepSeek":   "DeepSeek.Color",
-	"MiniMax":    "Minimax.Color",
-	"百度":         "Wenxin.Color",
-	"讯飞":         "Spark.Color",
-	"腾讯":         "Hunyuan.Color",
-	"Cohere":     "Cohere.Color",
-	"Cloudflare": "Cloudflare.Color",
-	"360":        "Ai360.Color",
-	"零一万物":       "Yi.Color",
-	"Jina":       "Jina",
-	"Mistral":    "Mistral.Color",
-	"xAI":        "XAI",
-	"Meta":       "Ollama",
-	"字节跳动":       "Doubao.Color",
-	"快手":         "Kling.Color",
-	"即梦":         "Jimeng.Color",
-	"Vidu":       "Vidu",
-	"微软":         "AzureAI",
-	"Microsoft":  "AzureAI",
-	"Azure":      "AzureAI",
+	"OpenAI":    "OpenAI",
+	"Anthropic": "Claude.Color",
+	"Gemini":    "Gemini.Color",
+	"Vertex":    "Gemini.Color",
+	"Azure":     "AzureAI",
+	"AWS":       "AWS.Color",
 }
 
+var channelVendorNames = map[int]string{
+	constant.ChannelTypeOpenAI:    "OpenAI",
+	constant.ChannelTypeAzure:     "Azure",
+	constant.ChannelTypeAnthropic: "Anthropic",
+	constant.ChannelTypeGemini:    "Gemini",
+	constant.ChannelTypeAws:       "AWS",
+	constant.ChannelTypeVertexAi:  "Vertex",
+}
+
+var allowedDefaultVendors = lo.SliceToMap(lo.Values(channelVendorNames), func(vendor string) (string, struct{}) {
+	return vendor, struct{}{}
+})
+
 // initDefaultVendorMapping 简化的默认供应商映射
-func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[int]*Vendor, enableAbilities []AbilityWithChannel) {
+func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[string]*Vendor, enableAbilities []AbilityWithChannel) {
 	for _, ability := range enableAbilities {
 		modelName := ability.Model
 		if _, exists := metaMap[modelName]; exists {
 			continue
 		}
 
-		// 匹配供应商
-		vendorID := 0
-		modelLower := strings.ToLower(modelName)
-		for pattern, vendorName := range defaultVendorRules {
-			if strings.Contains(modelLower, pattern) {
-				vendorID = getOrCreateVendor(vendorName, vendorMap)
-				break
+		vendorID := ""
+		if vendorName := channelVendorNames[ability.ChannelType]; vendorName != "" {
+			vendorID = getOrCreateVendor(vendorName, vendorMap)
+		} else {
+			modelLower := strings.ToLower(modelName)
+			for pattern, vendorName := range defaultVendorRules {
+				if strings.Contains(modelLower, pattern) {
+					vendorID = getOrCreateVendor(vendorName, vendorMap)
+					break
+				}
 			}
 		}
 
@@ -96,7 +74,11 @@ func initDefaultVendorMapping(metaMap map[string]*Model, vendorMap map[int]*Vend
 }
 
 // 查找或创建供应商
-func getOrCreateVendor(vendorName string, vendorMap map[int]*Vendor) int {
+func getOrCreateVendor(vendorName string, vendorMap map[string]*Vendor) string {
+	if _, ok := allowedDefaultVendors[vendorName]; !ok {
+		return ""
+	}
+
 	// 查找现有供应商
 	for id, vendor := range vendorMap {
 		if vendor.Name == vendorName {
@@ -112,7 +94,7 @@ func getOrCreateVendor(vendorName string, vendorMap map[int]*Vendor) int {
 	}
 
 	if err := newVendor.Insert(); err != nil {
-		return 0
+		return ""
 	}
 
 	vendorMap[newVendor.Id] = newVendor

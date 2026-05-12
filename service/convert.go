@@ -6,9 +6,7 @@ import (
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
-	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/dto"
-	"github.com/QuantumNous/new-api/relay/channel/openrouter"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
 	"github.com/QuantumNous/new-api/relay/reasonmap"
 	"github.com/samber/lo"
@@ -32,37 +30,10 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 		openAIRequest.Stream = lo.ToPtr(lo.FromPtr(claudeRequest.Stream))
 	}
 
-	isOpenRouter := info.ChannelType == constant.ChannelTypeOpenRouter
-
-	if isOpenRouter {
-		if effort := claudeRequest.GetEfforts(); effort != "" {
-			effortBytes, _ := json.Marshal(effort)
-			openAIRequest.Verbosity = effortBytes
-		}
-		if claudeRequest.Thinking != nil {
-			var reasoning openrouter.RequestReasoning
-			if claudeRequest.Thinking.Type == "enabled" {
-				reasoning = openrouter.RequestReasoning{
-					Enabled:   true,
-					MaxTokens: claudeRequest.Thinking.GetBudgetTokens(),
-				}
-			} else if claudeRequest.Thinking.Type == "adaptive" {
-				reasoning = openrouter.RequestReasoning{
-					Enabled: true,
-				}
-			}
-			reasoningJSON, err := json.Marshal(reasoning)
-			if err != nil {
-				return nil, fmt.Errorf("failed to marshal reasoning: %w", err)
-			}
-			openAIRequest.Reasoning = reasoningJSON
-		}
-	} else {
-		thinkingSuffix := "-thinking"
-		if strings.HasSuffix(info.OriginModelName, thinkingSuffix) &&
-			!strings.HasSuffix(openAIRequest.Model, thinkingSuffix) {
-			openAIRequest.Model = openAIRequest.Model + thinkingSuffix
-		}
+	thinkingSuffix := "-thinking"
+	if strings.HasSuffix(info.OriginModelName, thinkingSuffix) &&
+		!strings.HasSuffix(openAIRequest.Model, thinkingSuffix) {
+		openAIRequest.Model = openAIRequest.Model + thinkingSuffix
 	}
 
 	// Convert stop sequences
@@ -105,27 +76,13 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 				openAIMessage := dto.Message{
 					Role: "system",
 				}
-				isOpenRouterClaude := isOpenRouter && strings.HasPrefix(info.UpstreamModelName, "anthropic/claude")
-				if isOpenRouterClaude {
-					systemMediaMessages := make([]dto.MediaContent, 0, len(systems))
-					for _, system := range systems {
-						message := dto.MediaContent{
-							Type:         "text",
-							Text:         system.GetText(),
-							CacheControl: system.CacheControl,
-						}
-						systemMediaMessages = append(systemMediaMessages, message)
+				systemStr := ""
+				for _, system := range systems {
+					if system.Text != nil {
+						systemStr += *system.Text
 					}
-					openAIMessage.SetMediaContent(systemMediaMessages)
-				} else {
-					systemStr := ""
-					for _, system := range systems {
-						if system.Text != nil {
-							systemStr += *system.Text
-						}
-					}
-					openAIMessage.SetStringContent(systemStr)
 				}
+				openAIMessage.SetStringContent(systemStr)
 				openAIMessages = append(openAIMessages, openAIMessage)
 			}
 		}
@@ -151,9 +108,8 @@ func ClaudeToOpenAIRequest(claudeRequest dto.ClaudeRequest, info *relaycommon.Re
 				switch mediaMsg.Type {
 				case "text", "input_text":
 					message := dto.MediaContent{
-						Type:         "text",
-						Text:         mediaMsg.GetText(),
-						CacheControl: mediaMsg.CacheControl,
+						Type: "text",
+						Text: mediaMsg.GetText(),
 					}
 					mediaMessages = append(mediaMessages, message)
 				case "image":

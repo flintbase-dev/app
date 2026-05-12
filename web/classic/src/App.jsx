@@ -18,19 +18,17 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { lazy, Suspense, useContext, useMemo } from 'react';
-import { Route, Routes, useLocation, useParams } from 'react-router-dom';
+import { Route, Routes, useLocation } from 'react-router-dom';
 import Loading from './components/common/ui/Loading';
 import User from './pages/User';
-import { AuthRedirect, PrivateRoute, AdminRoute } from './helpers';
-import RegisterForm from './components/auth/RegisterForm';
-import LoginForm from './components/auth/LoginForm';
+import { PrivateRoute, AdminRoute } from './helpers';
+import WorkOSLogin from './components/auth/WorkOSLogin';
+import WorkOSCallback from './components/auth/WorkOSCallback';
 import NotFound from './pages/NotFound';
 import Forbidden from './pages/Forbidden';
 import Setting from './pages/Setting';
 import { StatusContext } from './context/Status';
 
-import PasswordResetForm from './components/auth/PasswordResetForm';
-import PasswordResetConfirm from './components/auth/PasswordResetConfirm';
 import Channel from './pages/Channel';
 import Token from './pages/Token';
 import Redemption from './pages/Redemption';
@@ -38,14 +36,13 @@ import TopUp from './pages/TopUp';
 import Log from './pages/Log';
 import Chat from './pages/Chat';
 import Chat2Link from './pages/Chat2Link';
-import Midjourney from './pages/Midjourney';
 import Pricing from './pages/Pricing';
-import Task from './pages/Task';
 import ModelPage from './pages/Model';
-import ModelDeploymentPage from './pages/ModelDeployment';
 import Playground from './pages/Playground';
 import Subscription from './pages/Subscription';
-import OAuth2Callback from './components/auth/OAuth2Callback';
+import Messages from './pages/Messages';
+import Broadcasts from './pages/Broadcasts';
+import MessageManagement from './pages/MessageManagement';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
@@ -55,11 +52,6 @@ const Dashboard = lazy(() => import('./pages/Dashboard'));
 const About = lazy(() => import('./pages/About'));
 const UserAgreement = lazy(() => import('./pages/UserAgreement'));
 const PrivacyPolicy = lazy(() => import('./pages/PrivacyPolicy'));
-
-function DynamicOAuth2Callback() {
-  const { provider } = useParams();
-  return <OAuth2Callback type={provider} />;
-}
 
 function App() {
   const location = useLocation();
@@ -72,19 +64,13 @@ function App() {
       try {
         const modules = JSON.parse(headerNavModulesConfig);
 
-        // 处理向后兼容性：如果pricing是boolean，默认不需要登录
-        if (typeof modules.pricing === 'boolean') {
-          return false; // 默认不需要登录鉴权
-        }
-
-        // 如果是对象格式，使用requireAuth配置
         return modules.pricing?.requireAuth === true;
       } catch (error) {
         console.error('解析顶栏模块配置失败:', error);
-        return false; // 默认不需要登录
+        return false;
       }
     }
-    return false; // 默认不需要登录
+    return false;
   }, [statusState?.status?.HeaderNavModules]);
 
   return (
@@ -116,18 +102,18 @@ function App() {
           }
         />
         <Route
-          path='/console/deployment'
-          element={
-            <AdminRoute>
-              <ModelDeploymentPage />
-            </AdminRoute>
-          }
-        />
-        <Route
           path='/console/subscription'
           element={
             <AdminRoute>
               <Subscription />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/message-management'
+          element={
+            <AdminRoute>
+              <MessageManagement />
             </AdminRoute>
           }
         />
@@ -144,6 +130,14 @@ function App() {
           element={
             <PrivateRoute>
               <Token />
+            </PrivateRoute>
+          }
+        />
+        <Route
+          path='/console/messages'
+          element={
+            <PrivateRoute>
+              <Messages />
             </PrivateRoute>
           }
         />
@@ -172,78 +166,18 @@ function App() {
           }
         />
         <Route
-          path='/user/reset'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <PasswordResetConfirm />
-            </Suspense>
-          }
-        />
-        <Route
           path='/login'
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <AuthRedirect>
-                <LoginForm />
-              </AuthRedirect>
+              <WorkOSLogin />
             </Suspense>
           }
         />
         <Route
-          path='/register'
+          path='/workos/callback'
           element={
             <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <AuthRedirect>
-                <RegisterForm />
-              </AuthRedirect>
-            </Suspense>
-          }
-        />
-        <Route
-          path='/reset'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <PasswordResetForm />
-            </Suspense>
-          }
-        />
-        <Route
-          path='/oauth/github'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <OAuth2Callback type='github'></OAuth2Callback>
-            </Suspense>
-          }
-        />
-        <Route
-          path='/oauth/discord'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <OAuth2Callback type='discord'></OAuth2Callback>
-            </Suspense>
-          }
-        />
-        <Route
-          path='/oauth/oidc'
-          element={
-            <Suspense fallback={<Loading></Loading>}>
-              <OAuth2Callback type='oidc'></OAuth2Callback>
-            </Suspense>
-          }
-        />
-        <Route
-          path='/oauth/linuxdo'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <OAuth2Callback type='linuxdo'></OAuth2Callback>
-            </Suspense>
-          }
-        />
-        <Route
-          path='/oauth/:provider'
-          element={
-            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-              <DynamicOAuth2Callback />
+              <WorkOSCallback />
             </Suspense>
           }
         />
@@ -296,26 +230,6 @@ function App() {
           }
         />
         <Route
-          path='/console/midjourney'
-          element={
-            <PrivateRoute>
-              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <Midjourney />
-              </Suspense>
-            </PrivateRoute>
-          }
-        />
-        <Route
-          path='/console/task'
-          element={
-            <PrivateRoute>
-              <Suspense fallback={<Loading></Loading>} key={location.pathname}>
-                <Task />
-              </Suspense>
-            </PrivateRoute>
-          }
-        />
-        <Route
           path='/pricing'
           element={
             pricingRequireAuth ? (
@@ -332,6 +246,14 @@ function App() {
                 <Pricing />
               </Suspense>
             )
+          }
+        />
+        <Route
+          path='/broadcasts'
+          element={
+            <Suspense fallback={<Loading></Loading>} key={location.pathname}>
+              <Broadcasts />
+            </Suspense>
           }
         />
         <Route

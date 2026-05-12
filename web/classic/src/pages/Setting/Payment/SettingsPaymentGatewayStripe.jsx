@@ -34,11 +34,13 @@ export default function SettingsPaymentGateway(props) {
   const [loading, setLoading] = useState(false);
   const [inputs, setInputs] = useState({
     StripeApiSecret: '',
+    StripePublishableKey: '',
     StripeWebhookSecret: '',
-    StripePriceId: '',
     StripeUnitPrice: 8.0,
     StripeMinTopUp: 1,
     StripePromotionCodesEnabled: false,
+    StripeLineItemTemplate: '{line_item}',
+    StripeMemoTemplate: '{description}',
   });
   const [originInputs, setOriginInputs] = useState({});
   const formApiRef = useRef(null);
@@ -47,8 +49,8 @@ export default function SettingsPaymentGateway(props) {
     if (props.options && formApiRef.current) {
       const currentInputs = {
         StripeApiSecret: props.options.StripeApiSecret || '',
+        StripePublishableKey: props.options.StripePublishableKey || '',
         StripeWebhookSecret: props.options.StripeWebhookSecret || '',
-        StripePriceId: props.options.StripePriceId || '',
         StripeUnitPrice:
           props.options.StripeUnitPrice !== undefined
             ? parseFloat(props.options.StripeUnitPrice)
@@ -61,6 +63,9 @@ export default function SettingsPaymentGateway(props) {
           props.options.StripePromotionCodesEnabled !== undefined
             ? props.options.StripePromotionCodesEnabled
             : false,
+        StripeLineItemTemplate:
+          props.options.StripeLineItemTemplate || '{line_item}',
+        StripeMemoTemplate: props.options.StripeMemoTemplate || '{description}',
       };
       setInputs(currentInputs);
       setOriginInputs({ ...currentInputs });
@@ -85,14 +90,17 @@ export default function SettingsPaymentGateway(props) {
       if (inputs.StripeApiSecret && inputs.StripeApiSecret !== '') {
         options.push({ key: 'StripeApiSecret', value: inputs.StripeApiSecret });
       }
+      if (inputs.StripePublishableKey && inputs.StripePublishableKey !== '') {
+        options.push({
+          key: 'StripePublishableKey',
+          value: inputs.StripePublishableKey,
+        });
+      }
       if (inputs.StripeWebhookSecret && inputs.StripeWebhookSecret !== '') {
         options.push({
           key: 'StripeWebhookSecret',
           value: inputs.StripeWebhookSecret,
         });
-      }
-      if (inputs.StripePriceId !== '') {
-        options.push({ key: 'StripePriceId', value: inputs.StripePriceId });
       }
       if (
         inputs.StripeUnitPrice !== undefined &&
@@ -122,10 +130,24 @@ export default function SettingsPaymentGateway(props) {
           value: inputs.StripePromotionCodesEnabled ? 'true' : 'false',
         });
       }
+      if (
+        originInputs.StripeLineItemTemplate !== inputs.StripeLineItemTemplate
+      ) {
+        options.push({
+          key: 'StripeLineItemTemplate',
+          value: inputs.StripeLineItemTemplate || '',
+        });
+      }
+      if (originInputs.StripeMemoTemplate !== inputs.StripeMemoTemplate) {
+        options.push({
+          key: 'StripeMemoTemplate',
+          value: inputs.StripeMemoTemplate || '',
+        });
+      }
 
       // 发送请求
       const requestQueue = options.map((opt) =>
-        API.put('/api/option/', {
+        API.mutation('updateOption', {
           key: opt.key,
           value: opt.value,
         }),
@@ -194,7 +216,7 @@ export default function SettingsPaymentGateway(props) {
           <Banner
             type='warning'
             icon={<TriangleAlert size={16} />}
-            description='需要包含事件：checkout.session.completed 和 checkout.session.expired'
+            description='需要包含事件：invoice.payment_succeeded、invoice.paid、invoice.payment_failed、invoice.voided、invoice.marked_uncollectible'
             style={{ marginBottom: 16 }}
           />
           <Row gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}>
@@ -220,10 +242,10 @@ export default function SettingsPaymentGateway(props) {
             </Col>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.Input
-                field='StripePriceId'
-                label={t('商品价格 ID')}
-                placeholder={t('例如：price_xxx')}
-                extraText={t('在 Stripe 后台创建价格后获得')}
+                field='StripePublishableKey'
+                label={t('Publishable Key')}
+                placeholder={t('例如：pk_xxx')}
+                extraText={t('用于 Stripe Checkout Elements 前端支付')}
               />
             </Col>
           </Row>
@@ -235,17 +257,19 @@ export default function SettingsPaymentGateway(props) {
               <Form.InputNumber
                 field='StripeUnitPrice'
                 precision={2}
-                label={t('充值价格（x元/美金）')}
-                placeholder={t('例如：7，就是7元/美金')}
-                extraText={t('按 1 美元对应的站内价格填写')}
+                label={t('充值单价')}
+                placeholder={t('例如：8，表示每 1 个充值单位实付 8')}
+                extraText={t(
+                  '按当前全站货币填写；Checkout Session 会按订单金额创建一次性价格',
+                )}
               />
             </Col>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
               <Form.InputNumber
                 field='StripeMinTopUp'
-                label={t('最低充值美元数量')}
-                placeholder={t('例如：2，就是最低充值2$')}
-                extraText={t('用户单次最少可充值的美元数量')}
+                label={t('最低充值数量')}
+                placeholder={t('例如：2')}
+                extraText={t('用户单次最少可购买的充值单位数量')}
               />
             </Col>
             <Col xs={24} sm={24} md={8} lg={8} xl={8}>
@@ -255,6 +279,33 @@ export default function SettingsPaymentGateway(props) {
                 checkedText='｜'
                 uncheckedText='〇'
                 label={t('允许在 Stripe 支付中输入促销码')}
+              />
+            </Col>
+          </Row>
+          <Row
+            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+            style={{ marginTop: 16 }}
+          >
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Form.TextArea
+                field='StripeLineItemTemplate'
+                label={t('Stripe line item 内容')}
+                placeholder='{line_item}'
+                autosize
+                extraText={t(
+                  '用于 Stripe Checkout 商品名称。可用变量：{line_item}、{description}、{amount}、{currency}、{topup_units}、{credit_units}、{user_id}、{username}、{email}、{payment_order_id}、{trade_no}、{plan_id}、{kind}',
+                )}
+              />
+            </Col>
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Form.TextArea
+                field='StripeMemoTemplate'
+                label={t('Stripe memo 内容')}
+                placeholder='{description}'
+                autosize
+                extraText={t(
+                  '用于 Checkout Session、PaymentIntent 和 Invoice memo/description。留空时使用系统默认描述。',
+                )}
               />
             </Col>
           </Row>
