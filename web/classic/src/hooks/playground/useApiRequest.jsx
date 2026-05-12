@@ -26,7 +26,6 @@ import {
   DEBUG_TABS,
 } from '../../constants/playground.constants';
 import {
-  getUserIdFromLocalStorage,
   handleApiError,
   processThinkTags,
   processIncompleteThinkTags,
@@ -189,8 +188,8 @@ export const useApiRequest = (
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'New-Api-User': getUserIdFromLocalStorage(),
           },
+          credentials: 'same-origin',
           body: JSON.stringify(payload),
         });
 
@@ -316,10 +315,10 @@ export const useApiRequest = (
       const source = new SSE(API_ENDPOINTS.CHAT_COMPLETIONS, {
         headers: {
           'Content-Type': 'application/json',
-          'New-Api-User': getUserIdFromLocalStorage(),
         },
         method: 'POST',
         payload: JSON.stringify(payload),
+        withCredentials: true,
       });
 
       sseSourceRef.current = source;
@@ -421,7 +420,11 @@ export const useApiRequest = (
           setMessage((prevMessage) => {
             const newMessages = [...prevMessage];
             const lastMessage = newMessages[newMessages.length - 1];
-            if (lastMessage && lastMessage.status !== MESSAGE_STATUS.COMPLETE && lastMessage.status !== MESSAGE_STATUS.ERROR) {
+            if (
+              lastMessage &&
+              lastMessage.status !== MESSAGE_STATUS.COMPLETE &&
+              lastMessage.status !== MESSAGE_STATUS.ERROR
+            ) {
               newMessages[newMessages.length - 1] = {
                 ...lastMessage,
                 content: (lastMessage.content || '') + errorMessage,

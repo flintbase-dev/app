@@ -1,9 +1,14 @@
 package common
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
+	appcommon "github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/types"
+	"github.com/gin-gonic/gin"
 	"github.com/stretchr/testify/require"
 )
 
@@ -37,4 +42,17 @@ func TestRelayInfoGetFinalRequestRelayFormatFallsBackToRelayFormat(t *testing.T)
 func TestRelayInfoGetFinalRequestRelayFormatNilReceiver(t *testing.T) {
 	var info *RelayInfo
 	require.Equal(t, types.RelayFormat(""), info.GetFinalRequestRelayFormat())
+}
+
+func TestGenRelayInfoReadsPlaygroundContext(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/v1/chat/completions", nil)
+
+	appcommon.SetContextKey(ctx, constant.ContextKeyPlayground, true)
+
+	info, err := GenRelayInfo(ctx, types.RelayFormatOpenAI, nil)
+	require.NoError(t, err)
+	require.True(t, info.IsPlayground)
 }

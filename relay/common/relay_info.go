@@ -402,6 +402,7 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 		RequestURLPath:  c.Request.URL.String(),
 		RequestHeaders:  cloneRequestHeaders(c),
 		IsStream:        isStream,
+		IsPlayground:    common.GetContextKeyBool(c, constant.ContextKeyPlayground),
 
 		StartTime:         startTime,
 		FirstResponseTime: startTime.Add(-time.Second),

@@ -23,7 +23,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import type { ConsoleUser, UserGroup } from "@/lib/console/types";
+import type { UserGroup } from "@/lib/console/types";
 import { cn } from "@/lib/utils";
 
 type Message = {
@@ -49,16 +49,16 @@ const INITIAL_MESSAGES: Message[] = [
   },
 ];
 
+const PLAYGROUND_CHAT_COMPLETIONS_ENDPOINT = "/api/playground/chat/completions";
+
 export function PlaygroundClient({
   groups,
   initialModel,
   models,
-  user,
 }: {
   groups: UserGroup[];
   initialModel?: string;
   models: string[];
-  user: ConsoleUser;
 }) {
   const fileRef = useRef<HTMLInputElement>(null);
   const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
@@ -94,12 +94,12 @@ export function PlaygroundClient({
         temperature: Number(temperature),
         max_tokens: Number(maxTokens),
       };
-      const response = await fetch("/v1/chat/completions", {
+      const response = await fetch(PLAYGROUND_CHAT_COMPLETIONS_ENDPOINT, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
-          "New-Api-User": user.id,
         },
+        credentials: "same-origin",
         body: JSON.stringify(payload),
       });
       const data = (await response.json().catch(() => null)) as {

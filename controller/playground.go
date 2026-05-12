@@ -2,11 +2,13 @@ package controller
 
 import (
 	"errors"
-	"fmt"
 
+	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/middleware"
 	"github.com/QuantumNous/new-api/model"
 	relaycommon "github.com/QuantumNous/new-api/relay/common"
+	relayconstant "github.com/QuantumNous/new-api/relay/constant"
 	"github.com/QuantumNous/new-api/types"
 
 	"github.com/gin-gonic/gin"
@@ -29,6 +31,12 @@ func Playground(c *gin.Context) {
 		return
 	}
 
+	common.SetContextKey(c, constant.ContextKeyPlayground, true)
+	c.Set("relay_mode", relayconstant.RelayModeChatCompletions)
+	if c.Request != nil && c.Request.URL != nil {
+		c.Request.URL.Path = "/v1/chat/completions"
+	}
+
 	relayInfo, err := relaycommon.GenRelayInfo(c, types.RelayFormatOpenAI, nil)
 	if err != nil {
 		newAPIError = types.NewError(err, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
@@ -47,7 +55,7 @@ func Playground(c *gin.Context) {
 
 	tempToken := &model.Token{
 		UserId: userId,
-		Name:   fmt.Sprintf("playground-%s", relayInfo.UsingGroup),
+		Name:   "playground-" + relayInfo.UsingGroup,
 		Group:  relayInfo.UsingGroup,
 	}
 	_ = middleware.SetupContextForToken(c, tempToken)

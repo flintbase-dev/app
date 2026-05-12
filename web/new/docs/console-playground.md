@@ -24,7 +24,7 @@
 
 - `userModels` query：加载当前用户可用模型列表。
 - `selfGroups` query：加载当前用户可用分组。
-- `POST /v1/chat/completions`：数据平面测试请求，不属于 GraphQL 控制面。
+- `POST /api/playground/chat/completions`：playground 专用测试请求，接受登录 cookie 鉴权并在后端转入 `/v1/chat/completions` relay。
   - Header：`Content-Type: application/json`
   - Header：`New-Api-User: <localStorage user id>`
   - Body：OpenAI-compatible chat completions payload。
@@ -56,7 +56,7 @@
 
 ## 新版实现注意
 
-- 控制面数据仍走 GraphQL；模型实际调用测试走 `/v1/chat/completions`。
+- 控制面数据仍走 GraphQL；模型实际调用测试走 `/api/playground/chat/completions`，由后端使用当前登录用户上下文转入 relay。
 - 不要把操练场测试请求改接 `/api/graphql`。
 - 流式请求需要保留 SSE 原始消息记录，便于调试。
 - 页面首次加载时，如果最后一条消息仍是 loading 或 incomplete，需要修复为完成态，避免恢复旧会话后一直显示生成中。

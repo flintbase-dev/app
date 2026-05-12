@@ -242,6 +242,49 @@ test("console layout redirects unauthenticated sessions to login", () => {
   assert.match(layout, /未登入/);
 });
 
+test("playground uses the cookie-authenticated playground endpoint", () => {
+  const newPlayground = read("components/console/playground-client.tsx");
+  const classicConstants = readRepo(
+    "web/classic/src/constants/playground.constants.js",
+  );
+  const classicHook = readRepo(
+    "web/classic/src/hooks/playground/useApiRequest.jsx",
+  );
+  const apiRouter = readRepo("router/api-router.go");
+  const playgroundController = readRepo("controller/playground.go");
+
+  assert.match(
+    newPlayground,
+    /PLAYGROUND_CHAT_COMPLETIONS_ENDPOINT\s*=\s*"\/api\/playground\/chat\/completions"/,
+  );
+  assert.doesNotMatch(newPlayground, /fetch\("\/v1\/chat\/completions"/);
+  assert.doesNotMatch(newPlayground, /New-Api-User/);
+  assert.match(newPlayground, /credentials:\s*"same-origin"/);
+
+  assert.match(
+    classicConstants,
+    /CHAT_COMPLETIONS:\s*'\/api\/playground\/chat\/completions'/,
+  );
+  assert.doesNotMatch(
+    classicConstants,
+    /CHAT_COMPLETIONS:\s*'\/v1\/chat\/completions'/,
+  );
+  assert.doesNotMatch(classicHook, /New-Api-User/);
+  assert.match(classicHook, /credentials:\s*'same-origin'/);
+  assert.match(classicHook, /withCredentials:\s*true/);
+
+  assert.match(apiRouter, /"\/playground\/chat\/completions"/);
+  assert.match(apiRouter, /middleware\.UserAuth\(\)/);
+  assert.match(apiRouter, /middleware\.SetupPlaygroundContext\(\)/);
+  assert.match(
+    apiRouter,
+    /WithExcludedPaths\(\[]string\{"\/api\/playground\/chat\/completions"\}\)/,
+  );
+  assert.match(apiRouter, /controller\.Playground/);
+  assert.match(playgroundController, /ContextKeyPlayground/);
+  assert.match(playgroundController, /"\/v1\/chat\/completions"/);
+});
+
 test("protected POST forms use route-handler redirects after mutation", () => {
   const createPage = read("app/console/token/new/page.tsx");
   const tokenPage = read("app/console/token/page.tsx");

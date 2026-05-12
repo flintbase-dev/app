@@ -66,4 +66,6 @@ const (
 	// ContextKeyLanguage stores the user's language preference for i18n
 	ContextKeyLanguage ContextKey = "language"
 	ContextKeyIsStream ContextKey = "is_stream"
+
+	ContextKeyPlayground ContextKey = "is_playground"
 )

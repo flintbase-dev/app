@@ -7,13 +7,8 @@ export default async function PlaygroundPage({
   searchParams: Promise<{ model?: string }>;
 }) {
   const { model = "" } = await searchParams;
-  const { groups, models, user } = await loadPlaygroundData();
+  const { groups, models } = await loadPlaygroundData();
   return (
-    <PlaygroundClient
-      groups={groups}
-      initialModel={model}
-      models={models}
-      user={user}
-    />
+    <PlaygroundClient groups={groups} initialModel={model} models={models} />
   );
 }

@@ -60,6 +60,18 @@ func TestGraphQLAPIRejectsOldRestRoute(t *testing.T) {
 	require.Equal(t, http.StatusNotFound, recorder.Code)
 }
 
+func TestAPIRouterRegistersCookieAuthenticatedPlaygroundEndpoint(t *testing.T) {
+	router := newGraphQLAPITestRouter()
+	request := httptest.NewRequest(http.MethodPost, "/api/playground/chat/completions", bytes.NewBufferString(`{"model":"gpt-4o","messages":[]}`))
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+
+	require.Equal(t, http.StatusUnauthorized, recorder.Code)
+	require.Contains(t, recorder.Body.String(), `"success":false`)
+	require.NotContains(t, recorder.Body.String(), "token invalid")
+}
+
 func TestGraphQLAPIRejectsUnknownOperation(t *testing.T) {
 	router := newGraphQLAPITestRouter()
 	recorder := executeGraphQLAPITestRequest(t, router, map[string]interface{}{
