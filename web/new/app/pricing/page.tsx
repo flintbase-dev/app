@@ -21,14 +21,11 @@ import {
 } from "@/components/ui/table";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { loadPricingCatalog } from "@/lib/console/data";
+import { fmtMoney } from "@/lib/console/format";
 import type { PricingModel } from "@/lib/console/types";
 import { cn } from "@/lib/utils";
 
 type Model = PricingModel;
-function fmtPrice(n: number): string {
-  return n < 1 ? n.toFixed(2) : n.toFixed(2);
-}
-
 function fmtContext(n: number): string {
   if (n >= 1_000_000) return `${n / 1_000_000}M`;
   if (n >= 1_000) return `${n / 1_000}K`;
@@ -73,15 +70,20 @@ export default async function PricingPage({
   }>;
 }) {
   const filters = await searchParams;
-  const { models } = await loadPricingCatalog();
+  const { models, status } = await loadPricingCatalog();
   return (
-    <CatalogTable filters={filters} models={filterModels(models, filters)} />
+    <CatalogTable
+      filters={filters}
+      models={filterModels(models, filters)}
+      status={status}
+    />
   );
 }
 
 function CatalogTable({
   filters,
   models,
+  status,
 }: {
   filters: {
     endpoint?: string;
@@ -91,6 +93,7 @@ function CatalogTable({
     vendor?: string;
   };
   models: Model[];
+  status: Awaited<ReturnType<typeof loadPricingCatalog>>["status"];
 }) {
   const vendors = [...new Set(models.map((model) => model.vendor))].sort();
   const groups = [...new Set(models.flatMap((model) => model.groups))].sort();
@@ -107,7 +110,7 @@ function CatalogTable({
           <PageHeader
             eyebrow="Model marketplace"
             title="Pricing"
-            description={`${models.length} models from ${vendors.length} vendors. All prices are USD per million tokens.`}
+            description={`${models.length} models from ${vendors.length} vendors. All prices use ${status.quotaDisplayType} per million tokens.`}
           />
 
           {/* Toolbar */}
@@ -122,9 +125,13 @@ function CatalogTable({
                 placeholder="Search models, vendors, tags..."
               />
             </InputGroup>
-            <ToggleGroup defaultValue={["USD"]} variant="outline">
-              <ToggleGroupItem value="USD">USD</ToggleGroupItem>
-              <ToggleGroupItem value="CNY">CNY</ToggleGroupItem>
+            <ToggleGroup
+              defaultValue={[status.quotaDisplayType]}
+              variant="outline"
+            >
+              <ToggleGroupItem value={status.quotaDisplayType}>
+                {status.quotaDisplayType}
+              </ToggleGroupItem>
             </ToggleGroup>
             <ToggleGroup defaultValue={["per1M"]} variant="outline">
               <ToggleGroupItem value="per1M">per 1M tok</ToggleGroupItem>
@@ -208,7 +215,7 @@ function CatalogTable({
                     <TableHead className="text-right">Context</TableHead>
                     <TableHead className="text-right">
                       <span className="inline-flex items-center gap-1">
-                        Input $/M
+                        Input {status.currencySymbol}/M
                         <ArrowUpDown
                           aria-hidden="true"
                           className="size-3 text-muted-foreground/60"
@@ -217,7 +224,7 @@ function CatalogTable({
                     </TableHead>
                     <TableHead className="text-right">
                       <span className="inline-flex items-center gap-1">
-                        Output $/M
+                        Output {status.currencySymbol}/M
                         <ArrowUpDown
                           aria-hidden="true"
                           className="size-3 text-muted-foreground/60"
@@ -265,10 +272,10 @@ function CatalogTable({
                         {fmtContext(m.context)}
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm tabular-nums text-foreground">
-                        ${fmtPrice(m.input)}
+                        {fmtMoney(m.input, status)}
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm tabular-nums text-foreground">
-                        ${fmtPrice(m.output)}
+                        {fmtMoney(m.output, status)}
                       </TableCell>
                       <TableCell className="text-right font-mono text-sm tabular-nums text-muted-foreground">
                         {m.ratio.toFixed(2)}×

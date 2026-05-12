@@ -26,6 +26,7 @@ import {
 } from "@/components/ui/table";
 import { loadTopupHistory } from "@/lib/console/data";
 import { fmtMoney, fmtRelative } from "@/lib/console/format";
+import type { InvoiceRecord } from "@/lib/console/types";
 import { cn } from "@/lib/utils";
 
 export default async function HistoryPage({
@@ -173,7 +174,7 @@ export default async function HistoryPage({
                           : "text-foreground",
                       )}
                     >
-                      {fmtMoney(b.amount, status)}
+                      {fmtMoney(invoiceDisplayAmount(b), status)}
                     </span>
                   </TableCell>
                   <TableCell className="pr-4 text-right">
@@ -201,6 +202,10 @@ export default async function HistoryPage({
       </div>
     </div>
   );
+}
+
+function invoiceDisplayAmount(invoice: InvoiceRecord): number {
+  return invoice.type === "subscription" ? invoice.money : invoice.amount;
 }
 
 function FilterButton({ href, label }: { href: string; label: string }) {

@@ -177,7 +177,7 @@ export default async function EditTokenPage({
                 description="Use wallet balance directly."
                 defaultChecked={token.unlimitedQuota}
               />
-              <FieldRow label="Quota (USD)">
+              <FieldRow label={`Quota (${status.quotaDisplayType})`}>
                 <Input
                   type="number"
                   name="remain_amount"

@@ -33,23 +33,27 @@
 - `subscriptionSelf` query：返回 `billing_preference`、`subscriptions`（当前所有有效订阅）、`all_subscriptions`（含已过期）。
 - `updateSubscriptionPreference` mutation：输入 `billing_preference`。
 - `subscriptionStripePay` mutation：先创建 `subscription_orders` 和本地 `stripe_payment_orders`，再创建 Checkout Session；输入 `plan_id`、`return_url`，可选 `mode`（`purchase` 或 `switch`）、`from_subscription_id`（切换时必填）；返回与 `stripePay` 同结构的 Checkout Elements 参数。
+- `stripeCheckoutResult` query：输入 `checkout_session_id`；按本地订单和 Stripe Session/PaymentIntent 状态返回 `pending`、`success`、`failed` 或 `expired`，success 页面必须使用它而不是读取最新 invoice。
 - `affCode` query：邀请码。
 - `affTransfer` mutation：输入 `quota`。
 
 ## 状态与配置
 
-- `status.price`：站点价格换算。
+- `status.quota_display_type`、`status.currency_symbol`：站点额度币种显示；不做 USD/CNY 汇率换算。
 - `status.enable_stripe_topup`、`topupInfo.enable_stripe_topup`：Stripe 充值开关。
 - `StripeMinTopUp` / `stripe_min_topup`：最小充值数量。
 - `StripePublishableKey` / `stripe_publishable_key`：前端 Stripe Checkout Elements 初始化使用。
+- `StripeUnitPrice` / `stripe_unit_price`：Stripe 结账单价，按当前站点额度币种结算。
+- `StripeLineItemTemplate`、`StripeMemoTemplate`：Stripe line item 名称和 PaymentIntent/Invoice memo 模板；仅替换站内变量，不参与金额计算。
 - `payment_setting.amount_options`、`payment_setting.amount_discount`：预设充值数量和折扣。
-- `TopupGroupRatio`：充值分组倍率。
+- `TopupGroupRatio` / `topup_group_ratio`：当前用户分组的充值倍率。
 
 ## 新版实现注意
 
 - 当前项目只保留 Stripe 支付，不要加入其他旧支付渠道。
 - Stripe 支付使用 Checkout Sessions API + Payment Element 在页内完成；不要使用旧的 invoice-owned PaymentIntent Elements 流程或 `pay_link` 重定向流程。
 - Stripe 订单规则：`pending` 订单必须绑定 `stripe_checkout_session_id`，`success` 订单必须绑定真实 `stripe_invoice_id`；Webhook 只有拿到 invoice 后才履约。
+- success 页面等待约 2 秒后按 `session_id` 查询 `stripeCheckoutResult`，只有订单状态为 `success` 才展示已支付和已入账；失败、过期、仍处理中必须分别展示对应状态。
 - 首次支付或 Stripe Customer 缺少姓名、邮箱、账单地址时，后端返回 `requires_customer_details=true`；前端在缺少邮箱时渲染 Contact Details Element，在缺少客户详情时渲染 Billing Address Element（`display.name=full`），并在相关 Element 完整后才允许确认支付。Checkout Session 已绑定带邮箱的 Customer 时不要渲染 Contact Details Element，也不要通过 `defaultValues.email` 或 `confirm({ email })` 设置邮箱。
 - 支付方式由 Stripe Dynamic Payment Methods 决定，不在代码中传 `payment_method_types`、`setup_future_usage` 或保存支付方式参数；WeChat Pay / Alipay 只作为一次性支付方式使用。
 - 兑换码充值成功后需要同步本地用户余额。

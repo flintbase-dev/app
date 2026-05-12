@@ -36,6 +36,7 @@ type StripeCheckoutSession = {
   customer_id?: string;
   requires_customer_details?: boolean;
   amount?: number;
+  credit_units?: number;
   currency?: string;
 };
 
@@ -53,7 +54,8 @@ export function CheckoutClient({
   amount,
   charge,
   checkoutMode,
-  discount,
+  creditAmount,
+  discountAmount,
   newBalance,
   status,
   subscription,
@@ -63,7 +65,8 @@ export function CheckoutClient({
   amount: number;
   charge: number;
   checkoutMode: CheckoutMode;
-  discount: number;
+  creditAmount: number;
+  discountAmount: number;
   newBalance: number;
   status: ConsoleStatus;
   subscription?: SubscriptionCheckoutTarget;
@@ -159,7 +162,7 @@ export function CheckoutClient({
           <p className="mt-2 max-w-[60ch] text-sm text-muted-foreground">
             {isSubscription
               ? `Subscribe to ${subscription?.planTitle || "the selected plan"}.`
-              : `Adding ${fmtMoney(amount, status)} to your Flint wallet.`}
+              : `Adding ${fmtMoney(creditAmount, status)} to your Flint wallet.`}
           </p>
         </div>
 
@@ -170,10 +173,10 @@ export function CheckoutClient({
             stripe={stripePromise}
           >
             <CheckoutBody
-              amount={amount}
               charge={charge}
               checkoutMode={checkoutMode}
-              discount={discount}
+              creditAmount={creditAmount}
+              discountAmount={discountAmount}
               error={error}
               newBalance={newBalance}
               pending={pending}
@@ -186,10 +189,10 @@ export function CheckoutClient({
           </CheckoutElementsProvider>
         ) : (
           <CheckoutBody
-            amount={amount}
             charge={charge}
             checkoutMode={checkoutMode}
-            discount={discount}
+            creditAmount={creditAmount}
+            discountAmount={discountAmount}
             error={error}
             newBalance={newBalance}
             pending={pending}
@@ -206,10 +209,10 @@ export function CheckoutClient({
 }
 
 function CheckoutBody({
-  amount,
   charge,
   checkoutMode,
-  discount,
+  creditAmount,
+  discountAmount,
   error,
   newBalance,
   pending,
@@ -219,10 +222,10 @@ function CheckoutBody({
   subscription,
   user,
 }: {
-  amount: number;
   charge: number;
   checkoutMode: CheckoutMode;
-  discount: number;
+  creditAmount: number;
+  discountAmount: number;
   error: string;
   newBalance: number;
   pending: boolean;
@@ -234,6 +237,10 @@ function CheckoutBody({
 }) {
   const isSubscription = checkoutMode === "subscription";
   const totalDue = session?.amount ?? charge;
+  const sessionCreditAmount =
+    typeof session?.credit_units === "number" && session.credit_units > 0
+      ? session.credit_units
+      : creditAmount;
   const [paymentComplete, setPaymentComplete] = useState(false);
 
   return (
@@ -354,12 +361,12 @@ function CheckoutBody({
                 <>
                   <StubRow
                     label="Credit added"
-                    value={fmtMoney(amount, status)}
+                    value={fmtMoney(sessionCreditAmount, status)}
                   />
-                  {discount ? (
+                  {discountAmount > 0 ? (
                     <StubRow
                       label="Discount"
-                      value={`-${fmtMoney(amount - charge, status)}`}
+                      value={`-${fmtMoney(discountAmount, status)}`}
                       valueClassName="text-success"
                     />
                   ) : null}

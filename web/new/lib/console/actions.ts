@@ -1,6 +1,7 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 
 import {
@@ -214,8 +215,13 @@ export async function redeemCodeAction(formData: FormData) {
 }
 
 export async function openBillingPortalAction() {
+  const returnUrl = await consoleReturnUrl("/console/topup");
   const payload = await graphqlMutation<{ portal: unknown }>([
-    { operation: "stripeBillingPortal", alias: "portal" },
+    {
+      operation: "stripeBillingPortal",
+      alias: "portal",
+      input: { return_url: returnUrl },
+    },
   ]);
   const url = toText(asRecord(unwrapApiData(payload.portal, {})).url);
   redirect(url || "/console/topup");
@@ -328,6 +334,15 @@ function extractRedirectLocation(payload: unknown, fallback: string): string {
   const data = asRecord(unwrapApiData(payload, {}));
   const inner = asRecord(data.data);
   return toText(inner.location || data.location, fallback);
+}
+
+async function consoleReturnUrl(path: string): Promise<string> {
+  const requestHeaders = await headers();
+  const host =
+    requestHeaders.get("x-forwarded-host") ?? requestHeaders.get("host");
+  if (!host) return "";
+  const proto = requestHeaders.get("x-forwarded-proto") ?? "http";
+  return `${proto}://${host}${path}`;
 }
 
 function requireString(

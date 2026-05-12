@@ -17,6 +17,7 @@ import {
 import type {
   ActiveSubscription,
   ChatClient,
+  CheckoutResult,
   ConsoleStatus,
   ConsoleUser,
   InboxItem,
@@ -200,9 +201,12 @@ export async function loadLogs(params: GraphQLObject = {}) {
     },
   ]);
   const status = normalizeStatus(unwrapApiData(data.status, {}));
-  return normalizePageInfo<LogEntry>(data.logs, (item) =>
-    normalizeLog(item, status),
-  );
+  return {
+    status,
+    ...normalizePageInfo<LogEntry>(data.logs, (item) =>
+      normalizeLog(item, status),
+    ),
+  };
 }
 
 export async function loadPersonalData() {
@@ -275,10 +279,16 @@ export async function loadSetupStatus() {
 }
 
 export async function loadTopupData() {
+  const now = new Date();
+  const monthStart = Math.floor(
+    new Date(now.getFullYear(), now.getMonth(), 1).getTime() / 1000,
+  );
+  const monthEnd = Math.floor(now.getTime() / 1000);
   const data = await graphqlQuery<{
     status: unknown;
     self: unknown;
     topupInfo: unknown;
+    monthlyUsage: unknown;
     invoices: unknown;
     plans: unknown;
     subscription: unknown;
@@ -287,6 +297,11 @@ export async function loadTopupData() {
     { operation: "status" },
     { operation: "self" },
     { operation: "topupInfo" },
+    {
+      operation: "logsSelfStat",
+      alias: "monthlyUsage",
+      params: { start_timestamp: monthStart, end_timestamp: monthEnd },
+    },
     {
       operation: "userTopups",
       alias: "invoices",
@@ -300,6 +315,14 @@ export async function loadTopupData() {
   return {
     status,
     user: normalizeUser(unwrapApiData(data.self, {}), status),
+    monthlyUsage: creditsToMoney(
+      asRecord(unwrapApiData(data.monthlyUsage, {})).quota,
+      status,
+    ),
+    usageMonthLabel: now.toLocaleDateString("en-US", {
+      month: "long",
+      year: "numeric",
+    }),
     topupInfo: normalizeTopupInfo(unwrapApiData(data.topupInfo, {})),
     invoices: normalizePageInfo<InvoiceRecord>(data.invoices, (item) =>
       normalizeInvoice(item, status),
@@ -310,6 +333,28 @@ export async function loadTopupData() {
       status,
     ),
     affCode: toText(unwrapApiData(data.affCode, "")),
+  };
+}
+
+export async function loadStripeCheckoutResult(checkoutSessionId: string) {
+  const data = await graphqlQuery<{
+    status: unknown;
+    self: unknown;
+    checkout: unknown;
+  }>([
+    { operation: "status" },
+    { operation: "self" },
+    {
+      operation: "stripeCheckoutResult",
+      alias: "checkout",
+      params: { checkout_session_id: checkoutSessionId },
+    },
+  ]);
+  const status = normalizeStatus(unwrapApiData(data.status, {}));
+  return {
+    status,
+    user: normalizeUser(unwrapApiData(data.self, {}), status),
+    checkout: normalizeCheckoutResult(unwrapApiData(data.checkout, {})),
   };
 }
 
@@ -336,7 +381,14 @@ export async function loadTopupHistory(params: GraphQLObject = {}) {
 
 export async function loadGlobalSearchResults(keyword: string) {
   const query = keyword.trim();
-  if (!query) return { models: [], requests: [], invoices: [], tokens: [] };
+  if (!query)
+    return {
+      status: normalizeStatus({}),
+      models: [],
+      requests: [],
+      invoices: [],
+      tokens: [],
+    };
   const data = await graphqlQuery<{
     status: unknown;
     pricing: unknown;
@@ -365,6 +417,7 @@ export async function loadGlobalSearchResults(keyword: string) {
   const status = normalizeStatus(unwrapApiData(data.status, {}));
   const lower = query.toLowerCase();
   return {
+    status,
     models: normalizePricingModels(data.pricing)
       .filter((model) =>
         [model.id, model.vendor, model.desc, ...model.tags]
@@ -490,6 +543,7 @@ export function normalizeStatus(value: unknown): ConsoleStatus {
     ),
     currencySymbol: toText(item.currency_symbol, "$"),
     quotaDisplayType: toText(item.quota_display_type, "USD"),
+    stripeUnitPrice: toNumber(item.stripe_unit_price, 1),
     systemName: toText(item.system_name, "Flint"),
     serverAddress: toText(item.server_address, ""),
     docsLink: toText(item.docs_link, "https://docs.flint.dev"),
@@ -707,6 +761,8 @@ function normalizeTopupInfo(value: unknown): TopupInfo {
     enableStripeTopup: toBool(item.enable_stripe_topup),
     stripeMinTopup: toNumber(item.stripe_min_topup, 5),
     stripePublishableKey: toText(item.stripe_publishable_key),
+    stripeUnitPrice: toNumber(item.stripe_unit_price, 1),
+    topupGroupRatio: toNumber(item.topup_group_ratio, 1),
     amountOptions: asArray(item.amount_options)
       .map((amount) => toNumber(amount))
       .filter((amount) => amount > 0),
@@ -722,7 +778,7 @@ function normalizeTopupInfo(value: unknown): TopupInfo {
 
 function normalizeInvoice(
   value: unknown,
-  context: DisplayContext = {},
+  _context: DisplayContext = {},
 ): InvoiceRecord {
   const item = asRecord(value);
   const status = toText(item.status, "pending");
@@ -745,12 +801,48 @@ function normalizeInvoice(
             ? "expired"
             : "pending",
     ts: toNumber(item.create_time || item.created),
-    amount: creditsToMoney(item.amount, context),
+    amount: toNumber(item.credit_units || item.amount),
     money: toNumber(item.money || item.amount),
+    creditUnits: toNumber(item.credit_units),
+    topupUnits: toNumber(item.topup_units),
+    currency: toText(item.currency),
     hostedInvoiceUrl: toText(item.hosted_invoice_url),
     invoicePdf: toText(item.invoice_pdf),
     receiptUrl: toText(item.receipt_url),
     invoiceNumber: toText(item.invoice_number),
+  };
+}
+
+function normalizeCheckoutResult(value: unknown): CheckoutResult {
+  const item = asRecord(value);
+  const status = toText(item.status, "pending");
+  return {
+    paymentOrderId: toText(item.payment_order_id),
+    checkoutSessionId: toText(item.checkout_session_id),
+    invoiceId: toText(item.invoice_id),
+    paymentIntentId: toText(item.payment_intent_id),
+    tradeNo: toText(item.trade_no),
+    kind: toText(item.kind, "topup"),
+    status:
+      status === "succeeded" || status === "success" || status === "paid"
+        ? "completed"
+        : status === "failed"
+          ? "failed"
+          : status === "expired"
+            ? "expired"
+            : "pending",
+    amount: toNumber(item.credit_units || item.amount),
+    money: toNumber(item.money || item.amount),
+    creditUnits: toNumber(item.credit_units),
+    topupUnits: toNumber(item.topup_units),
+    currency: toText(item.currency),
+    paymentMethod: toText(item.payment_method, "stripe"),
+    invoiceNumber: toText(item.invoice_number),
+    hostedInvoiceUrl: toText(item.hosted_invoice_url),
+    invoicePdf: toText(item.invoice_pdf),
+    receiptUrl: toText(item.receipt_url),
+    createdAt: toNumber(item.created_at),
+    completedAt: toNumber(item.completed_at),
   };
 }
 

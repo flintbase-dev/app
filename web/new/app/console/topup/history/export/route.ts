@@ -10,7 +10,7 @@ export async function GET() {
       item.method,
       item.status,
       String(item.ts),
-      String(item.amount),
+      String(item.type === "subscription" ? item.money : item.amount),
     ]),
   ];
   const body = rows

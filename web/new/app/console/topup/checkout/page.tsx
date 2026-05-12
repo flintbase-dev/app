@@ -2,13 +2,6 @@ import { notFound } from "next/navigation";
 import { CheckoutClient } from "@/components/console/checkout-client";
 import { loadTopupData } from "@/lib/console/data";
 
-const CHECKOUT_AMOUNT = 100;
-const CHECKOUT_DISCOUNTS: Record<number, number> = {
-  100: 0.05,
-  250: 0.08,
-  500: 0.12,
-};
-
 export default async function CheckoutPage({
   searchParams,
 }: {
@@ -19,7 +12,8 @@ export default async function CheckoutPage({
     plan_id?: string;
   }>;
 }) {
-  const { plans, status, topupInfo, user } = await loadTopupData();
+  const { plans, status, subscription, topupInfo, user } =
+    await loadTopupData();
   const {
     amount: rawAmount = "",
     from_subscription_id: fromSubscriptionId = "",
@@ -29,21 +23,34 @@ export default async function CheckoutPage({
   const selectedPlan = planId ? plans.find((plan) => plan.id === planId) : null;
   if (planId && !selectedPlan) notFound();
   const checkoutMode = selectedPlan ? "subscription" : "topup";
-  const amount = Math.max(Number(rawAmount) || CHECKOUT_AMOUNT, 1);
-  const discount = CHECKOUT_DISCOUNTS[amount] ?? 0;
+  const minTopup = Math.max(1, Math.trunc(topupInfo.stripeMinTopup || 1));
+  const amount = Math.max(Math.trunc(Number(rawAmount)) || minTopup, minTopup);
+  const discount = discountMultiplier(topupInfo.discount, amount);
+  const creditAmount = amount * topupInfo.topupGroupRatio;
+  const topupSubtotal =
+    amount * topupInfo.stripeUnitPrice * topupInfo.topupGroupRatio;
   const charge =
     checkoutMode === "subscription"
-      ? Number(selectedPlan?.price || 0)
-      : amount * (1 - discount);
-  const newBalance = user.balance + amount;
+      ? subscriptionCharge(
+          selectedPlan?.price ?? 0,
+          plans,
+          subscription.subscriptions,
+          fromSubscriptionId,
+          rawMode,
+        )
+      : topupSubtotal * discount;
+  const discountAmount =
+    checkoutMode === "topup" ? Math.max(0, topupSubtotal - charge) : 0;
+  const newBalance = user.balance + creditAmount;
   const purchaseMode = rawMode === "switch" ? "switch" : "purchase";
 
   return (
     <CheckoutClient
       amount={amount}
       charge={charge}
+      creditAmount={creditAmount}
       checkoutMode={checkoutMode}
-      discount={discount}
+      discountAmount={discountAmount}
       newBalance={newBalance}
       status={status}
       subscription={
@@ -61,4 +68,32 @@ export default async function CheckoutPage({
       user={user}
     />
   );
+}
+
+function discountMultiplier(
+  discount: Record<string, number>,
+  amount: number,
+): number {
+  const value = discount[String(Math.trunc(amount))];
+  return value > 0 ? value : 1;
+}
+
+function subscriptionCharge(
+  selectedPlanPrice: number,
+  plans: Awaited<ReturnType<typeof loadTopupData>>["plans"],
+  subscriptions: Awaited<
+    ReturnType<typeof loadTopupData>
+  >["subscription"]["subscriptions"],
+  fromSubscriptionId: string,
+  rawMode: string,
+): number {
+  if (rawMode !== "switch" || !fromSubscriptionId) return selectedPlanPrice;
+  const currentSubscription = subscriptions.find(
+    (item) => item.id === fromSubscriptionId,
+  );
+  const currentPlan = plans.find(
+    (plan) => plan.id === currentSubscription?.planId,
+  );
+  if (!currentPlan) return selectedPlanPrice;
+  return Math.max(selectedPlanPrice - currentPlan.price, 0);
 }

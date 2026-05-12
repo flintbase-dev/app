@@ -8,8 +8,8 @@ export type ConsoleUser = {
   auth_method: "Google · Workspace" | "Email" | "GitHub";
   role: "user" | "admin" | "root";
   group: string;
-  balance: number; // USD
-  used: number; // USD lifetime
+  balance: number; // site credit display units
+  used: number; // lifetime site credit display units
   request_count: number;
   language: "en" | "zh-CN" | "zh-TW" | "fr" | "ru" | "ja" | "vi";
   quota_warning_threshold: number;
@@ -165,7 +165,7 @@ export type LogEntry = {
   prompt_tokens: number;
   completion_tokens: number;
   cached_tokens: number;
-  cost: number; // USD
+  cost: number; // site credit display units
   latency_ms: number;
   channel: string;
   status: "ok" | "fail" | "warn";
@@ -393,8 +393,8 @@ export type SubPlan = {
   id: number;
   title: string;
   subtitle: string;
-  price: number; // monthly USD
-  total: number; // included USD credit (0 = unlimited)
+  price: number; // monthly site credit display units
+  total: number; // included site credit display units (0 = unlimited)
   duration: string; // human readable
   reset: string;
   max_purchase_per_user: number; // 0 = unlimited
@@ -605,10 +605,8 @@ export const UPTIME = [
   },
 ];
 
-export function fmtMoney(n: number, currency: "USD" | "CNY" = "USD"): string {
-  const sym = currency === "USD" ? "$" : "¥";
-  const v = currency === "USD" ? n : n * 7.18;
-  return `${sym}${v.toFixed(v < 1 ? 4 : 2)}`;
+export function fmtMoney(n: number, currencySymbol = "$"): string {
+  return `${currencySymbol}${n.toFixed(n < 1 ? 4 : 2)}`;
 }
 
 export function fmtNum(n: number): string {

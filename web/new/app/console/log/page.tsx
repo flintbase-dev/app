@@ -96,7 +96,7 @@ export default async function LogPage({
                 </code>
                 {l.cost ? (
                   <span className="font-mono text-xs tabular-nums text-foreground">
-                    {fmtMoney(l.cost)}
+                    {fmtMoney(l.cost, logs.status)}
                   </span>
                 ) : null}
                 <StatusPill log={l} compact />
@@ -195,7 +195,7 @@ export default async function LogPage({
                 <p className="mt-3 text-xs text-muted-foreground">
                   Cost{" "}
                   <span className="font-mono tabular-nums text-foreground">
-                    {fmtMoney(selected.cost)}
+                    {fmtMoney(selected.cost, logs.status)}
                   </span>
                 </p>
               </div>

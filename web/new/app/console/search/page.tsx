@@ -42,8 +42,8 @@ export default async function ConsoleSearchPage({
                   {model.id}
                 </code>
                 <span className="text-xs text-muted-foreground">
-                  {model.vendor} · ${model.input.toFixed(4)} / $
-                  {model.output.toFixed(4)}
+                  {model.vendor} · {fmtMoney(model.input, results.status)} /{" "}
+                  {fmtMoney(model.output, results.status)}
                 </span>
               </ResultLink>
             ))}
@@ -59,7 +59,7 @@ export default async function ConsoleSearchPage({
                   {request.requestId || request.id}
                 </code>
                 <span className="text-xs text-muted-foreground">
-                  {request.model} · {fmtMoney(request.cost)}
+                  {request.model} · {fmtMoney(request.cost, results.status)}
                 </span>
               </ResultLink>
             ))}
@@ -75,7 +75,13 @@ export default async function ConsoleSearchPage({
                   {invoice.reference || invoice.invoiceNumber || invoice.id}
                 </code>
                 <span className="text-xs text-muted-foreground">
-                  {fmtAbsDate(invoice.ts)} · {fmtMoney(invoice.amount)}
+                  {fmtAbsDate(invoice.ts)} ·{" "}
+                  {fmtMoney(
+                    invoice.type === "subscription"
+                      ? invoice.money
+                      : invoice.amount,
+                    results.status,
+                  )}
                 </span>
               </ResultLink>
             ))}

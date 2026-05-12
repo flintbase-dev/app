@@ -72,8 +72,65 @@ test("checkout uses Stripe Checkout Elements instead of mock checkout links", ()
   assert.doesNotMatch(classicConfirmBlock, /returnUrl:/);
   assert.doesNotMatch(checkout, /CURRENT_USER|CHECKOUT_REF|SUCCESS_REF/);
   assert.match(actions, /\/console\/topup\/checkout\?/);
+  assert.match(actions, /plan_id: planId/);
   assert.doesNotMatch(actions, /createStripeTopupSessionAction/);
   assert.doesNotMatch(actions, /createSubscriptionStripeSessionAction/);
+});
+
+test("wallet topup uses backend amounts, discounts, and site currency", () => {
+  const page = read("app/console/topup/page.tsx");
+  const dialog = read("components/console/add-credits-dialog.tsx");
+  const checkoutPage = read("app/console/topup/checkout/page.tsx");
+  const actions = read("lib/console/actions.ts");
+  const data = read("lib/console/data.ts");
+  const successPage = read("app/console/topup/checkout/success/page.tsx");
+  const topupBackend = readRepo("controller/topup.go");
+  const stripeBackend = readRepo("controller/topup_stripe.go");
+  const router = readRepo("router/graphql_api.go");
+  const classicOperations = readRepo(
+    "web/classic/src/helpers/apiOperations.js",
+  );
+
+  assert.match(page, /topupInfo=\{topupInfo\}/);
+  assert.match(page, /monthlyUsage/);
+  assert.match(page, /usageMonthLabel/);
+  assert.doesNotMatch(page, /MAY_USAGE|38\.42|Used in May 2026/);
+  assert.match(dialog, /topupInfo\.amountOptions/);
+  assert.match(dialog, /topupInfo\.discount/);
+  assert.match(dialog, /topupInfo\.stripeUnitPrice/);
+  assert.match(dialog, /topupInfo\.topupGroupRatio/);
+  assert.match(dialog, /status\.quotaDisplayType/);
+  assert.doesNotMatch(page, /TOPUP_PRESETS|TOPUP_DISCOUNTS|Amount \(USD\)/);
+  assert.doesNotMatch(dialog, /Custom, \$5 minimum|\$\{value\}/);
+
+  assert.match(checkoutPage, /topupInfo\.discount/);
+  assert.match(checkoutPage, /topupInfo\.stripeUnitPrice/);
+  assert.match(checkoutPage, /topupInfo\.topupGroupRatio/);
+  assert.match(checkoutPage, /creditAmount=\{creditAmount\}/);
+  assert.doesNotMatch(checkoutPage, /CHECKOUT_AMOUNT|CHECKOUT_DISCOUNTS/);
+
+  assert.match(data, /stripeUnitPrice: toNumber\(item\.stripe_unit_price, 1\)/);
+  assert.match(data, /topupGroupRatio: toNumber\(item\.topup_group_ratio, 1\)/);
+  assert.match(
+    data,
+    /amount: toNumber\(item\.credit_units \|\| item\.amount\)/,
+  );
+  assert.match(data, /operation: "logsSelfStat"[\s\S]*alias: "monthlyUsage"/);
+  assert.match(data, /loadStripeCheckoutResult/);
+  assert.match(successPage, /RESULT_REFRESH_DELAY_MS = 2000/);
+  assert.match(successPage, /loadStripeCheckoutResult\(sessionId\)/);
+  assert.match(successPage, /Payment not completed/);
+  assert.match(successPage, /Payment is processing/);
+  assert.doesNotMatch(successPage, /invoices\.items\[0\]/);
+  assert.match(topupBackend, /"stripe_unit_price":\s+setting\.StripeUnitPrice/);
+  assert.match(topupBackend, /"topup_group_ratio":\s+topupGroupRatio/);
+  assert.match(stripeBackend, /RequestStripeCheckoutResult/);
+  assert.match(stripeBackend, /stripeCheckoutSessionResolvedStatus/);
+  assert.match(router, /apiQuery\("stripeCheckoutResult"/);
+  assert.match(classicOperations, /stripeCheckoutResult: 'query'/);
+  assert.match(actions, /stripeBillingPortal[\s\S]*return_url: returnUrl/);
+  assert.match(page, /type="submit"[\s\S]*Open portal/);
+  assert.match(page, /type="submit"[\s\S]*Save preference/);
 });
 
 test("stripe checkout binds local payment orders before invoice fulfillment", () => {
@@ -122,6 +179,12 @@ test("stripe checkout binds local payment orders before invoice fulfillment", ()
     checkoutCreate,
     /CheckoutSessionBillingAddressCollectionRequired/,
   );
+  assert.match(checkoutCreate, /UnitAmountDecimal/);
+  assert.match(checkoutCreate, /Quantity:\s+stripe\.Int64\(quantity\)/);
+  assert.match(checkoutCreate, /renderStripeCheckoutText/);
+  assert.match(checkoutCreate, /StripeLineItemTemplate/);
+  assert.match(checkoutCreate, /StripeMemoTemplate/);
+  assert.match(checkoutCreate, /Description:\s+stripe\.String\(memo\)/);
   assert.match(checkoutCreate, /RequiresCustomerDetails/);
   assert.doesNotMatch(checkoutCreate, /NameCollection/);
   assert.doesNotMatch(checkoutCreate, /name_collection/);
@@ -132,6 +195,25 @@ test("stripe checkout binds local payment orders before invoice fulfillment", ()
   assert.doesNotMatch(checkoutBackend, /SavedPaymentMethodOptions:/);
   assert.doesNotMatch(checkoutBackend, /SetupFutureUsage:/);
   assert.doesNotMatch(checkoutBackend, /SubmitType:/);
+});
+
+test("classic admin exposes configurable Stripe line item and memo text", () => {
+  const setting = readRepo("setting/payment_stripe.go");
+  const optionModel = readRepo("model/option.go");
+  const stripeSettings = readRepo(
+    "web/classic/src/pages/Setting/Payment/SettingsPaymentGatewayStripe.jsx",
+  );
+
+  assert.match(setting, /StripeLineItemTemplate = "\{line_item\}"/);
+  assert.match(setting, /StripeMemoTemplate = "\{description\}"/);
+  assert.match(optionModel, /OptionMap\["StripeLineItemTemplate"\]/);
+  assert.match(optionModel, /OptionMap\["StripeMemoTemplate"\]/);
+  assert.match(optionModel, /case "StripeLineItemTemplate":/);
+  assert.match(optionModel, /case "StripeMemoTemplate":/);
+  assert.match(stripeSettings, /field='StripeLineItemTemplate'/);
+  assert.match(stripeSettings, /field='StripeMemoTemplate'/);
+  assert.match(stripeSettings, /key: 'StripeLineItemTemplate'/);
+  assert.match(stripeSettings, /key: 'StripeMemoTemplate'/);
 });
 
 test("dev and prod can proxy GraphQL and data-plane API requests", () => {

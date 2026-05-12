@@ -81,7 +81,7 @@ We exist because shipping a product against three different SDKs, three differen
 - An OpenAI-compatible data plane at \`api.flint.dev\`.
 - A control plane for keys, wallets, logs, and routing groups.
 - A playground for testing models and parameters interactively.
-- Per-request billing in USD with no minimum commitment.
+- Per-request billing in the configured site currency with no minimum commitment.
 
 ## What we don't do
 
@@ -121,7 +121,7 @@ Violations may result in immediate suspension. Repeated or severe violations res
 
 ## 4. Fees and billing
 
-Fees are denominated in USD and deducted from your wallet balance per request. Pricing is published at \`/pricing\` and may change with 30 days notice for existing customers.
+Fees are denominated in the configured site currency and deducted from your wallet balance per request. Pricing is published at \`/pricing\` and may change with 30 days notice for existing customers.
 
 Wallet top-ups are non-refundable except as required by applicable law. Disputed charges should be raised within 60 days of the transaction.
 

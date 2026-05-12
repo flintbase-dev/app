@@ -58,6 +58,14 @@ type StripePayRequest struct {
 	ReturnURL     string `json:"return_url"`
 }
 
+type StripeBillingPortalRequest struct {
+	ReturnURL string `json:"return_url"`
+}
+
+type StripeCheckoutResultRequest struct {
+	CheckoutSessionId string `json:"checkout_session_id"`
+}
+
 type StripeAdaptor struct {
 }
 
@@ -65,6 +73,9 @@ type stripeCheckoutPaymentInput struct {
 	User                   *model.User
 	AmountCents            int64
 	DisplayAmount          float64
+	Quantity               int64
+	CreditUnits            float64
+	TopUpUnits             int64
 	Currency               string
 	Description            string
 	InvoiceItemDescription string
@@ -88,14 +99,40 @@ type stripeCheckoutPaymentSession struct {
 	RequiresCustomerDetails bool    `json:"requires_customer_details"`
 	Amount                  float64 `json:"amount"`
 	AmountCents             int64   `json:"amount_cents"`
+	CreditUnits             float64 `json:"credit_units,omitempty"`
+	TopUpUnits              int64   `json:"topup_units,omitempty"`
 	Currency                string  `json:"currency"`
+}
+
+type StripeCheckoutResult struct {
+	PaymentOrderId    string  `json:"payment_order_id"`
+	CheckoutSessionId string  `json:"checkout_session_id"`
+	InvoiceId         string  `json:"invoice_id"`
+	PaymentIntentId   string  `json:"payment_intent_id"`
+	TradeNo           string  `json:"trade_no"`
+	Kind              string  `json:"kind"`
+	Status            string  `json:"status"`
+	Amount            float64 `json:"amount"`
+	Money             float64 `json:"money"`
+	CreditUnits       float64 `json:"credit_units"`
+	TopUpUnits        int64   `json:"topup_units"`
+	Currency          string  `json:"currency"`
+	PaymentMethod     string  `json:"payment_method"`
+	InvoiceNumber     string  `json:"invoice_number"`
+	HostedInvoiceURL  string  `json:"hosted_invoice_url"`
+	InvoicePDF        string  `json:"invoice_pdf"`
+	ReceiptURL        string  `json:"receipt_url"`
+	CreatedAt         int64   `json:"created_at"`
+	CompletedAt       int64   `json:"completed_at"`
 }
 
 type StripeInvoiceRecord struct {
 	Id               string  `json:"id"`
 	UserId           string  `json:"user_id"`
-	Amount           int64   `json:"amount"`
+	Amount           float64 `json:"amount"`
 	Money            float64 `json:"money"`
+	CreditUnits      float64 `json:"credit_units"`
+	TopUpUnits       int64   `json:"topup_units"`
 	TradeNo          string  `json:"trade_no"`
 	InvoiceId        string  `json:"invoice_id"`
 	InvoiceNumber    string  `json:"invoice_number"`
@@ -197,6 +234,9 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 		User:                   user,
 		AmountCents:            amountCents,
 		DisplayAmount:          payMoney,
+		Quantity:               req.Amount,
+		CreditUnits:            creditUnits,
+		TopUpUnits:             req.Amount,
 		Currency:               stripeCurrency(),
 		Description:            fmt.Sprintf("Wallet top up %d", req.Amount),
 		InvoiceItemDescription: fmt.Sprintf("Wallet credits: %d units", req.Amount),
@@ -633,9 +673,29 @@ func createStripeCheckoutPayment(ctx context.Context, input stripeCheckoutPaymen
 		return nil, err
 	}
 	configureStripeClient()
-
 	metadata := cloneStringMap(input.Metadata)
 	metadata[stripeMetadataUserIDKey] = input.User.Id
+	lineItemName := renderStripeCheckoutText(setting.StripeLineItemTemplate, input.InvoiceItemDescription, input, metadata)
+	memo := renderStripeCheckoutText(setting.StripeMemoTemplate, input.Description, input, metadata)
+	quantity := input.Quantity
+	if quantity <= 0 {
+		quantity = 1
+	}
+	priceData := &stripe.CheckoutSessionLineItemPriceDataParams{
+		Currency: stripe.String(input.Currency),
+		ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
+			Name:        stripe.String(lineItemName),
+			Description: stripe.String(memo),
+			Metadata:    metadata,
+		},
+	}
+	if quantity == 1 {
+		priceData.UnitAmount = stripe.Int64(input.AmountCents)
+	} else {
+		unitAmountDecimal := decimal.NewFromInt(input.AmountCents).Div(decimal.NewFromInt(quantity))
+		unitAmount, _ := unitAmountDecimal.Float64()
+		priceData.UnitAmountDecimal = stripe.Float64(unitAmount)
+	}
 	customerState, err := resolveStripeCheckoutCustomer(ctx, input.User)
 	if err != nil {
 		return nil, err
@@ -656,26 +716,18 @@ func createStripeCheckoutPayment(ctx context.Context, input stripeCheckoutPaymen
 		UIMode:    stripe.String(string(stripe.CheckoutSessionUIModeElements)),
 		LineItems: []*stripe.CheckoutSessionLineItemParams{
 			{
-				PriceData: &stripe.CheckoutSessionLineItemPriceDataParams{
-					Currency: stripe.String(input.Currency),
-					ProductData: &stripe.CheckoutSessionLineItemPriceDataProductDataParams{
-						Name:        stripe.String(input.InvoiceItemDescription),
-						Description: stripe.String(input.Description),
-						Metadata:    metadata,
-					},
-					UnitAmount: stripe.Int64(input.AmountCents),
-				},
-				Quantity: stripe.Int64(1),
+				PriceData: priceData,
+				Quantity:  stripe.Int64(quantity),
 			},
 		},
 		PaymentIntentData: &stripe.CheckoutSessionPaymentIntentDataParams{
-			Description: stripe.String(input.Description),
+			Description: stripe.String(memo),
 			Metadata:    metadata,
 		},
 		InvoiceCreation: &stripe.CheckoutSessionInvoiceCreationParams{
 			Enabled: stripe.Bool(true),
 			InvoiceData: &stripe.CheckoutSessionInvoiceCreationInvoiceDataParams{
-				Description: stripe.String(input.Description),
+				Description: stripe.String(memo),
 				Metadata:    metadata,
 			},
 		},
@@ -709,6 +761,8 @@ func createStripeCheckoutPayment(ctx context.Context, input stripeCheckoutPaymen
 		RequiresCustomerDetails: customerState.RequiresCustomerDetails,
 		Amount:                  input.DisplayAmount,
 		AmountCents:             input.AmountCents,
+		CreditUnits:             input.CreditUnits,
+		TopUpUnits:              input.TopUpUnits,
 		Currency:                strings.ToUpper(input.Currency),
 	}, nil
 }
@@ -867,6 +921,37 @@ func cloneStringMap(src map[string]string) map[string]string {
 		dst[k] = v
 	}
 	return dst
+}
+
+func renderStripeCheckoutText(template string, fallback string, input stripeCheckoutPaymentInput, metadata map[string]string) string {
+	value := strings.TrimSpace(template)
+	if value == "" {
+		value = fallback
+	}
+	vars := map[string]string{
+		"amount":           strconv.FormatFloat(input.DisplayAmount, 'f', 2, 64),
+		"credit_units":     strconv.FormatFloat(input.CreditUnits, 'f', -1, 64),
+		"currency":         strings.ToUpper(input.Currency),
+		"description":      input.Description,
+		"email":            input.User.Email,
+		"kind":             metadata[stripeMetadataKindKey],
+		"line_item":        input.InvoiceItemDescription,
+		"money":            strconv.FormatFloat(input.DisplayAmount, 'f', 2, 64),
+		"payment_order_id": metadata[stripeMetadataPaymentOrderIDKey],
+		"plan_id":          metadata[stripeMetadataPlanIDKey],
+		"topup_units":      strconv.FormatInt(input.TopUpUnits, 10),
+		"trade_no":         metadata[stripeMetadataOrderTradeNoKey],
+		"user_id":          input.User.Id,
+		"username":         input.User.Username,
+	}
+	for key, replacement := range vars {
+		value = strings.ReplaceAll(value, "{"+key+"}", replacement)
+	}
+	value = strings.TrimSpace(value)
+	if value == "" {
+		return fallback
+	}
+	return value
 }
 
 func moneyToStripeAmountCents(amount float64) (int64, error) {
@@ -1218,8 +1303,13 @@ func stripeInvoiceRecordFromInvoice(inv *stripe.Invoice) StripeInvoiceRecord {
 	if inv.StatusTransitions != nil {
 		record.CompleteTime = inv.StatusTransitions.PaidAt
 	}
-	if amount, err := strconv.ParseInt(inv.Metadata[stripeMetadataTopupUnitsKey], 10, 64); err == nil {
-		record.Amount = amount
+	if topupUnits, err := strconv.ParseInt(inv.Metadata[stripeMetadataTopupUnitsKey], 10, 64); err == nil {
+		record.TopUpUnits = topupUnits
+		record.Amount = float64(topupUnits)
+	}
+	if creditUnits, err := strconv.ParseFloat(inv.Metadata[stripeMetadataCreditUnitsKey], 64); err == nil {
+		record.CreditUnits = creditUnits
+		record.Amount = creditUnits
 	}
 	if charge := stripeInvoiceCharge(inv); charge != nil {
 		record.ReceiptURL = charge.ReceiptURL
@@ -1289,11 +1379,186 @@ func stripeInvoiceRecordMatches(record StripeInvoiceRecord, keyword string) bool
 	return false
 }
 
+func RequestStripeCheckoutResult(c *gin.Context) {
+	sessionId := strings.TrimSpace(c.Query("checkout_session_id"))
+	if sessionId == "" {
+		common.ApiErrorMsg(c, "checkout_session_id is required")
+		return
+	}
+	userId := c.GetString("id")
+	order, err := model.GetStripePaymentOrderByCheckoutSessionId(sessionId)
+	if err != nil {
+		if errors.Is(err, model.ErrStripePaymentOrderNotFound) {
+			common.ApiErrorMsg(c, "支付订单不存在")
+			return
+		}
+		common.ApiError(c, err)
+		return
+	}
+	if order.UserId != userId {
+		common.ApiErrorMsg(c, "支付订单不存在")
+		return
+	}
+	if order.Status == common.TopUpStatusPending && validateStripeAPIConfig() == nil {
+		if err := refreshStripeCheckoutOrderStatus(c.Request.Context(), order, c.ClientIP()); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if refreshed, err := model.GetStripePaymentOrderByCheckoutSessionId(sessionId); err == nil {
+			order = refreshed
+		}
+	}
+	result := stripeCheckoutResultFromOrder(order)
+	attachStripeCheckoutResultInvoiceDetails(&result, order.StripeInvoiceId)
+	common.ApiSuccess(c, result)
+}
+
+func refreshStripeCheckoutOrderStatus(ctx context.Context, order *model.StripePaymentOrder, callerIp string) error {
+	if order == nil || order.StripeCheckoutSessionId == "" {
+		return nil
+	}
+	configureStripeClient()
+	session := retrieveStripeCheckoutSessionForFulfillment(ctx, &stripe.CheckoutSession{ID: order.StripeCheckoutSessionId})
+	if session == nil || session.ID == "" {
+		return nil
+	}
+	if metadataUserId := strings.TrimSpace(session.Metadata[stripeMetadataUserIDKey]); metadataUserId != "" && metadataUserId != order.UserId {
+		return errors.New("Stripe Checkout Session user mismatch")
+	}
+	_ = model.UpdateStripePaymentOrderCheckoutRefs(order.Id, session.ID, stripeCheckoutSessionInvoiceID(session), stripeCheckoutSessionPaymentIntentID(session))
+	status := stripeCheckoutSessionResolvedStatus(session)
+	if status == common.TopUpStatusPending {
+		return nil
+	}
+	LockOrder(session.ID)
+	defer UnlockOrder(session.ID)
+
+	switch status {
+	case common.TopUpStatusSuccess:
+		switch order.Kind {
+		case stripeInvoiceKindTopup:
+			return fulfillStripeCheckoutSessionTopup(ctx, session, callerIp)
+		case stripeInvoiceKindSubscriptionPurchase, stripeInvoiceKindSubscriptionSwitch:
+			return fulfillStripeCheckoutSessionSubscription(ctx, session, callerIp)
+		}
+	case common.TopUpStatusFailed:
+		return failStripeCheckoutSessionOrder(ctx, session, order, callerIp)
+	case common.TopUpStatusExpired:
+		return expireStripeCheckoutSessionOrder(ctx, session, order, callerIp)
+	}
+	return nil
+}
+
+func stripeCheckoutSessionResolvedStatus(session *stripe.CheckoutSession) string {
+	if session == nil {
+		return common.TopUpStatusPending
+	}
+	if session.Status == stripe.CheckoutSessionStatusExpired {
+		return common.TopUpStatusExpired
+	}
+	if session.PaymentStatus == stripe.CheckoutSessionPaymentStatusPaid || session.PaymentStatus == stripe.CheckoutSessionPaymentStatusNoPaymentRequired {
+		return common.TopUpStatusSuccess
+	}
+	if session.PaymentIntent != nil {
+		switch session.PaymentIntent.Status {
+		case stripe.PaymentIntentStatusSucceeded:
+			return common.TopUpStatusSuccess
+		case stripe.PaymentIntentStatusCanceled, stripe.PaymentIntentStatusRequiresPaymentMethod:
+			return common.TopUpStatusFailed
+		case stripe.PaymentIntentStatusProcessing, stripe.PaymentIntentStatusRequiresAction, stripe.PaymentIntentStatusRequiresConfirmation, stripe.PaymentIntentStatusRequiresCapture:
+			return common.TopUpStatusPending
+		}
+	}
+	if session.Status == stripe.CheckoutSessionStatusComplete && session.PaymentStatus == stripe.CheckoutSessionPaymentStatusUnpaid {
+		return common.TopUpStatusFailed
+	}
+	return common.TopUpStatusPending
+}
+
+func failStripeCheckoutSessionOrder(ctx context.Context, session *stripe.CheckoutSession, order *model.StripePaymentOrder, callerIp string) error {
+	payload := stripeCheckoutSessionPayload(session, "checkout.session.return_failed")
+	if err := model.FailStripePaymentOrder(order.Id, common.GetJsonString(payload)); err != nil && !errors.Is(err, model.ErrStripePaymentOrderNotFound) {
+		logger.LogError(ctx, fmt.Sprintf("Stripe checkout session 本地支付订单失败状态更新失败 session_id=%s payment_order_id=%s client_ip=%s error=%q", session.ID, order.Id, callerIp, err.Error()))
+		return err
+	}
+	if order.Kind == stripeInvoiceKindSubscriptionPurchase || order.Kind == stripeInvoiceKindSubscriptionSwitch {
+		if err := model.FailSubscriptionOrder(order.BusinessOrderId, model.PaymentProviderStripe, common.GetJsonString(payload)); err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
+			logger.LogError(ctx, fmt.Sprintf("Stripe checkout session 订阅失败状态更新失败 session_id=%s trade_no=%s client_ip=%s error=%q", session.ID, order.BusinessOrderId, callerIp, err.Error()))
+			return err
+		}
+	}
+	return nil
+}
+
+func expireStripeCheckoutSessionOrder(ctx context.Context, session *stripe.CheckoutSession, order *model.StripePaymentOrder, callerIp string) error {
+	if err := model.ExpireStripePaymentOrder(order.Id); err != nil && !errors.Is(err, model.ErrStripePaymentOrderNotFound) {
+		logger.LogError(ctx, fmt.Sprintf("Stripe checkout session 本地支付订单过期处理失败 session_id=%s payment_order_id=%s client_ip=%s error=%q", session.ID, order.Id, callerIp, err.Error()))
+		return err
+	}
+	if order.Kind == stripeInvoiceKindSubscriptionPurchase || order.Kind == stripeInvoiceKindSubscriptionSwitch {
+		if err := model.ExpireSubscriptionOrder(order.BusinessOrderId, model.PaymentProviderStripe); err != nil && !errors.Is(err, model.ErrSubscriptionOrderNotFound) {
+			logger.LogError(ctx, fmt.Sprintf("Stripe checkout session 订阅订单过期处理失败 session_id=%s trade_no=%s client_ip=%s error=%q", session.ID, order.BusinessOrderId, callerIp, err.Error()))
+			return err
+		}
+	}
+	return nil
+}
+
+func stripeCheckoutResultFromOrder(order *model.StripePaymentOrder) StripeCheckoutResult {
+	if order == nil {
+		return StripeCheckoutResult{Status: common.TopUpStatusPending}
+	}
+	amount := order.CreditUnits
+	if amount <= 0 {
+		amount = order.DisplayAmount
+	}
+	return StripeCheckoutResult{
+		PaymentOrderId:    order.Id,
+		CheckoutSessionId: order.StripeCheckoutSessionId,
+		InvoiceId:         order.StripeInvoiceId,
+		PaymentIntentId:   order.StripePaymentIntentId,
+		TradeNo:           firstNonEmptyString(order.BusinessOrderId, order.StripeInvoiceId, order.Id),
+		Kind:              order.Kind,
+		Status:            order.Status,
+		Amount:            amount,
+		Money:             order.DisplayAmount,
+		CreditUnits:       order.CreditUnits,
+		TopUpUnits:        order.TopUpUnits,
+		Currency:          order.Currency,
+		PaymentMethod:     order.PaymentMethod,
+		CreatedAt:         order.CreatedAt,
+		CompletedAt:       order.CompletedAt,
+	}
+}
+
+func attachStripeCheckoutResultInvoiceDetails(result *StripeCheckoutResult, invoiceId string) {
+	if result == nil || strings.TrimSpace(invoiceId) == "" || validateStripeAPIConfig() != nil {
+		return
+	}
+	configureStripeClient()
+	params := &stripe.InvoiceParams{}
+	params.AddExpand("payments.data.payment")
+	inv, err := invoice.Get(invoiceId, params)
+	if err != nil || inv == nil {
+		return
+	}
+	record := stripeInvoiceRecordFromInvoice(inv)
+	result.InvoiceNumber = record.InvoiceNumber
+	result.HostedInvoiceURL = record.HostedInvoiceURL
+	result.InvoicePDF = record.InvoicePDF
+	result.ReceiptURL = record.ReceiptURL
+	if result.PaymentMethod == "" {
+		result.PaymentMethod = record.PaymentMethod
+	}
+}
+
 func RequestStripeBillingPortal(c *gin.Context) {
 	if err := validateStripeAPIConfig(); err != nil {
 		common.ApiErrorMsg(c, err.Error())
 		return
 	}
+	var req StripeBillingPortalRequest
+	_ = c.ShouldBindJSON(&req)
 	userId := c.GetString("id")
 	user, err := model.GetUserById(userId, false)
 	if err != nil || user == nil {
@@ -1307,6 +1572,13 @@ func RequestStripeBillingPortal(c *gin.Context) {
 		return
 	}
 	returnURL := system_setting.ServerAddress + "/console/topup"
+	if strings.TrimSpace(req.ReturnURL) != "" {
+		returnURL, err = normalizeStripeReturnURL(req.ReturnURL)
+		if err != nil {
+			common.ApiErrorMsg(c, err.Error())
+			return
+		}
+	}
 	params := &stripe.BillingPortalSessionParams{
 		Customer:  stripe.String(customerId),
 		ReturnURL: stripe.String(returnURL),

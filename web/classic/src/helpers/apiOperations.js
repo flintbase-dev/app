@@ -31,6 +31,7 @@ export const API_OPERATION_TYPES = Object.freeze({
   topup: 'mutation',
   stripePay: 'mutation',
   stripeAmount: 'mutation',
+  stripeCheckoutResult: 'query',
   stripeBillingPortal: 'mutation',
   affTransfer: 'mutation',
   updateSelf: 'mutation',

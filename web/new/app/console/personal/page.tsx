@@ -115,7 +115,7 @@ export default async function PersonalPage() {
                 <h2 className="mb-3 font-heading text-xl font-medium tracking-tight">
                   Notifications
                 </h2>
-                <NotificationsSection user={user} />
+                <NotificationsSection user={user} status={status} />
               </section>
               <section id="privacy" className="scroll-mt-20">
                 <h2 className="mb-3 font-heading text-xl font-medium tracking-tight">
@@ -317,8 +317,10 @@ function PreferencesSection({
 }
 
 function NotificationsSection({
+  status,
   user,
 }: {
+  status: Awaited<ReturnType<typeof loadPersonalData>>["status"];
   user: Awaited<ReturnType<typeof loadPersonalData>>["user"];
 }) {
   return (
@@ -344,7 +346,7 @@ function NotificationsSection({
               className="max-w-32"
             />
             <span className="font-mono text-xs tabular-nums text-muted-foreground">
-              USD
+              {status.quotaDisplayType}
             </span>
           </div>
         </div>

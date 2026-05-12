@@ -31,7 +31,7 @@ import { loadTokenEditor } from "@/lib/console/data";
 import { cn } from "@/lib/utils";
 
 export default async function CreateTokenPage() {
-  const { groups, models } = await loadTokenEditor();
+  const { groups, models, status } = await loadTokenEditor();
   return (
     <div className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
       <div className="mx-auto w-full max-w-3xl">
@@ -127,7 +127,7 @@ export default async function CreateTokenPage() {
                 description="Use the wallet balance directly. No per-key cap."
               />
 
-              <FieldRow label="Quota (USD)">
+              <FieldRow label={`Quota (${status.quotaDisplayType})`}>
                 <Input
                   type="number"
                   name="remain_amount"

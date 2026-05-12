@@ -11,6 +11,10 @@ export type ConsoleStatus = DisplayContext & {
   systemName: string;
   serverAddress: string;
   docsLink: string;
+  siteCreditsPerPriceUnit: number;
+  currencySymbol: string;
+  quotaDisplayType: string;
+  stripeUnitPrice: number;
   setup: boolean;
   checkinEnabled: boolean;
   apiInfoEnabled: boolean;
@@ -118,6 +122,8 @@ export type TopupInfo = {
   enableStripeTopup: boolean;
   stripeMinTopup: number;
   stripePublishableKey: string;
+  stripeUnitPrice: number;
+  topupGroupRatio: number;
   amountOptions: number[];
   discount: Record<string, number>;
   topupLink: string;
@@ -132,10 +138,35 @@ export type InvoiceRecord = {
   ts: number;
   amount: number;
   money: number;
+  creditUnits: number;
+  topupUnits: number;
+  currency: string;
   hostedInvoiceUrl: string;
   invoicePdf: string;
   receiptUrl: string;
   invoiceNumber: string;
+};
+
+export type CheckoutResult = {
+  paymentOrderId: string;
+  checkoutSessionId: string;
+  invoiceId: string;
+  paymentIntentId: string;
+  tradeNo: string;
+  kind: string;
+  status: "completed" | "failed" | "expired" | "pending";
+  amount: number;
+  money: number;
+  creditUnits: number;
+  topupUnits: number;
+  currency: string;
+  paymentMethod: string;
+  invoiceNumber: string;
+  hostedInvoiceUrl: string;
+  invoicePdf: string;
+  receiptUrl: string;
+  createdAt: number;
+  completedAt: number;
 };
 
 export type SubscriptionPlan = {

@@ -604,6 +604,7 @@ var graphqlAPIOperations = []apiOperation{
 	apiMutation("topup", controller.TopUp, userActivity("user_self"), criticalRateLimit()),
 	apiMutation("stripePay", controller.RequestStripePay, userActivity("user_self"), criticalRateLimit()),
 	apiMutation("stripeAmount", controller.RequestStripeAmount, userActivity("user_self")),
+	apiQuery("stripeCheckoutResult", controller.RequestStripeCheckoutResult, userActivity("user_self"), criticalRateLimit()),
 	apiMutation("stripeBillingPortal", controller.RequestStripeBillingPortal, userActivity("user_self"), criticalRateLimit()),
 	apiMutation("affTransfer", controller.TransferAffQuota, userActivity("user_self")),
 	apiMutation("updateSelf", controller.UpdateSelf, userActivity("user_self")),

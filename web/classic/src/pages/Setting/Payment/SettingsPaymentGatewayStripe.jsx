@@ -39,6 +39,8 @@ export default function SettingsPaymentGateway(props) {
     StripeUnitPrice: 8.0,
     StripeMinTopUp: 1,
     StripePromotionCodesEnabled: false,
+    StripeLineItemTemplate: '{line_item}',
+    StripeMemoTemplate: '{description}',
   });
   const [originInputs, setOriginInputs] = useState({});
   const formApiRef = useRef(null);
@@ -61,6 +63,9 @@ export default function SettingsPaymentGateway(props) {
           props.options.StripePromotionCodesEnabled !== undefined
             ? props.options.StripePromotionCodesEnabled
             : false,
+        StripeLineItemTemplate:
+          props.options.StripeLineItemTemplate || '{line_item}',
+        StripeMemoTemplate: props.options.StripeMemoTemplate || '{description}',
       };
       setInputs(currentInputs);
       setOriginInputs({ ...currentInputs });
@@ -123,6 +128,20 @@ export default function SettingsPaymentGateway(props) {
         options.push({
           key: 'StripePromotionCodesEnabled',
           value: inputs.StripePromotionCodesEnabled ? 'true' : 'false',
+        });
+      }
+      if (
+        originInputs.StripeLineItemTemplate !== inputs.StripeLineItemTemplate
+      ) {
+        options.push({
+          key: 'StripeLineItemTemplate',
+          value: inputs.StripeLineItemTemplate || '',
+        });
+      }
+      if (originInputs.StripeMemoTemplate !== inputs.StripeMemoTemplate) {
+        options.push({
+          key: 'StripeMemoTemplate',
+          value: inputs.StripeMemoTemplate || '',
         });
       }
 
@@ -260,6 +279,33 @@ export default function SettingsPaymentGateway(props) {
                 checkedText='｜'
                 uncheckedText='〇'
                 label={t('允许在 Stripe 支付中输入促销码')}
+              />
+            </Col>
+          </Row>
+          <Row
+            gutter={{ xs: 8, sm: 16, md: 24, lg: 24, xl: 24, xxl: 24 }}
+            style={{ marginTop: 16 }}
+          >
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Form.TextArea
+                field='StripeLineItemTemplate'
+                label={t('Stripe line item 内容')}
+                placeholder='{line_item}'
+                autosize
+                extraText={t(
+                  '用于 Stripe Checkout 商品名称。可用变量：{line_item}、{description}、{amount}、{currency}、{topup_units}、{credit_units}、{user_id}、{username}、{email}、{payment_order_id}、{trade_no}、{plan_id}、{kind}',
+                )}
+              />
+            </Col>
+            <Col xs={24} sm={24} md={12} lg={12} xl={12}>
+              <Form.TextArea
+                field='StripeMemoTemplate'
+                label={t('Stripe memo 内容')}
+                placeholder='{description}'
+                autosize
+                extraText={t(
+                  '用于 Checkout Session、PaymentIntent 和 Invoice memo/description。留空时使用系统默认描述。',
+                )}
               />
             </Col>
           </Row>

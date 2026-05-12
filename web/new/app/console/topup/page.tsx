@@ -1,12 +1,6 @@
-import {
-  ArrowRight,
-  Check,
-  CheckCircle2,
-  CreditCard,
-  Minus,
-  XCircle,
-} from "lucide-react";
+import { Check, CheckCircle2, CreditCard, Minus, XCircle } from "lucide-react";
 import Link from "next/link";
+import { AddCreditsDialog } from "@/components/console/add-credits-dialog";
 import { SubscriptionPayButton } from "@/components/console/payment-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -18,7 +12,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { Progress } from "@/components/ui/progress";
 import {
   Select,
@@ -36,7 +29,6 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import {
   openBillingPortalAction,
   updateBillingPreferenceAction,
@@ -45,11 +37,10 @@ import { loadTopupData } from "@/lib/console/data";
 import { fmtAbsDate, fmtMoney } from "@/lib/console/format";
 import type {
   ActiveSubscription,
+  InvoiceRecord,
   SubscriptionPlan as SubPlan,
 } from "@/lib/console/types";
 import { cn } from "@/lib/utils";
-
-const MAY_USAGE = 38.42;
 
 const BILLING_PREFERENCE_ITEMS = {
   wallet_first: "Wallet first, then subscription",
@@ -58,7 +49,16 @@ const BILLING_PREFERENCE_ITEMS = {
 };
 
 export default async function TopupPage() {
-  const { user, status, invoices, plans, subscription } = await loadTopupData();
+  const {
+    user,
+    status,
+    invoices,
+    monthlyUsage,
+    plans,
+    subscription,
+    topupInfo,
+    usageMonthLabel,
+  } = await loadTopupData();
   const activeSubscription = subscription.subscriptions[0];
   const activePlan =
     plans.find((p) => p.id === activeSubscription?.planId) ?? plans[0];
@@ -132,7 +132,7 @@ export default async function TopupPage() {
                                 : "text-foreground",
                             )}
                           >
-                            {fmtMoney(b.amount, status)}
+                            {fmtMoney(invoiceDisplayAmount(b), status)}
                           </span>
                         </TableCell>
                         <TableCell>
@@ -172,7 +172,7 @@ export default async function TopupPage() {
                 <Badge variant="brand">{activePlan?.title ?? "No plan"}</Badge>
               </div>
               <p className="mt-3 font-mono text-3xl font-medium tabular-nums">
-                ${activePlan?.price ?? 0}
+                {fmtMoney(activePlan?.price ?? 0, status)}
                 <span className="ml-1 font-sans text-sm font-normal text-muted-foreground">
                   /mo
                 </span>
@@ -186,6 +186,7 @@ export default async function TopupPage() {
                 <PlansDialog
                   plans={plans}
                   activeSubscription={activeSubscription}
+                  status={status}
                 />
               </div>
             </div>
@@ -204,9 +205,11 @@ export default async function TopupPage() {
               </p>
               <dl className="mt-3 flex flex-col gap-1 text-xs">
                 <div className="flex items-center justify-between">
-                  <dt className="text-muted-foreground">Used in May 2026</dt>
+                  <dt className="text-muted-foreground">
+                    Used in {usageMonthLabel}
+                  </dt>
                   <dd className="font-mono tabular-nums text-foreground">
-                    {fmtMoney(MAY_USAGE, status)}
+                    {fmtMoney(monthlyUsage, status)}
                   </dd>
                 </div>
                 <div className="flex items-center justify-between">
@@ -217,7 +220,11 @@ export default async function TopupPage() {
                 </div>
               </dl>
               <div className="mt-4 flex flex-wrap gap-2">
-                <AddCreditsDialog balance={user.balance} status={status} />
+                <AddCreditsDialog
+                  balance={user.balance}
+                  status={status}
+                  topupInfo={topupInfo}
+                />
                 <Link
                   href="/console/topup/redeem"
                   className={cn(
@@ -250,7 +257,12 @@ export default async function TopupPage() {
                 </div>
               </div>
               <form action={openBillingPortalAction}>
-                <Button variant="outline" size="sm" className="mt-4">
+                <Button
+                  type="submit"
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                >
                   Update card
                 </Button>
               </form>
@@ -267,7 +279,12 @@ export default async function TopupPage() {
                 self-service portal.
               </p>
               <form action={openBillingPortalAction}>
-                <Button variant="outline" size="sm" className="mt-4">
+                <Button
+                  type="submit"
+                  variant="outline"
+                  size="sm"
+                  className="mt-4"
+                >
                   Open portal
                 </Button>
               </form>
@@ -304,7 +321,12 @@ export default async function TopupPage() {
                     )}
                   </SelectContent>
                 </Select>
-                <Button variant="outline" size="sm" className="mt-2">
+                <Button
+                  type="submit"
+                  variant="outline"
+                  size="sm"
+                  className="mt-2"
+                >
                   Save preference
                 </Button>
               </form>
@@ -371,6 +393,10 @@ function InvoiceStatus({
   );
 }
 
+function invoiceDisplayAmount(invoice: InvoiceRecord): number {
+  return invoice.type === "subscription" ? invoice.money : invoice.amount;
+}
+
 type FeatureRow = {
   label: string;
   values: React.ReactNode[];
@@ -384,8 +410,11 @@ const RESET_LABELS: Record<string, string> = {
   custom: "Custom",
 };
 
-function planCreditLabel(p: SubPlan): React.ReactNode {
-  return p.total > 0 ? fmtMoney(p.total) : "Unlimited";
+function planCreditLabel(
+  p: SubPlan,
+  status: Awaited<ReturnType<typeof loadTopupData>>["status"],
+): React.ReactNode {
+  return p.total > 0 ? fmtMoney(p.total, status) : "Unlimited";
 }
 
 function planResetLabel(p: SubPlan): React.ReactNode {
@@ -406,7 +435,10 @@ function planUpgradeGroupLabel(p: SubPlan): React.ReactNode {
 
 const PLAN_LIMIT_ROWS: {
   label: string;
-  render: (p: SubPlan) => React.ReactNode;
+  render: (
+    p: SubPlan,
+    status: Awaited<ReturnType<typeof loadTopupData>>["status"],
+  ) => React.ReactNode;
 }[] = [
   { label: "Credit per period", render: planCreditLabel },
   { label: "Quota reset", render: planResetLabel },
@@ -418,9 +450,11 @@ const PLAN_LIMIT_ROWS: {
 function PlansDialog({
   plans,
   activeSubscription,
+  status,
 }: {
   plans: SubPlan[];
   activeSubscription?: ActiveSubscription;
+  status: Awaited<ReturnType<typeof loadTopupData>>["status"];
 }) {
   const currentIdx = plans.findIndex(
     (p) => p.id === activeSubscription?.planId,
@@ -428,7 +462,7 @@ function PlansDialog({
   const recommendedId = plans[currentIdx + 1]?.id ?? null;
   const featureMatrix: FeatureRow[] = PLAN_LIMIT_ROWS.map((row) => ({
     label: row.label,
-    values: plans.map((p) => row.render(p)),
+    values: plans.map((p) => row.render(p, status)),
   }));
 
   return (
@@ -477,7 +511,7 @@ function PlansDialog({
                           ) : null}
                         </div>
                         <p className="font-mono text-xl font-medium tabular-nums text-foreground">
-                          ${p.price}
+                          {fmtMoney(p.price, status)}
                           <span className="ml-1 font-sans text-xs font-normal text-muted-foreground">
                             /mo
                           </span>
@@ -573,146 +607,6 @@ function FeatureCell({ value }: { value: React.ReactNode }) {
     );
   }
   return <span className="font-mono text-sm tabular-nums">{value}</span>;
-}
-
-const TOPUP_PRESETS = [10, 25, 50, 100, 250, 500];
-const TOPUP_DISCOUNTS: Record<number, number> = {
-  100: 0.05,
-  250: 0.08,
-  500: 0.12,
-};
-const TOPUP_DEFAULT = 100;
-
-function discountFor(amount: number): number {
-  let bestKey = 0;
-  for (const key of Object.keys(TOPUP_DISCOUNTS).map(Number)) {
-    if (amount >= key && key > bestKey) bestKey = key;
-  }
-  return TOPUP_DISCOUNTS[bestKey] ?? 0;
-}
-
-function AddCreditsDialog({
-  balance,
-  status,
-}: {
-  balance: number;
-  status: Awaited<ReturnType<typeof loadTopupData>>["status"];
-}) {
-  const amount = TOPUP_DEFAULT;
-  const discount = discountFor(amount);
-  const charge = amount * (1 - discount);
-  const newBalance = balance + amount;
-
-  return (
-    <Dialog>
-      <DialogTrigger render={<Button variant="outline" size="sm" />}>
-        Add credits
-      </DialogTrigger>
-      <DialogContent className="w-full max-w-2xl gap-0 p-0 sm:max-w-2xl">
-        <DialogHeader className="px-6 pt-6 pb-4">
-          <DialogTitle>Add credit</DialogTitle>
-          <DialogDescription>
-            Charges processed by Stripe. Credit posts to your wallet
-            immediately.
-          </DialogDescription>
-        </DialogHeader>
-        <div className="grid border-t border-border md:grid-cols-[minmax(0,1fr)_minmax(0,260px)]">
-          <div className="flex flex-col gap-5 px-6 py-5">
-            <div>
-              <p className="text-xs font-medium text-foreground">
-                Amount (USD)
-              </p>
-              <ToggleGroup
-                defaultValue={[String(amount)]}
-                variant="outline"
-                spacing={2}
-                className="mt-2 grid grid-cols-3 gap-2"
-              >
-                {TOPUP_PRESETS.map((v) => (
-                  <ToggleGroupItem key={v} value={String(v)} className="h-11">
-                    ${v}
-                    {TOPUP_DISCOUNTS[v] ? (
-                      <span className="ml-1 font-mono text-[10px] tabular-nums text-success-dark">
-                        −{Math.round(TOPUP_DISCOUNTS[v] * 100)}%
-                      </span>
-                    ) : null}
-                  </ToggleGroupItem>
-                ))}
-              </ToggleGroup>
-              <div className="mt-2.5 flex items-center gap-2">
-                <Input
-                  type="number"
-                  defaultValue={amount}
-                  min={5}
-                  step={1}
-                  className="max-w-32"
-                />
-                <span className="text-xs text-muted-foreground">
-                  Custom, $5 minimum.
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="border-t border-border bg-muted/30 px-6 py-5 md:border-t-0 md:border-l">
-            <p className="text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
-              Receipt preview
-            </p>
-            <dl className="mt-4 flex flex-col gap-2 font-mono text-sm tabular-nums">
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="font-sans text-xs text-muted-foreground">
-                  Credit added
-                </dt>
-                <dd className="text-foreground">{fmtMoney(amount, status)}</dd>
-              </div>
-              {discount ? (
-                <div className="flex items-baseline justify-between gap-3">
-                  <dt className="font-sans text-xs text-muted-foreground">
-                    Volume discount
-                  </dt>
-                  <dd className="text-success-dark">
-                    −{fmtMoney(amount - charge, status)}
-                  </dd>
-                </div>
-              ) : null}
-              <div className="border-t border-dashed border-border pt-2" />
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="font-sans text-xs font-medium text-foreground">
-                  You pay
-                </dt>
-                <dd className="text-base font-medium text-foreground">
-                  {fmtMoney(charge, status)}
-                </dd>
-              </div>
-              <div className="border-t border-dashed border-border pt-2" />
-              <div className="flex items-baseline justify-between gap-3">
-                <dt className="font-sans text-xs text-muted-foreground">
-                  New balance
-                </dt>
-                <dd className="text-foreground">
-                  {fmtMoney(newBalance, status)}
-                </dd>
-              </div>
-            </dl>
-          </div>
-        </div>
-        <div className="flex flex-col gap-2 border-t border-border px-6 py-5">
-          <Link
-            href={`/console/topup/checkout?amount=${amount}`}
-            className={cn(
-              buttonVariants({ variant: "brand", size: "lg" }),
-              "w-full",
-            )}
-          >
-            Continue to checkout
-            <ArrowRight aria-hidden="true" />
-          </Link>
-          <p className="text-center text-xs text-muted-foreground">
-            Payment methods are shown by Stripe at checkout.
-          </p>
-        </div>
-      </DialogContent>
-    </Dialog>
-  );
 }
 
 function daysUntil(timestamp: number): number {

@@ -14,6 +14,7 @@ import (
 
 func GetTopUpInfo(c *gin.Context) {
 	payMethods := make([]map[string]string, 0, 1)
+	topupGroupRatio := common.GetTopupGroupRatio(c.GetString("group"))
 
 	if isStripeTopUpEnabled() {
 		payMethods = append(payMethods, map[string]string{
@@ -29,6 +30,8 @@ func GetTopUpInfo(c *gin.Context) {
 		"pay_methods":            payMethods,
 		"stripe_min_topup":       setting.StripeMinTopUp,
 		"stripe_publishable_key": setting.StripePublishableKey,
+		"stripe_unit_price":      setting.StripeUnitPrice,
+		"topup_group_ratio":      topupGroupRatio,
 		"amount_options":         operation_setting.GetPaymentSetting().AmountOptions,
 		"discount":               operation_setting.GetPaymentSetting().AmountDiscount,
 		"topup_link":             common.TopUpLink,

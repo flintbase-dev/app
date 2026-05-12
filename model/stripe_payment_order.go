@@ -133,6 +133,21 @@ func UpdateStripePaymentOrderCheckoutRefs(orderId string, checkoutSessionId stri
 	return DB.Model(&StripePaymentOrder{}).Where("id = ?", orderId).Updates(updates).Error
 }
 
+func GetStripePaymentOrderByCheckoutSessionId(checkoutSessionId string) (*StripePaymentOrder, error) {
+	checkoutSessionId = strings.TrimSpace(checkoutSessionId)
+	if checkoutSessionId == "" {
+		return nil, ErrStripePaymentOrderNotFound
+	}
+	var order StripePaymentOrder
+	if err := DB.First(&order, "stripe_checkout_session_id = ?", checkoutSessionId).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrStripePaymentOrderNotFound
+		}
+		return nil, err
+	}
+	return &order, nil
+}
+
 func CompleteStripePaymentOrderTx(tx *gorm.DB, params CompleteStripePaymentOrderParams) (bool, *StripePaymentOrder, error) {
 	if tx == nil {
 		return false, nil, errors.New("database transaction is nil")
