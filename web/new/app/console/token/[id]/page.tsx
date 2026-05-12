@@ -9,6 +9,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { CurrencyAmountInput } from "@/components/console/currency-amount-input";
 import { TokenSecretButton } from "@/components/console/token-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -176,11 +177,10 @@ export default async function EditTokenPage({
                 description="Use wallet balance directly."
                 defaultChecked={token.unlimitedQuota}
               />
-              <FieldRow label={`Quota (${status.quotaDisplayType})`}>
-                <Input
-                  type="number"
+              <FieldRow label="Quota">
+                <CurrencyAmountInput
+                  status={status}
                   name="remain_amount"
-                  step="0.01"
                   defaultValue={token.remainAmount}
                 />
               </FieldRow>

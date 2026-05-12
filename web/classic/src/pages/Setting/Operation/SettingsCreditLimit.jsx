@@ -27,6 +27,18 @@ import {
   showSuccess,
   showWarning,
 } from '../../../helpers';
+import {
+  displayAmountToQuota,
+  quotaToDisplayAmount,
+} from '../../../helpers/quota';
+import { CurrencyAmountFormInput } from '../../../components/common/ui/CurrencyAmountInput';
+
+const QUOTA_FIELDS = [
+  'QuotaForNewUser',
+  'PreConsumedQuota',
+  'QuotaForInviter',
+  'QuotaForInvitee',
+];
 
 export default function SettingsCreditLimit(props) {
   const { t } = useTranslation();
@@ -48,6 +60,8 @@ export default function SettingsCreditLimit(props) {
       let value = '';
       if (typeof inputs[item.key] === 'boolean') {
         value = String(inputs[item.key]);
+      } else if (QUOTA_FIELDS.includes(item.key)) {
+        value = String(displayAmountToQuota(inputs[item.key]));
       } else {
         value = inputs[item.key];
       }
@@ -80,7 +94,9 @@ export default function SettingsCreditLimit(props) {
     const currentInputs = {};
     for (let key in props.options) {
       if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+        currentInputs[key] = QUOTA_FIELDS.includes(key)
+          ? quotaToDisplayAmount(props.options[key])
+          : props.options[key];
       }
     }
     setInputs(currentInputs);
@@ -98,12 +114,9 @@ export default function SettingsCreditLimit(props) {
           <Form.Section text={t('额度设置')}>
             <Row gutter={16}>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
+                <CurrencyAmountFormInput
                   label={t('新用户初始额度')}
                   field={'QuotaForNewUser'}
-                  step={1}
-                  min={0}
-                  suffix={'Token'}
                   placeholder={''}
                   onChange={(value) =>
                     setInputs({
@@ -114,12 +127,9 @@ export default function SettingsCreditLimit(props) {
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
+                <CurrencyAmountFormInput
                   label={t('请求预扣费额度')}
                   field={'PreConsumedQuota'}
-                  step={1}
-                  min={0}
-                  suffix={'Token'}
                   extraText={t('请求结束后多退少补')}
                   placeholder={''}
                   onChange={(value) =>
@@ -131,14 +141,11 @@ export default function SettingsCreditLimit(props) {
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
+                <CurrencyAmountFormInput
                   label={t('邀请新用户奖励额度')}
                   field={'QuotaForInviter'}
-                  step={1}
-                  min={0}
-                  suffix={'Token'}
                   extraText={''}
-                  placeholder={t('例如：2000')}
+                  placeholder={t('例如：0.002')}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,
@@ -150,14 +157,11 @@ export default function SettingsCreditLimit(props) {
             </Row>
             <Row>
               <Col xs={24} sm={12} md={8} lg={8} xl={6}>
-                <Form.InputNumber
+                <CurrencyAmountFormInput
                   label={t('新用户使用邀请码奖励额度')}
                   field={'QuotaForInvitee'}
-                  step={1}
-                  min={0}
-                  suffix={'Token'}
                   extraText={''}
-                  placeholder={t('例如：1000')}
+                  placeholder={t('例如：0.001')}
                   onChange={(value) =>
                     setInputs({
                       ...inputs,

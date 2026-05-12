@@ -10,6 +10,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 import { AccessTokenActions } from "@/components/console/access-token-actions";
+import { CurrencyAmountInput } from "@/components/console/currency-amount-input";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -337,17 +338,13 @@ function NotificationsSection({
             Email and dashboard alert when wallet balance drops below this
             threshold.
           </p>
-          <div className="mt-2 flex items-center gap-2">
-            <Input
-              type="number"
+          <div className="mt-2">
+            <CurrencyAmountInput
+              status={status}
               name="quota_warning_threshold"
               defaultValue={user.quotaWarningThreshold}
-              step="0.01"
               className="max-w-32"
             />
-            <span className="font-mono text-xs tabular-nums text-muted-foreground">
-              {status.quotaDisplayType}
-            </span>
           </div>
         </div>
 

@@ -163,7 +163,7 @@ export default function GeneralSettings(props) {
             <Col span={24}>
               <Text type='tertiary' size='small'>
                 {t(
-                  '价格配置只保存数字；全站货币只决定金额展示符号。站内额度输入框均直接输入站内额度。',
+                  '价格配置只保存数字；全站货币决定金额展示符号。站内额度输入框均直接输入站内货币金额。',
                 )}
               </Text>
             </Col>

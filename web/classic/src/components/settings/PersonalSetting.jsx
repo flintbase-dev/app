@@ -2,9 +2,19 @@
 Copyright (C) 2025 QuantumNous
 
 This program is free software: you can redistribute it and/or modify
-it under the terms of the GNU Affero General Public License
-as published by the Free Software Foundation, either version 3 of the
+it under the terms of the GNU Affero General Public License as
+published by the Free Software Foundation, either version 3 of the
 License, or (at your option) any later version.
+
+This program is distributed in the hope that it will be useful,
+but WITHOUT ANY WARRANTY; without even the implied warranty of
+MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+GNU Affero General Public License for more details.
+
+You should have received a copy of the GNU Affero General Public License
+along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+For commercial licensing, please contact support@quantumnous.com
 */
 
 import React, { useContext, useEffect, useState } from 'react';
@@ -17,6 +27,10 @@ import {
   setStatusData,
   setUserData,
 } from '../../helpers';
+import {
+  displayAmountToQuota,
+  quotaToDisplayAmount,
+} from '../../helpers/quota';
 import { UserContext } from '../../context/User';
 import { Button, Card, Typography, Input } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
@@ -41,7 +55,7 @@ const PersonalSetting = () => {
   const [hCaptchaSiteKey, setHCaptchaSiteKey] = useState('');
   const [, setSystemToken] = useState('');
   const [notificationSettings, setNotificationSettings] = useState({
-    warningThreshold: 100000,
+    warningThreshold: 0.1,
     upstreamModelUpdateNotifyEnabled: false,
     acceptUnsetModelPriceModel: false,
     recordIpLog: false,
@@ -74,7 +88,9 @@ const PersonalSetting = () => {
       try {
         const settings = JSON.parse(userState.user.setting);
         setNotificationSettings({
-          warningThreshold: settings.quota_warning_threshold || 1000000,
+          warningThreshold: quotaToDisplayAmount(
+            settings.quota_warning_threshold || 1000000,
+          ),
           upstreamModelUpdateNotifyEnabled:
             settings.upstream_model_update_notify_enabled === true,
           acceptUnsetModelPriceModel:
@@ -124,7 +140,9 @@ const PersonalSetting = () => {
 
   const saveNotificationSettings = async () => {
     const res = await API.mutation('updateUserSetting', {
-      quota_warning_threshold: notificationSettings.warningThreshold,
+      quota_warning_threshold: displayAmountToQuota(
+        notificationSettings.warningThreshold,
+      ),
       upstream_model_update_notify_enabled:
         notificationSettings.upstreamModelUpdateNotifyEnabled,
       accept_unset_model_price_model:

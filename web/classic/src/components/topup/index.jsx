@@ -27,9 +27,9 @@ import {
   renderQuota,
   renderQuotaWithAmount,
   copy,
-  getSiteCreditsPerPriceUnit,
   formatSiteCurrency,
 } from '../../helpers';
+import { displayAmountToQuota } from '../../helpers/quota';
 import { Modal, Toast } from '@douyinfe/semi-ui';
 import { useTranslation } from 'react-i18next';
 import { UserContext } from '../../context/User';
@@ -371,14 +371,14 @@ const TopUp = () => {
 
   // 划转邀请额度
   const transfer = async () => {
-    if (transferAmount < getSiteCreditsPerPriceUnit()) {
+    if (Number(transferAmount || 0) < 1) {
       showError(
-        t('划转额度最低为') + ' ' + renderQuota(getSiteCreditsPerPriceUnit()),
+        t('划转额度最低为') + ' ' + renderQuota(displayAmountToQuota(1)),
       );
       return;
     }
     const res = await API.mutation('affTransfer', {
-      quota: transferAmount,
+      quota: displayAmountToQuota(transferAmount),
     });
     const { success, message } = res.data;
     if (success) {
@@ -408,7 +408,7 @@ const TopUp = () => {
   useEffect(() => {
     // 始终获取最新用户数据，确保余额等统计信息准确
     getUserQuota().then();
-    setTransferAmount(getSiteCreditsPerPriceUnit());
+    setTransferAmount(1);
   }, []);
 
   useEffect(() => {
@@ -524,7 +524,6 @@ const TopUp = () => {
         handleTransferCancel={handleTransferCancel}
         userState={userState}
         renderQuota={renderQuota}
-        getSiteCreditsPerPriceUnit={getSiteCreditsPerPriceUnit}
         transferAmount={transferAmount}
         setTransferAmount={setTransferAmount}
       />

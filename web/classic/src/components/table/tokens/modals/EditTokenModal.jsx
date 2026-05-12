@@ -31,6 +31,7 @@ import {
   quotaToDisplayAmount,
   displayAmountToQuota,
 } from '../../../../helpers/quota';
+import { CurrencyAmountFormInput } from '../../../common/ui/CurrencyAmountInput';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
   Button,
@@ -44,7 +45,6 @@ import {
   Form,
   Col,
   Row,
-  InputNumber,
 } from '@douyinfe/semi-ui';
 import {
   IconCreditCard,
@@ -519,14 +519,12 @@ const EditTokenModal = (props) => {
                 </div>
                 <Row gutter={12}>
                   <Col span={24}>
-                    <Form.InputNumber
+                    <CurrencyAmountFormInput
                       field='remain_amount'
                       label={t('额度')}
                       placeholder={t('输入额度')}
-                      precision={0}
                       disabled={values.unlimited_quota}
                       min={0}
-                      step={1}
                       onChange={(val) => {
                         const amount = val === '' || val == null ? 0 : val;
                         formApiRef.current?.setValue('remain_amount', amount);

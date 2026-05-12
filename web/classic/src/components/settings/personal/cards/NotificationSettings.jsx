@@ -31,14 +31,9 @@ import {
   Row,
   Col,
 } from '@douyinfe/semi-ui';
-import { IconMail, IconBell } from '@douyinfe/semi-icons';
+import { IconMail } from '@douyinfe/semi-icons';
 import { ShieldCheck, Bell, DollarSign, Settings } from 'lucide-react';
-import {
-  renderQuotaWithPrompt,
-  API,
-  showSuccess,
-  showError,
-} from '../../../../helpers';
+import { API, showSuccess, showError } from '../../../../helpers';
 import { StatusContext } from '../../../../context/Status';
 import { UserContext } from '../../../../context/User';
 import { useUserPermissions } from '../../../../hooks/common/useUserPermissions';
@@ -46,6 +41,7 @@ import {
   mergeAdminConfig,
   useSidebar,
 } from '../../../../hooks/common/useSidebar';
+import { CurrencyAmountFormInput } from '../../../common/ui/CurrencyAmountInput';
 
 const NotificationSettings = ({
   t,
@@ -429,25 +425,11 @@ const NotificationSettings = ({
                   </Typography.Text>
                 </Form.Slot>
 
-                <Form.AutoComplete
+                <CurrencyAmountFormInput
                   field='warningThreshold'
-                  label={
-                    <span>
-                      {t('额度预警阈值')}{' '}
-                      {renderQuotaWithPrompt(
-                        notificationSettings.warningThreshold,
-                      )}
-                    </span>
-                  }
+                  label={t('额度预警阈值')}
                   placeholder={t('请输入预警额度')}
-                  data={[
-                    { value: 100000, label: renderQuotaWithPrompt(100000) },
-                    { value: 1000000, label: renderQuotaWithPrompt(1000000) },
-                    { value: 5000000, label: renderQuotaWithPrompt(5000000) },
-                    { value: 10000000, label: renderQuotaWithPrompt(10000000) },
-                  ]}
                   onChange={(val) => handleFormChange('warningThreshold', val)}
-                  prefix={<IconBell />}
                   extraText={t(
                     '当钱包或订阅剩余额度低于此数值时，系统将向账户邮箱发送通知',
                   )}

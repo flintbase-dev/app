@@ -49,6 +49,7 @@ import {
   quotaToDisplayAmount,
   displayAmountToQuota,
 } from '../../../../helpers/quota';
+import { CurrencyAmountFormInput } from '../../../common/ui/CurrencyAmountInput';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 
 const { Text, Title } = Typography;
@@ -309,17 +310,13 @@ const AddEditSubscriptionModal = ({
                     </Col>
 
                     <Col span={12}>
-                      <Form.InputNumber
+                      <CurrencyAmountFormInput
                         field='total_amount'
                         label={t('总额度')}
                         required
                         min={0}
-                        step={1}
-                        precision={0}
                         rules={[{ required: true, message: t('请输入总额度') }]}
-                        extraText={`${t('0 表示不限')} · ${t('站内额度')}：${displayAmountToQuota(
-                          values.total_amount,
-                        )}`}
+                        extraText={t('0 表示不限')}
                         style={{ width: '100%' }}
                       />
                     </Col>

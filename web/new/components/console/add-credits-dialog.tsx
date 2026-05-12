@@ -3,6 +3,7 @@
 import { ArrowRight } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
+import { CurrencyAmountInput } from "@/components/console/currency-amount-input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import {
   Dialog,
@@ -12,7 +13,6 @@ import {
   DialogTitle,
   DialogTrigger,
 } from "@/components/ui/dialog";
-import { Input } from "@/components/ui/input";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { fmtMoney } from "@/lib/console/format";
 import type { ConsoleStatus, TopupInfo } from "@/lib/console/types";
@@ -102,8 +102,8 @@ export function AddCreditsDialog({
                 })}
               </ToggleGroup>
               <div className="mt-2.5 flex items-center gap-2">
-                <Input
-                  type="number"
+                <CurrencyAmountInput
+                  status={status}
                   value={amountInput}
                   min={minTopup}
                   step={1}

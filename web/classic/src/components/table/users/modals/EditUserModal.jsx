@@ -19,7 +19,7 @@ For commercial licensing, please contact support@quantumnous.com
 
 import React, { useEffect, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
-import { API, showError, showSuccess } from '../../../../helpers';
+import { API, renderQuota, showError, showSuccess } from '../../../../helpers';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
   Button,
@@ -34,7 +34,6 @@ import {
   Avatar,
   Row,
   Col,
-  InputNumber,
   RadioGroup,
   Radio,
 } from '@douyinfe/semi-ui';
@@ -48,6 +47,7 @@ import {
   quotaToDisplayAmount,
   displayAmountToQuota,
 } from '../../../../helpers/quota';
+import { CurrencyAmountNumberInput } from '../../../common/ui/CurrencyAmountInput';
 
 const { Text, Title } = Typography;
 
@@ -318,7 +318,11 @@ const EditUserModal = (props) => {
                     </div>
                     <div className='mt-3 text-sm'>
                       {t('当前额度')}:{' '}
-                      {values.quota_amount ?? user?.quota_amount ?? 0}
+                      {renderQuota(
+                        displayAmountToQuota(
+                          values.quota_amount ?? user?.quota_amount ?? 0,
+                        ),
+                      )}
                     </div>
                   </Card>
                 )}
@@ -351,12 +355,11 @@ const EditUserModal = (props) => {
               <Radio value='override'>{t('覆盖')}</Radio>
             </RadioGroup>
           </div>
-          <InputNumber
+          <CurrencyAmountNumberInput
+            label={t('调整额度')}
             className='w-full mt-4'
             value={adjustQuotaLocal}
             onChange={(value) => setAdjustQuotaLocal(value)}
-            precision={0}
-            step={1}
             placeholder={t('请输入额度')}
           />
         </Form>

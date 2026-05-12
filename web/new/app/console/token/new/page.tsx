@@ -8,6 +8,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
+import { CurrencyAmountInput } from "@/components/console/currency-amount-input";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -130,11 +131,10 @@ export default async function CreateTokenPage() {
                 description="Use the wallet balance directly. No per-key cap."
               />
 
-              <FieldRow label={`Quota (${status.quotaDisplayType})`}>
-                <Input
-                  type="number"
+              <FieldRow label="Quota">
+                <CurrencyAmountInput
+                  status={status}
                   name="remain_amount"
-                  step="0.01"
                   defaultValue={50}
                   placeholder="50.00"
                 />

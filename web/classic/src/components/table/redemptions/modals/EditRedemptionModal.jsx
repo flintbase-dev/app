@@ -30,6 +30,7 @@ import {
   quotaToDisplayAmount,
   displayAmountToQuota,
 } from '../../../../helpers/quota';
+import { CurrencyAmountFormInput } from '../../../common/ui/CurrencyAmountInput';
 import { useIsMobile } from '../../../../hooks/common/useIsMobile';
 import {
   Button,
@@ -44,7 +45,6 @@ import {
   Avatar,
   Row,
   Col,
-  InputNumber,
 } from '@douyinfe/semi-ui';
 import {
   IconCreditCard,
@@ -299,13 +299,11 @@ const EditRedemptionModal = (props) => {
 
                   <Row gutter={12}>
                     <Col span={24}>
-                      <Form.InputNumber
+                      <CurrencyAmountFormInput
                         field='amount'
                         label={t('额度')}
                         placeholder={t('输入额度')}
-                        precision={0}
                         min={0}
-                        step={1}
                         style={{ width: '100%' }}
                         onChange={(val) => {
                           const amount = val === '' || val == null ? 0 : val;

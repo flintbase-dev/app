@@ -18,8 +18,13 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal, Typography, Input, InputNumber } from '@douyinfe/semi-ui';
+import { Modal, Typography, Input } from '@douyinfe/semi-ui';
 import { CreditCard } from 'lucide-react';
+import {
+  displayAmountToQuota,
+  quotaToDisplayAmount,
+} from '../../../helpers/quota';
+import { CurrencyAmountNumberInput } from '../../common/ui/CurrencyAmountInput';
 
 const TransferModal = ({
   t,
@@ -28,10 +33,11 @@ const TransferModal = ({
   handleTransferCancel,
   userState,
   renderQuota,
-  getSiteCreditsPerPriceUnit,
   transferAmount,
   setTransferAmount,
 }) => {
+  const availableAmount = quotaToDisplayAmount(userState?.user?.aff_quota || 0);
+
   return (
     <Modal
       title={
@@ -58,13 +64,12 @@ const TransferModal = ({
           />
         </div>
         <div>
-          <Typography.Text strong className='block mb-2'>
-            {t('划转额度')} ·{' '}
-            {t('最低') + renderQuota(getSiteCreditsPerPriceUnit())}
-          </Typography.Text>
-          <InputNumber
-            min={getSiteCreditsPerPriceUnit()}
-            max={userState?.user?.aff_quota || 0}
+          <CurrencyAmountNumberInput
+            label={`${t('划转额度')} · ${t('最低')}${renderQuota(
+              displayAmountToQuota(1),
+            )}`}
+            min={1}
+            max={availableAmount}
             value={transferAmount}
             onChange={(value) => setTransferAmount(value)}
             className='w-full !rounded-lg'

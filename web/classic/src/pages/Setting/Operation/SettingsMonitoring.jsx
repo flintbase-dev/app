@@ -29,6 +29,13 @@ import {
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
 import HttpStatusCodeRulesInput from '../../../components/settings/HttpStatusCodeRulesInput';
+import {
+  displayAmountToQuota,
+  quotaToDisplayAmount,
+} from '../../../helpers/quota';
+import { CurrencyAmountFormInput } from '../../../components/common/ui/CurrencyAmountInput';
+
+const QUOTA_FIELDS = ['QuotaRemindThreshold'];
 
 export default function SettingsMonitoring(props) {
   const { t } = useTranslation();
@@ -82,7 +89,9 @@ export default function SettingsMonitoring(props) {
           AutomaticDisableStatusCodes: parsedAutoDisableStatusCodes.normalized,
           AutomaticRetryStatusCodes: parsedAutoRetryStatusCodes.normalized,
         };
-        value = normalizedMap[item.key] ?? inputs[item.key];
+        value = QUOTA_FIELDS.includes(item.key)
+          ? String(displayAmountToQuota(inputs[item.key]))
+          : (normalizedMap[item.key] ?? inputs[item.key]);
       }
       return API.mutation('updateOption', {
         key: item.key,
@@ -113,7 +122,9 @@ export default function SettingsMonitoring(props) {
     const currentInputs = {};
     for (let key in props.options) {
       if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+        currentInputs[key] = QUOTA_FIELDS.includes(key)
+          ? quotaToDisplayAmount(props.options[key])
+          : props.options[key];
       }
     }
     setInputs(currentInputs);
@@ -186,11 +197,8 @@ export default function SettingsMonitoring(props) {
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
+                <CurrencyAmountFormInput
                   label={t('额度提醒阈值')}
-                  step={1}
-                  min={0}
-                  suffix={'Token'}
                   extraText={t('低于此额度时将发送邮件提醒用户')}
                   placeholder={''}
                   field={'QuotaRemindThreshold'}

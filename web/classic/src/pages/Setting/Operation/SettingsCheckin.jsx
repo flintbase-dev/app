@@ -27,6 +27,13 @@ import {
   showWarning,
 } from '../../../helpers';
 import { useTranslation } from 'react-i18next';
+import {
+  displayAmountToQuota,
+  quotaToDisplayAmount,
+} from '../../../helpers/quota';
+import { CurrencyAmountFormInput } from '../../../components/common/ui/CurrencyAmountInput';
+
+const QUOTA_FIELDS = ['checkin_setting.min_quota', 'checkin_setting.max_quota'];
 
 export default function SettingsCheckin(props) {
   const { t } = useTranslation();
@@ -52,6 +59,8 @@ export default function SettingsCheckin(props) {
       let value = '';
       if (typeof inputs[item.key] === 'boolean') {
         value = String(inputs[item.key]);
+      } else if (QUOTA_FIELDS.includes(item.key)) {
+        value = String(displayAmountToQuota(inputs[item.key]));
       } else {
         value = String(inputs[item.key]);
       }
@@ -84,7 +93,9 @@ export default function SettingsCheckin(props) {
     const currentInputs = {};
     for (let key in props.options) {
       if (Object.keys(inputs).includes(key)) {
-        currentInputs[key] = props.options[key];
+        currentInputs[key] = QUOTA_FIELDS.includes(key)
+          ? quotaToDisplayAmount(props.options[key])
+          : props.options[key];
       }
     }
     setInputs(currentInputs);
@@ -119,22 +130,20 @@ export default function SettingsCheckin(props) {
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
+                <CurrencyAmountFormInput
                   field={'checkin_setting.min_quota'}
                   label={t('签到最小额度')}
                   placeholder={t('签到奖励的最小额度')}
                   onChange={handleFieldChange('checkin_setting.min_quota')}
-                  min={0}
                   disabled={!inputs['checkin_setting.enabled']}
                 />
               </Col>
               <Col xs={24} sm={12} md={8} lg={8} xl={8}>
-                <Form.InputNumber
+                <CurrencyAmountFormInput
                   field={'checkin_setting.max_quota'}
                   label={t('签到最大额度')}
                   placeholder={t('签到奖励的最大额度')}
                   onChange={handleFieldChange('checkin_setting.max_quota')}
-                  min={0}
                   disabled={!inputs['checkin_setting.enabled']}
                 />
               </Col>
