@@ -573,6 +573,12 @@ export function normalizeUser(
       item.display_name || item.username || item.email,
       "User",
     ),
+    hasDisplayName: (() => {
+      const raw = toText(item.display_name).trim();
+      const email = toText(item.email).trim();
+      const username = toText(item.username).trim();
+      return raw.length > 0 && raw !== email && raw !== username;
+    })(),
     email: toText(item.email),
     workosId: toText(item.workos_id),
     workosOrganizationId: toText(item.workos_organization_id),

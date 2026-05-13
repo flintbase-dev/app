@@ -7,6 +7,7 @@ import { redirect } from "next/navigation";
 import {
   assertApiSuccess,
   graphqlMutation,
+  graphqlQuery,
   unwrapApiData,
 } from "@/lib/api/graphql";
 import { loadConsoleLayoutData, requestTokenKey } from "@/lib/console/data";
@@ -108,6 +109,76 @@ export async function generateAccessTokenAction() {
   const data = unwrapApiData(payload.generateAccessToken, "");
   revalidatePath("/console/personal");
   return toText(data);
+}
+
+export async function updateDisplayNameAction(input: {
+  firstName: string;
+  lastName: string;
+}) {
+  const first = input.firstName.trim();
+  const last = input.lastName.trim();
+  if (!first) throw new Error("First name is required");
+  if (!last) throw new Error("Last name is required");
+  const displayName = `${first} ${last}`;
+  const payload = await graphqlMutation<{ updateSelf: unknown }>([
+    {
+      operation: "updateSelf",
+      input: { display_name: displayName },
+    },
+  ]);
+  assertApiSuccess(payload.updateSelf);
+  revalidatePath("/console", "layout");
+}
+
+export async function createOnboardingTokenAction(input: { name: string }) {
+  const name = input.name.trim() || "My first key";
+  const createPayload = await graphqlMutation<{ createToken: unknown }>([
+    {
+      operation: "createToken",
+      input: {
+        name,
+        group: "default",
+        status: 1,
+        cross_group_retry: false,
+        expired_time: -1,
+        remain_quota: 0,
+        unlimited_quota: true,
+        model_limits_enabled: false,
+        model_limits: "{}",
+        allow_ips: "",
+      },
+    },
+  ]);
+  assertApiSuccess(createPayload.createToken);
+
+  const listPayload = await graphqlQuery<{ tokens: unknown }>([
+    {
+      operation: "tokens",
+      alias: "tokens",
+      params: { p: 1, page_size: 50 },
+    },
+  ]);
+  const tokens = asRecord(unwrapApiData(listPayload.tokens, {}));
+  const items = Array.isArray(tokens.items)
+    ? (tokens.items as unknown[])
+    : Array.isArray(tokens.records)
+      ? (tokens.records as unknown[])
+      : [];
+  const created = items
+    .map((item) => asRecord(item))
+    .filter((item) => toText(item.name) === name)
+    .sort(
+      (a, b) =>
+        Number(b.created_time ?? b.createdTime ?? 0) -
+        Number(a.created_time ?? a.createdTime ?? 0),
+    )[0];
+  if (!created || !created.id) {
+    throw new Error("Created key was not found");
+  }
+  const id = toText(created.id);
+  const key = await requestTokenKey(id);
+  revalidatePath("/console/token");
+  return { id, key };
 }
 
 export async function deleteSelfAction(formData: FormData) {

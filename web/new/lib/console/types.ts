@@ -30,6 +30,7 @@ export type ConsoleUser = {
   id: string;
   username: string;
   displayName: string;
+  hasDisplayName: boolean;
   email: string;
   workosId: string;
   workosOrganizationId: string;

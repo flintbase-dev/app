@@ -10,6 +10,7 @@ import {
   Zap,
 } from "lucide-react";
 import Link from "next/link";
+import { redirect } from "next/navigation";
 
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
@@ -23,6 +24,7 @@ import { cn } from "@/lib/utils";
 export default async function DashboardPage() {
   const { user, status, usageSeries, modelUsage, uptime } =
     await loadDashboardData();
+  if (!user.hasDisplayName) redirect("/console/onboarding");
   return (
     <div className="flex-1">
       <div className="mx-auto grid w-full max-w-[1400px] gap-0 lg:grid-cols-[1fr_28rem]">
