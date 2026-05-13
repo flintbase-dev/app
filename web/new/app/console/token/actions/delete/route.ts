@@ -2,6 +2,7 @@ import {
   assertApiSuccess,
   graphqlMutationFromRequest,
 } from "@/lib/api/graphql";
+import { toText } from "@/lib/console/format";
 import { redirectTo } from "@/lib/console/route-redirect";
 import { requireFormString } from "@/lib/console/token-form";
 
@@ -10,10 +11,21 @@ export const dynamic = "force-dynamic";
 export async function POST(request: Request) {
   const formData = await request.formData();
   const id = requireFormString(formData.get("id"), "Token id is required");
-  const payload = await graphqlMutationFromRequest<{ deleteToken: unknown }>(
+  const teamId = toText(formData.get("team_id"));
+  const operation = teamId ? "deleteTeamToken" : "deleteToken";
+  const payload = await graphqlMutationFromRequest<Record<string, unknown>>(
     request,
-    [{ operation: "deleteToken", input: { id } }],
+    [
+      {
+        operation,
+        input: { id, ...(teamId ? { team_id: teamId } : {}) },
+        ...(teamId ? { params: { team_id: teamId, id } } : {}),
+      },
+    ],
   );
-  assertApiSuccess(payload.deleteToken);
-  return redirectTo(request, "/console/token");
+  assertApiSuccess(payload[operation]);
+  return redirectTo(
+    request,
+    teamId ? `/teams/${teamId}/console/token` : "/console/token",
+  );
 }

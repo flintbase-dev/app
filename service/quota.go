@@ -54,13 +54,19 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 		}
 	} else {
 		// Wallet
+		account := model.PersonalAccountContext(relayInfo.UserId)
+		if relayInfo.AccountType != "" && relayInfo.AccountId != "" {
+			if normalized, normalizeErr := model.NormalizeAccountContext(relayInfo.AccountType, relayInfo.AccountId); normalizeErr == nil {
+				account = normalized
+			}
+		}
 		if quota > 0 {
-			err = model.ConsumeUserCreditsForRequest(relayInfo.UserId, quota, "relay.settle", walletLedgerSourceId(relayInfo.RequestId, "settle"), relayInfo.RequestId, map[string]interface{}{
+			err = model.ConsumeAccountCreditsForRequest(relayInfo.UserId, account, quota, "relay.settle", walletLedgerSourceId(relayInfo.RequestId, "settle"), relayInfo.RequestId, map[string]interface{}{
 				"model": relayInfo.OriginModelName,
 				"phase": "settle",
 			})
 		} else {
-			err = model.RefundUserCreditsForRequest(relayInfo.UserId, -quota, "relay.refund", walletLedgerSourceId(relayInfo.RequestId, "settle_refund"), relayInfo.RequestId, map[string]interface{}{
+			err = model.RefundAccountCreditsForRequest(relayInfo.UserId, account, -quota, "relay.refund", walletLedgerSourceId(relayInfo.RequestId, "settle_refund"), relayInfo.RequestId, map[string]interface{}{
 				"model": relayInfo.OriginModelName,
 				"phase": "settle_refund",
 			})

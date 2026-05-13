@@ -33,6 +33,9 @@ import (
 const (
 	stripeMetadataKindKey               = "new_api_kind"
 	stripeMetadataUserIDKey             = "new_api_user_id"
+	stripeMetadataAccountTypeKey        = "new_api_account_type"
+	stripeMetadataAccountIDKey          = "new_api_account_id"
+	stripeMetadataTeamIDKey             = "new_api_team_id"
 	stripeMetadataPaymentOrderIDKey     = "new_api_payment_order_id"
 	stripeMetadataTopupUnitsKey         = "new_api_topup_units"
 	stripeMetadataCreditUnitsKey        = "new_api_credit_units"
@@ -71,6 +74,8 @@ type StripeAdaptor struct {
 
 type stripeCheckoutPaymentInput struct {
 	User                   *model.User
+	Account                model.AccountContext
+	AccountStripeCustomer  string
 	AmountCents            int64
 	DisplayAmount          float64
 	Quantity               int64
@@ -152,6 +157,10 @@ type StripeInvoiceRecord struct {
 }
 
 func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
+	if strings.TrimSpace(c.GetString("team_id")) == "" {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Personal top-up is not supported"})
+		return
+	}
 	if req.Amount < getStripeMinTopup() {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": fmt.Sprintf("充值数量不能小于 %d", getStripeMinTopup())})
 		return
@@ -171,6 +180,10 @@ func (*StripeAdaptor) RequestAmount(c *gin.Context, req *StripePayRequest) {
 }
 
 func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
+	if strings.TrimSpace(c.GetString("team_id")) == "" {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Personal top-up is not supported"})
+		return
+	}
 	if req.PaymentMethod != model.PaymentMethodStripe {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "不支持的支付渠道"})
 		return
@@ -194,6 +207,16 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	}
 
 	id := c.GetString("id")
+	account := model.PersonalAccountContext(id)
+	var team *model.Team
+	if teamId := strings.TrimSpace(c.GetString("team_id")); teamId != "" {
+		account = model.TeamAccountContext(teamId)
+		team, err = model.GetTeamById(teamId)
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Team not found"})
+			return
+		}
+	}
 	user, err := model.GetUserById(id, false)
 	if err != nil || user == nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "用户不存在"})
@@ -210,6 +233,8 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 
 	paymentOrder, err := model.CreatePendingStripePaymentOrder(model.CreatePendingStripePaymentOrderParams{
 		UserId:          user.Id,
+		AccountType:     account.Type,
+		AccountId:       account.Id,
 		Kind:            stripeInvoiceKindTopup,
 		AmountCents:     amountCents,
 		DisplayAmount:   payMoney,
@@ -226,12 +251,24 @@ func (*StripeAdaptor) RequestPay(c *gin.Context, req *StripePayRequest) {
 	}
 
 	metadata := stripeBaseMetadata(stripeInvoiceKindTopup, user.Id)
+	metadata[stripeMetadataAccountTypeKey] = account.Type
+	metadata[stripeMetadataAccountIDKey] = account.Id
+	if account.IsTeam() {
+		metadata[stripeMetadataTeamIDKey] = account.Id
+	}
 	metadata[stripeMetadataPaymentOrderIDKey] = paymentOrder.Id
 	metadata[stripeMetadataTopupUnitsKey] = strconv.FormatInt(req.Amount, 10)
 	metadata[stripeMetadataCreditUnitsKey] = strconv.FormatFloat(creditUnits, 'f', 6, 64)
 
 	session, err := createStripeCheckoutPayment(c.Request.Context(), stripeCheckoutPaymentInput{
-		User:                   user,
+		User:    user,
+		Account: account,
+		AccountStripeCustomer: func() string {
+			if team != nil {
+				return team.StripeCustomer
+			}
+			return user.StripeCustomer
+		}(),
 		AmountCents:            amountCents,
 		DisplayAmount:          payMoney,
 		Quantity:               req.Amount,
@@ -277,6 +314,79 @@ func RequestStripePay(c *gin.Context) {
 		return
 	}
 	stripeAdaptor.RequestPay(c, &req)
+}
+
+func RequestTeamStripeAmount(c *gin.Context) {
+	var req struct {
+		TeamId        string `json:"team_id"`
+		Amount        int64  `json:"amount"`
+		PaymentMethod string `json:"payment_method"`
+		ReturnURL     string `json:"return_url"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
+		return
+	}
+	if _, err := model.RequireTeamAdmin(req.TeamId, c.GetString("id")); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Team admin permission required"})
+		return
+	}
+	c.Set("team_id", req.TeamId)
+	stripeAdaptor.RequestAmount(c, &StripePayRequest{Amount: req.Amount, PaymentMethod: req.PaymentMethod, ReturnURL: req.ReturnURL})
+}
+
+func RequestTeamStripePay(c *gin.Context) {
+	var req struct {
+		TeamId        string `json:"team_id"`
+		Amount        int64  `json:"amount"`
+		PaymentMethod string `json:"payment_method"`
+		ReturnURL     string `json:"return_url"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
+		return
+	}
+	if _, err := model.RequireTeamAdmin(req.TeamId, c.GetString("id")); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Team admin permission required"})
+		return
+	}
+	c.Set("team_id", req.TeamId)
+	stripeAdaptor.RequestPay(c, &StripePayRequest{Amount: req.Amount, PaymentMethod: req.PaymentMethod, ReturnURL: req.ReturnURL})
+}
+
+func RequestTeamStripeBillingPortal(c *gin.Context) {
+	var req struct {
+		TeamId    string `json:"team_id"`
+		ReturnURL string `json:"return_url"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
+		return
+	}
+	if _, err := model.RequireTeamAdmin(req.TeamId, c.GetString("id")); err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Team admin permission required"})
+		return
+	}
+	team, err := model.GetTeamById(req.TeamId)
+	if err != nil || strings.TrimSpace(team.StripeCustomer) == "" {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Team has no Stripe customer"})
+		return
+	}
+	returnURL, err := normalizeStripeReturnURL(req.ReturnURL)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
+		return
+	}
+	configureStripeClient()
+	session, err := billingportalsession.New(&stripe.BillingPortalSessionParams{
+		Customer:  stripe.String(team.StripeCustomer),
+		ReturnURL: stripe.String(returnURL),
+	})
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{"message": "error", "data": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"url": session.URL}})
 }
 
 func StripeWebhook(c *gin.Context) {
@@ -522,6 +632,8 @@ func handleStripeCheckoutSessionExpired(ctx context.Context, event stripe.Event,
 
 func fulfillStripeCheckoutSessionTopup(ctx context.Context, session *stripe.CheckoutSession, callerIp string) error {
 	userId := session.Metadata[stripeMetadataUserIDKey]
+	accountType := session.Metadata[stripeMetadataAccountTypeKey]
+	accountId := session.Metadata[stripeMetadataAccountIDKey]
 	creditUnits, err := strconv.ParseFloat(session.Metadata[stripeMetadataCreditUnitsKey], 64)
 	if err != nil || creditUnits <= 0 {
 		logger.LogError(ctx, fmt.Sprintf("Stripe checkout session 充值元数据无效 session_id=%s user_id=%s credit_units=%q", session.ID, userId, session.Metadata[stripeMetadataCreditUnitsKey]))
@@ -538,6 +650,8 @@ func fulfillStripeCheckoutSessionTopup(ctx context.Context, session *stripe.Chec
 	created, err := model.CompleteStripeInvoiceTopUp(model.StripeInvoiceTopUpParams{
 		PaymentOrderId:    paymentOrderId,
 		UserId:            userId,
+		AccountType:       accountType,
+		AccountId:         accountId,
 		InvoiceId:         invoiceId,
 		StripeInvoiceId:   invoiceId,
 		CheckoutSessionId: session.ID,
@@ -596,6 +710,8 @@ func fulfillStripeCheckoutSessionSubscription(ctx context.Context, session *stri
 
 func fulfillStripeInvoiceTopup(ctx context.Context, inv *stripe.Invoice, callerIp string) error {
 	userId := inv.Metadata[stripeMetadataUserIDKey]
+	accountType := inv.Metadata[stripeMetadataAccountTypeKey]
+	accountId := inv.Metadata[stripeMetadataAccountIDKey]
 	creditUnits, err := strconv.ParseFloat(inv.Metadata[stripeMetadataCreditUnitsKey], 64)
 	if err != nil || creditUnits <= 0 {
 		logger.LogError(ctx, fmt.Sprintf("Stripe Invoice 充值元数据无效 invoice_id=%s user_id=%s credit_units=%q", inv.ID, userId, inv.Metadata[stripeMetadataCreditUnitsKey]))
@@ -609,6 +725,8 @@ func fulfillStripeInvoiceTopup(ctx context.Context, inv *stripe.Invoice, callerI
 	created, err := model.CompleteStripeInvoiceTopUp(model.StripeInvoiceTopUpParams{
 		PaymentOrderId:  paymentOrderId,
 		UserId:          userId,
+		AccountType:     accountType,
+		AccountId:       accountId,
 		InvoiceId:       inv.ID,
 		StripeInvoiceId: inv.ID,
 		PaymentIntentId: stripeInvoicePaymentIntentID(inv),
@@ -675,6 +793,14 @@ func createStripeCheckoutPayment(ctx context.Context, input stripeCheckoutPaymen
 	configureStripeClient()
 	metadata := cloneStringMap(input.Metadata)
 	metadata[stripeMetadataUserIDKey] = input.User.Id
+	if input.Account.Type == "" {
+		input.Account = model.PersonalAccountContext(input.User.Id)
+	}
+	metadata[stripeMetadataAccountTypeKey] = input.Account.Type
+	metadata[stripeMetadataAccountIDKey] = input.Account.Id
+	if input.Account.IsTeam() {
+		metadata[stripeMetadataTeamIDKey] = input.Account.Id
+	}
 	lineItemName := renderStripeCheckoutText(setting.StripeLineItemTemplate, input.InvoiceItemDescription, input, metadata)
 	memo := renderStripeCheckoutText(setting.StripeMemoTemplate, input.Description, input, metadata)
 	quantity := input.Quantity
@@ -696,7 +822,7 @@ func createStripeCheckoutPayment(ctx context.Context, input stripeCheckoutPaymen
 		unitAmount, _ := unitAmountDecimal.Float64()
 		priceData.UnitAmountDecimal = stripe.Float64(unitAmount)
 	}
-	customerState, err := resolveStripeCheckoutCustomer(ctx, input.User)
+	customerState, err := resolveStripeCheckoutCustomer(ctx, input)
 	if err != nil {
 		return nil, err
 	}
@@ -773,8 +899,23 @@ type stripeCheckoutCustomerState struct {
 	RequiresCustomerDetails bool
 }
 
-func resolveStripeCheckoutCustomer(ctx context.Context, user *model.User) (stripeCheckoutCustomerState, error) {
-	customerId, err := ensureStripeCustomer(ctx, user)
+func resolveStripeCheckoutCustomer(ctx context.Context, input stripeCheckoutPaymentInput) (stripeCheckoutCustomerState, error) {
+	user := input.User
+	if user == nil {
+		return stripeCheckoutCustomerState{}, errors.New("用户不存在")
+	}
+	if input.Account.Type == "" {
+		input.Account = model.PersonalAccountContext(user.Id)
+	}
+	customerId := strings.TrimSpace(input.AccountStripeCustomer)
+	var err error
+	if customerId == "" {
+		if input.Account.IsTeam() {
+			customerId, err = createStripeCustomerForAccount(ctx, user, input.Account)
+		} else {
+			customerId, err = ensureStripeCustomer(ctx, user)
+		}
+	}
 	if err != nil {
 		return stripeCheckoutCustomerState{}, err
 	}
@@ -790,6 +931,41 @@ func resolveStripeCheckoutCustomer(ctx context.Context, user *model.User) (strip
 		CustomerEmail:           firstNonEmptyString(cus.Email, user.Email),
 		RequiresCustomerDetails: stripeCustomerRequiresCheckoutDetails(cus),
 	}, nil
+}
+
+func createStripeCustomerForAccount(ctx context.Context, user *model.User, account model.AccountContext) (string, error) {
+	configureStripeClient()
+	params := &stripe.CustomerParams{
+		Email: stripe.String(user.Email),
+		Metadata: map[string]string{
+			stripeMetadataUserIDKey:      user.Id,
+			stripeMetadataAccountTypeKey: account.Type,
+			stripeMetadataAccountIDKey:   account.Id,
+		},
+	}
+	if account.IsTeam() {
+		team, err := model.GetTeamById(account.Id)
+		if err != nil {
+			return "", err
+		}
+		params.Name = stripe.String(team.Name)
+		params.Metadata[stripeMetadataTeamIDKey] = team.Id
+	}
+	cus, err := customer.New(params)
+	if err != nil {
+		return "", err
+	}
+	if account.IsTeam() {
+		if err := model.DB.Model(&model.Team{}).Where("id = ?", account.Id).Updates(map[string]interface{}{
+			"stripe_customer": cus.ID,
+			"updated_at":      common.GetTimestamp(),
+		}).Error; err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("Stripe Customer created but team save failed team_id=%s customer_id=%s error=%q", account.Id, cus.ID, err.Error()))
+			return "", err
+		}
+		return cus.ID, nil
+	}
+	return cus.ID, nil
 }
 
 func stripeCustomerRequiresCheckoutDetails(cus *stripe.Customer) bool {

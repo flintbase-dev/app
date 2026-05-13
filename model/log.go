@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/QuantumNous/new-api/common"
+	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/types"
 
@@ -53,6 +54,8 @@ type Log struct {
 	Severity         string `json:"severity" gorm:"column:severity;default:''"`
 	Result           string `json:"result" gorm:"column:result;default:''"`
 	UserId           string `json:"user_id" gorm:"column:user_id;type:varchar(32);index"`
+	AccountType      string `json:"account_type" gorm:"column:account_type;type:varchar(16);index;default:'personal'"`
+	AccountId        string `json:"account_id" gorm:"column:account_id;type:varchar(32);index;default:''"`
 	ActorUserId      string `json:"actor_user_id" gorm:"column:actor_user_id;type:varchar(32);index;default:''"`
 	Content          string `json:"content" gorm:"column:content"`
 	Username         string `json:"username" gorm:"column:username;index;default:''"`
@@ -77,6 +80,8 @@ type Log struct {
 
 type LogEventParams struct {
 	UserId           string
+	AccountType      string
+	AccountId        string
 	ActorUserId      string
 	Event            string
 	Severity         string
@@ -101,6 +106,8 @@ type LogEventParams struct {
 }
 
 type RecordConsumeLogParams struct {
+	AccountType      string                 `json:"account_type"`
+	AccountId        string                 `json:"account_id"`
 	ChannelId        string                 `json:"channel_id"`
 	PromptTokens     int                    `json:"prompt_tokens"`
 	CompletionTokens int                    `json:"completion_tokens"`
@@ -118,6 +125,8 @@ type RecordConsumeLogParams struct {
 type LogFilter struct {
 	Category       LogCategory
 	UserId         string
+	AccountType    string
+	AccountId      string
 	StartTimestamp int64
 	EndTimestamp   int64
 	ModelName      string
@@ -228,6 +237,8 @@ CREATE TABLE IF NOT EXISTS %s (
 	severity LowCardinality(String),
 	result LowCardinality(String),
 	user_id String,
+	account_type LowCardinality(String),
+	account_id String,
 	actor_user_id String,
 	content String,
 	username String,
@@ -292,6 +303,8 @@ func normalizeLogEntry(category LogCategory, params LogEventParams) *Log {
 		Severity:         strings.TrimSpace(params.Severity),
 		Result:           strings.TrimSpace(params.Result),
 		UserId:           params.UserId,
+		AccountType:      params.AccountType,
+		AccountId:        params.AccountId,
 		ActorUserId:      params.ActorUserId,
 		Content:          common.MaskSensitiveInfo(params.Content),
 		Username:         params.Username,
@@ -314,6 +327,12 @@ func normalizeLogEntry(category LogCategory, params LogEventParams) *Log {
 	}
 	if entry.Event == "" {
 		entry.Event = string(category) + ".event"
+	}
+	if entry.AccountType == "" {
+		entry.AccountType = AccountTypePersonal
+	}
+	if entry.AccountId == "" {
+		entry.AccountId = entry.UserId
 	}
 	if entry.Severity == "" {
 		entry.Severity = "info"
@@ -377,6 +396,12 @@ func augmentLogParamsFromGin(c *gin.Context, params *LogEventParams) {
 	}
 	if common.IsEmptyID(params.UserId) {
 		params.UserId = c.GetString("id")
+	}
+	if params.AccountType == "" {
+		params.AccountType = common.GetContextKeyString(c, constant.ContextKeyAccountType)
+	}
+	if params.AccountId == "" {
+		params.AccountId = common.GetContextKeyString(c, constant.ContextKeyAccountId)
 	}
 	if common.IsEmptyID(params.ActorUserId) {
 		params.ActorUserId = c.GetString("id")
@@ -456,6 +481,8 @@ func RecordConsumeLog(c *gin.Context, userId string, params RecordConsumeLogPara
 	}
 	logParams := LogEventParams{
 		UserId:           userId,
+		AccountType:      params.AccountType,
+		AccountId:        params.AccountId,
 		Event:            event,
 		Content:          params.Content,
 		PromptTokens:     params.PromptTokens,
@@ -495,6 +522,12 @@ func formatUserLogs(logs []*Log, startIdx int) {
 func applyLogFilters(tx *gorm.DB, filter LogFilter) (*gorm.DB, error) {
 	if !common.IsEmptyID(filter.UserId) {
 		tx = tx.Where("user_id = ?", filter.UserId)
+	}
+	if filter.AccountType != "" {
+		tx = tx.Where("account_type = ?", filter.AccountType)
+	}
+	if filter.AccountId != "" {
+		tx = tx.Where("account_id = ?", filter.AccountId)
 	}
 	if filter.Username != "" {
 		tx = tx.Where("username = ?", filter.Username)
@@ -669,6 +702,27 @@ func GetUserLogs(userId string, category string, startTimestamp int64, endTimest
 		Group:          group,
 		RequestId:      requestId,
 	})
+	if err != nil {
+		return nil, 0, err
+	}
+	formatUserLogs(logs, startIdx)
+	return logs, total, nil
+}
+
+func GetAccountUsageLogs(account AccountContext, userId string, startTimestamp int64, endTimestamp int64, startIdx int, num int) (logs []*Log, total int64, err error) {
+	filter := LogFilter{
+		Category:       LogCategoryUsage,
+		AccountType:    account.Type,
+		AccountId:      account.Id,
+		StartTimestamp: startTimestamp,
+		EndTimestamp:   endTimestamp,
+		StartIdx:       startIdx,
+		Num:            num,
+	}
+	if !common.IsEmptyID(userId) {
+		filter.UserId = userId
+	}
+	logs, total, err = queryLogs(filter)
 	if err != nil {
 		return nil, 0, err
 	}

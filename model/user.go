@@ -259,6 +259,15 @@ func GetUserById(id string, selectAll bool) (*User, error) {
 	return &user, err
 }
 
+func GetUserByWorkOSId(workOSId string) (*User, error) {
+	if strings.TrimSpace(workOSId) == "" {
+		return nil, errors.New("workos id is required")
+	}
+	var user User
+	err := DB.First(&user, "workos_id = ?", strings.TrimSpace(workOSId)).Error
+	return &user, err
+}
+
 func GetUserIdByAffCode(affCode string) (string, error) {
 	if affCode == "" {
 		return "", errors.New("affCode 为空！")
@@ -511,6 +520,18 @@ func (user *User) FillUserByEmail() error {
 	}
 	DB.Where(User{Email: user.Email}).First(user)
 	return nil
+}
+
+func GetUserByEmail(email string) (*User, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return nil, errors.New("email 为空！")
+	}
+	var user User
+	if err := DB.Where("email = ?", email).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 
 func IsEmailAlreadyTaken(email string) bool {

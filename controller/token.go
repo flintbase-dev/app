@@ -219,6 +219,9 @@ func AddToken(c *gin.Context) {
 	}
 	cleanToken := model.Token{
 		UserId:             c.GetString("id"),
+		CreatedByUserId:    c.GetString("id"),
+		AccountType:        model.AccountTypePersonal,
+		AccountId:          c.GetString("id"),
 		Name:               token.Name,
 		Key:                key,
 		CreatedTime:        common.GetTimestamp(),

@@ -21,14 +21,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 import { getLucideIcon } from '../../helpers/render';
-import { ChevronLeft } from 'lucide-react';
+import { ChevronLeft, Plus } from 'lucide-react';
 import { useSidebarCollapsed } from '../../hooks/common/useSidebarCollapsed';
 import { useSidebar } from '../../hooks/common/useSidebar';
 import { useMinimumLoadingTime } from '../../hooks/common/useMinimumLoadingTime';
-import { isAdmin, isRoot, showError } from '../../helpers';
+import { API, isAdmin, isRoot, showError, showSuccess } from '../../helpers';
 import SkeletonWrapper from './components/SkeletonWrapper';
 
-import { Nav, Divider, Button } from '@douyinfe/semi-ui';
+import { Nav, Divider, Button, Input, Modal, Select } from '@douyinfe/semi-ui';
 
 const routerMap = {
   home: '/',
@@ -48,6 +48,7 @@ const routerMap = {
   models: '/console/models',
   playground: '/console/playground',
   personal: '/console/personal',
+  teamSettings: '/console/settings',
 };
 
 const SiderBar = ({ onNavigate = () => {} }) => {
@@ -66,6 +67,17 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   const [openedKeys, setOpenedKeys] = useState([]);
   const location = useLocation();
   const [routerMapState, setRouterMapState] = useState(routerMap);
+  const teamMatch = location.pathname.match(/^\/teams\/([^/]+)\/console/);
+  const activeTeamId = teamMatch?.[1] || '';
+  const isTeamSettingsRoute =
+    Boolean(activeTeamId) && location.pathname.endsWith('/settings');
+  const [accountContext, setAccountContext] = useState({ teams: [] });
+  const [teamCreateOpen, setTeamCreateOpen] = useState(false);
+  const [teamName, setTeamName] = useState('');
+  const activeTeam = (accountContext.teams || []).find(
+    (team) => team.id === activeTeamId,
+  );
+  const isActiveTeamAdmin = activeTeam?.role === 'admin';
 
   const workspaceItems = useMemo(() => {
     const items = [
@@ -94,29 +106,54 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         to: '/messages',
       },
     ];
+    const accountItems = activeTeamId
+      ? items.filter((item) =>
+          ['detail', 'token', 'log'].includes(item.itemKey),
+        )
+      : items;
 
     // 根据配置过滤项目
-    const filteredItems = items.filter((item) => {
+    const filteredItems = accountItems.filter((item) => {
       const configVisible = isModuleVisible('console', item.itemKey);
       return configVisible;
     });
 
     return filteredItems;
-  }, [localStorage.getItem('enable_data_export'), t, isModuleVisible]);
+  }, [
+    localStorage.getItem('enable_data_export'),
+    t,
+    isModuleVisible,
+    activeTeamId,
+  ]);
 
   const financeItems = useMemo(() => {
-    const items = [
-      {
-        text: t('钱包管理'),
-        itemKey: 'topup',
-        to: '/topup',
-      },
-      {
-        text: t('个人设置'),
-        itemKey: 'personal',
-        to: '/personal',
-      },
-    ];
+    const items = activeTeamId
+      ? isActiveTeamAdmin
+        ? [
+            {
+              text: t('Team Billing'),
+              itemKey: 'topup',
+              to: '/topup',
+            },
+            {
+              text: t('Team Settings'),
+              itemKey: 'teamSettings',
+              to: '/settings',
+            },
+          ]
+        : []
+      : [
+          {
+            text: t('Billing'),
+            itemKey: 'topup',
+            to: '/topup',
+          },
+          {
+            text: t('个人设置'),
+            itemKey: 'personal',
+            to: '/personal',
+          },
+        ];
 
     // 根据配置过滤项目
     const filteredItems = items.filter((item) => {
@@ -125,7 +162,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     });
 
     return filteredItems;
-  }, [t, isModuleVisible]);
+  }, [t, isModuleVisible, activeTeamId, isActiveTeamAdmin]);
 
   const adminItems = useMemo(() => {
     const items = [
@@ -257,6 +294,58 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     }
   }, []);
 
+  useEffect(() => {
+    API.query('accountContext')
+      .then((res) => {
+        if (res.data?.success) {
+          setAccountContext(res.data.data || { teams: [] });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
+  const createTeam = async () => {
+    if (!teamName.trim()) {
+      showError(t('请输入名称'));
+      return;
+    }
+    const res = await API.mutation('createTeam', { name: teamName.trim() });
+    if (res.data?.success) {
+      showSuccess(t('创建成功'));
+      const redirect = res.data.data?.redirect || '/console';
+      window.location.assign(redirect);
+    } else {
+      showError(res.data?.message || t('创建失败'));
+    }
+  };
+
+  const teamConsoleSuffix = () => {
+    if (activeTeamId) {
+      return (
+        location.pathname.replace(`/teams/${activeTeamId}/console`, '') || ''
+      );
+    }
+    return location.pathname.replace('/console', '') || '';
+  };
+
+  const switchAccountContext = (value) => {
+    const suffix = teamConsoleSuffix();
+    if (value === 'personal') {
+      const safeSuffix =
+        suffix === '/topup' || suffix === '/settings' ? '' : suffix;
+      window.location.assign(`/console${safeSuffix}`);
+      return;
+    }
+    window.location.assign(
+      `/teams/${value}/console${suffix === '/personal' ? '' : suffix}`,
+    );
+  };
+
+  const resolveRoute = (to) => {
+    if (!activeTeamId || !to?.startsWith('/console')) return to;
+    return to.replace('/console', `/teams/${activeTeamId}/console`);
+  };
+
   // 根据当前路径设置选中的菜单项
   useEffect(() => {
     const currentPath = location.pathname;
@@ -271,6 +360,15 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         matchingKey = 'chat' + chatIndex;
       } else {
         matchingKey = 'chat';
+      }
+    }
+    if (!matchingKey && activeTeamId) {
+      const teamPath = currentPath.replace(`/teams/${activeTeamId}`, '');
+      matchingKey = Object.keys(routerMapState).find(
+        (key) => routerMapState[key] === teamPath,
+      );
+      if (currentPath.endsWith('/settings')) {
+        matchingKey = 'teamSettings';
       }
     }
 
@@ -386,6 +484,18 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         collapsed={collapsed}
         showAdmin={isAdmin()}
       >
+        <Modal
+          title={t('Create Team')}
+          visible={teamCreateOpen}
+          onOk={createTeam}
+          onCancel={() => setTeamCreateOpen(false)}
+        >
+          <Input
+            value={teamName}
+            onChange={setTeamName}
+            placeholder={t('Team name')}
+          />
+        </Modal>
         <Nav
           className='sidebar-nav'
           defaultIsCollapsed={collapsed}
@@ -396,8 +506,9 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           hoverStyle='sidebar-nav-item:hover'
           selectedStyle='sidebar-nav-item-selected'
           renderWrapper={({ itemElement, props }) => {
-            const to =
-              routerMapState[props.itemKey] || routerMap[props.itemKey];
+            const to = resolveRoute(
+              routerMapState[props.itemKey] || routerMap[props.itemKey],
+            );
 
             // 如果没有路由，直接返回元素
             if (!to) return itemElement;
@@ -425,52 +536,104 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             setOpenedKeys(data.openKeys);
           }}
         >
-          {/* 聊天区域 */}
-          {hasSectionVisibleModules('chat') && (
-            <div className='sidebar-section'>
-              {!collapsed && (
-                <div className='sidebar-group-label'>{t('聊天')}</div>
-              )}
-              {chatMenuItems.map((item) => renderSubItem(item))}
+          {!collapsed && (
+            <div className='sidebar-section px-2 pb-2'>
+              <Select
+                value={activeTeamId || 'personal'}
+                onChange={switchAccountContext}
+                style={{ width: '100%' }}
+                optionList={[
+                  { label: t('Personal'), value: 'personal' },
+                  ...(accountContext.teams || []).map((team) => ({
+                    label: team.name,
+                    value: team.id,
+                  })),
+                ]}
+              />
+              <Button
+                className='mt-2 w-full'
+                size='small'
+                type='tertiary'
+                icon={<Plus size={14} />}
+                onClick={() => setTeamCreateOpen(true)}
+              >
+                {t('Create Team')}
+              </Button>
             </div>
           )}
 
-          {/* 控制台区域 */}
-          {hasSectionVisibleModules('console') && (
+          {isTeamSettingsRoute ? (
+            <div className='sidebar-section'>
+              {!collapsed && (
+                <div className='px-2 pb-2'>
+                  <Link to={`/teams/${activeTeamId}/console`}>
+                    <Button className='w-full' type='tertiary'>
+                      {t('Back')}
+                    </Button>
+                  </Link>
+                </div>
+              )}
+              {!collapsed && (
+                <div className='sidebar-group-label'>{t('Org Settings')}</div>
+              )}
+              {renderNavItem({
+                text: t('Team Settings'),
+                itemKey: 'teamSettings',
+                to: '/settings',
+              })}
+            </div>
+          ) : (
             <>
-              <Divider className='sidebar-divider' />
-              <div>
-                {!collapsed && (
-                  <div className='sidebar-group-label'>{t('控制台')}</div>
-                )}
-                {workspaceItems.map((item) => renderNavItem(item))}
-              </div>
-            </>
-          )}
+              {/* 聊天区域 */}
+              {!activeTeamId && hasSectionVisibleModules('chat') && (
+                <div className='sidebar-section'>
+                  {!collapsed && (
+                    <div className='sidebar-group-label'>{t('聊天')}</div>
+                  )}
+                  {chatMenuItems.map((item) => renderSubItem(item))}
+                </div>
+              )}
 
-          {/* 个人中心区域 */}
-          {hasSectionVisibleModules('personal') && (
-            <>
-              <Divider className='sidebar-divider' />
-              <div>
-                {!collapsed && (
-                  <div className='sidebar-group-label'>{t('个人中心')}</div>
-                )}
-                {financeItems.map((item) => renderNavItem(item))}
-              </div>
-            </>
-          )}
+              {/* 控制台区域 */}
+              {hasSectionVisibleModules('console') && (
+                <>
+                  <Divider className='sidebar-divider' />
+                  <div>
+                    {!collapsed && (
+                      <div className='sidebar-group-label'>{t('控制台')}</div>
+                    )}
+                    {workspaceItems.map((item) => renderNavItem(item))}
+                  </div>
+                </>
+              )}
 
-          {/* 管理员区域 - 只在管理员时显示且配置允许时显示 */}
-          {isAdmin() && hasSectionVisibleModules('admin') && (
-            <>
-              <Divider className='sidebar-divider' />
-              <div>
-                {!collapsed && (
-                  <div className='sidebar-group-label'>{t('管理员')}</div>
+              {/* 个人中心区域 */}
+              {hasSectionVisibleModules('personal') && (
+                <>
+                  <Divider className='sidebar-divider' />
+                  <div>
+                    {!collapsed && (
+                      <div className='sidebar-group-label'>{t('个人中心')}</div>
+                    )}
+                    {financeItems.map((item) => renderNavItem(item))}
+                  </div>
+                </>
+              )}
+
+              {/* 管理员区域 - 只在管理员时显示且配置允许时显示 */}
+              {!activeTeamId &&
+                isAdmin() &&
+                hasSectionVisibleModules('admin') && (
+                  <>
+                    <Divider className='sidebar-divider' />
+                    <div>
+                      {!collapsed && (
+                        <div className='sidebar-group-label'>{t('管理员')}</div>
+                      )}
+                      {adminItems.map((item) => renderNavItem(item))}
+                    </div>
+                  </>
                 )}
-                {adminItems.map((item) => renderNavItem(item))}
-              </div>
             </>
           )}
         </Nav>

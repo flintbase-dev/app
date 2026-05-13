@@ -131,6 +131,10 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 		}
+		if err := enforceTeamTokenPolicy(c, modelRequest); err != nil {
+			abortWithOpenAiMessage(c, http.StatusForbidden, err.Error(), types.ErrorCodeAccessDenied)
+			return
+		}
 		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
 		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
 		c.Next()
@@ -138,6 +142,32 @@ func Distribute() func(c *gin.Context) {
 			service.RecordChannelAffinity(c, channel.Id)
 		}
 	}
+}
+
+func enforceTeamTokenPolicy(c *gin.Context, modelRequest *ModelRequest) error {
+	teamId := common.GetContextKeyString(c, constant.ContextKeyTeamId)
+	if teamId == "" || modelRequest == nil {
+		return nil
+	}
+	policy, err := model.GetTeamPolicy(teamId)
+	if err != nil {
+		return fmt.Errorf("team policy unavailable")
+	}
+	modelName := strings.TrimSpace(modelRequest.Model)
+	if modelName != "" {
+		matchName := ratio_setting.FormatMatchingModelName(modelName)
+		if !model.TeamPolicyAllowsModel(policy, matchName) && !model.TeamPolicyAllowsModel(policy, modelName) {
+			return fmt.Errorf("team policy disables model %s", modelName)
+		}
+	}
+	groupName := common.GetContextKeyString(c, constant.ContextKeyAutoGroup)
+	if groupName == "" {
+		groupName = common.GetContextKeyString(c, constant.ContextKeyUsingGroup)
+	}
+	if groupName != "" && !model.TeamPolicyAllowsGroup(policy, groupName) {
+		return fmt.Errorf("team policy disables group %s", groupName)
+	}
+	return nil
 }
 
 // getModelFromRequest 从请求中读取模型信息

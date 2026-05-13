@@ -1,6 +1,7 @@
 package controller
 
 import (
+	"errors"
 	"net/http"
 	"strings"
 
@@ -9,6 +10,7 @@ import (
 	"github.com/QuantumNous/new-api/service"
 	"github.com/gin-contrib/sessions"
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 const (
@@ -104,6 +106,9 @@ func WorkOSCallback(c *gin.Context) {
 		c.Redirect(http.StatusFound, "/login?error=workos_user_sync")
 		return
 	}
+	if err := syncWorkOSTeamMembershipFromCallback(c, cfg, authResp, user); err != nil {
+		common.SysLog("WorkOS team membership sync skipped: " + err.Error())
+	}
 
 	setupWorkOSLoginSession(c, session, user, authResp.AccessToken)
 	returnTo, _ := session.Get(workOSReturnToSessionKey).(string)
@@ -118,6 +123,49 @@ func WorkOSCallback(c *gin.Context) {
 		return
 	}
 	c.Redirect(http.StatusFound, "/workos/callback")
+}
+
+func syncWorkOSTeamMembershipFromCallback(c *gin.Context, cfg service.WorkOSConfig, authResp *service.WorkOSAuthenticationResponse, user *model.User) error {
+	if authResp == nil || user == nil || strings.TrimSpace(authResp.OrganizationID) == "" {
+		return nil
+	}
+	team, err := model.GetTeamByWorkOSOrganizationId(authResp.OrganizationID)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	invitation, err := model.FindPendingTeamInvitationByEmail(team.Id, user.Email)
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if !strings.EqualFold(strings.TrimSpace(invitation.Email), strings.TrimSpace(user.Email)) {
+		return nil
+	}
+	memberships, err := service.ListWorkOSOrganizationMemberships(c.Request.Context(), cfg, team.WorkOSOrganizationId, user.WorkOSId)
+	if err != nil {
+		return err
+	}
+	for _, membership := range memberships {
+		if membership.Organization() != team.WorkOSOrganizationId || membership.User() != user.WorkOSId {
+			continue
+		}
+		if _, err := model.SyncTeamMembership(model.SyncTeamMembershipParams{
+			TeamId:                         team.Id,
+			UserId:                         user.Id,
+			WorkOSOrganizationMembershipId: membership.ID,
+			Role:                           membership.RoleSlug(),
+			Status:                         membership.Status,
+		}); err != nil {
+			return err
+		}
+		return model.MarkTeamInvitationStatus(invitation.WorkOSInvitationId, model.InvitationAccepted, user.Id)
+	}
+	return nil
 }
 
 func WorkOSLogout(c *gin.Context) {

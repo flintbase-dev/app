@@ -15,6 +15,7 @@ import {
   toText,
 } from "@/lib/console/format";
 import type {
+  AccountContext,
   ActiveSubscription,
   ChatClient,
   CheckoutResult,
@@ -27,6 +28,10 @@ import type {
   PricingModel,
   SubscriptionPlan,
   SubscriptionState,
+  Team,
+  TeamInvitation,
+  TeamMember,
+  TeamPolicy,
   Token,
   TopupInfo,
   UserGroup,
@@ -56,21 +61,30 @@ export const CHAT_CLIENTS: ChatClient[] = [
   },
 ];
 
-export async function loadConsoleLayoutData() {
+export async function loadConsoleLayoutData(teamId?: string) {
   const data = await graphqlQuery<{
     status: unknown;
     self: unknown;
     unread: unknown;
+    accountContext: unknown;
+    team?: unknown;
   }>([
     { operation: "status" },
     { operation: "self" },
     { operation: "inboxUnreadCount", alias: "unread" },
+    { operation: "accountContext" },
+    ...(teamId ? [{ operation: "team", params: { team_id: teamId } }] : []),
   ]);
   const status = normalizeStatus(unwrapApiData(data.status, {}));
   return {
     status,
     user: normalizeUser(unwrapApiData(data.self, {}), status),
     unread: toNumber(asRecord(unwrapApiData(data.unread, {})).count),
+    accountContext: normalizeAccountContext(
+      unwrapApiData(data.accountContext, {}),
+      status,
+    ),
+    currentTeam: teamId ? normalizeTeam(data.team, status) : null,
   };
 }
 
@@ -119,12 +133,66 @@ export async function loadDashboardData() {
   };
 }
 
-export async function loadTokenList(params: GraphQLObject = {}) {
+export async function loadTeamDashboardData(teamId: string) {
+  const now = Math.floor(Date.now() / 1000);
+  const start = now - 7 * 86_400;
+  const data = await graphqlQuery<{
+    status: unknown;
+    team: unknown;
+    tokens: unknown;
+    usage: unknown;
+  }>([
+    { operation: "status" },
+    { operation: "team", params: { team_id: teamId } },
+    {
+      operation: "teamTokens",
+      alias: "tokens",
+      params: { team_id: teamId, p: 1, page_size: 5 },
+    },
+    {
+      operation: "teamUsage",
+      alias: "usage",
+      params: {
+        team_id: teamId,
+        p: 1,
+        page_size: 10,
+        start_timestamp: start,
+        end_timestamp: now,
+      },
+    },
+  ]);
+  const status = normalizeStatus(unwrapApiData(data.status, {}));
+  return {
+    status,
+    team: normalizeTeam(data.team, status),
+    tokens: normalizePageInfo<Token>(data.tokens, (item) =>
+      normalizeToken(item, status),
+    ),
+    usage: normalizePageInfo<LogEntry>(data.usage, (item) =>
+      normalizeLog(item, status),
+    ),
+  };
+}
+
+export async function loadTokenList(
+  params: GraphQLObject = {},
+  options: { teamId?: string } = {},
+) {
+  const teamId = options.teamId;
   const fields: GraphQLOperationField[] = [
     {
-      operation: params.keyword || params.token ? "searchTokens" : "tokens",
+      operation: teamId
+        ? "teamTokens"
+        : params.keyword || params.token
+          ? "searchTokens"
+          : "tokens",
       alias: "tokens",
-      params: { p: 1, page_size: DEFAULT_PAGE_SIZE, ...params },
+      params: {
+        p: 1,
+        page_size: DEFAULT_PAGE_SIZE,
+        ...params,
+        ...(teamId ? { team_id: teamId } : {}),
+      },
     },
     { operation: "self" },
     { operation: "status" },
@@ -144,25 +212,50 @@ export async function loadTokenList(params: GraphQLObject = {}) {
   };
 }
 
-export async function loadTokenEditor(id?: string) {
+export async function loadTokenEditor(
+  id?: string,
+  options: { teamId?: string } = {},
+) {
+  const teamId = options.teamId;
   const fields: GraphQLOperationField[] = [
     { operation: "selfGroups", alias: "groups" },
     { operation: "userModels", alias: "models" },
     { operation: "status" },
   ];
-  if (id) fields.push({ operation: "token", params: { id } });
+  if (id) {
+    fields.push(
+      teamId
+        ? {
+            operation: "teamTokens",
+            alias: "tokenList",
+            params: { team_id: teamId, p: 1, page_size: 1000 },
+          }
+        : { operation: "token", params: { id } },
+    );
+  }
   const data = await graphqlQuery<{
     groups: unknown;
     models: unknown;
     status: unknown;
     token?: unknown;
+    tokenList?: unknown;
   }>(fields);
   const status = normalizeStatus(unwrapApiData(data.status, {}));
+  const teamToken =
+    teamId && id
+      ? normalizePageInfo<Token>(data.tokenList, (item) =>
+          normalizeToken(item, status),
+        ).items.find((item) => item.id === id)
+      : null;
   return {
     status,
     groups: normalizeGroups(unwrapApiData(data.groups, {})),
     models: asArray(unwrapApiData(data.models, [])).map((item) => toText(item)),
-    token: id ? normalizeToken(data.token, status) : null,
+    token: id
+      ? teamId
+        ? (teamToken ?? null)
+        : normalizeToken(data.token, status)
+      : null,
   };
 }
 
@@ -196,6 +289,32 @@ export async function loadLogs(params: GraphQLObject = {}) {
         p: 1,
         page_size: DEFAULT_PAGE_SIZE,
         category: "usage",
+        ...params,
+      },
+    },
+  ]);
+  const status = normalizeStatus(unwrapApiData(data.status, {}));
+  return {
+    status,
+    ...normalizePageInfo<LogEntry>(data.logs, (item) =>
+      normalizeLog(item, status),
+    ),
+  };
+}
+
+export async function loadTeamLogs(teamId: string, params: GraphQLObject = {}) {
+  const data = await graphqlQuery<{
+    status: unknown;
+    logs: unknown;
+  }>([
+    { operation: "status" },
+    {
+      operation: "teamUsage",
+      alias: "logs",
+      params: {
+        team_id: teamId,
+        p: 1,
+        page_size: DEFAULT_PAGE_SIZE,
         ...params,
       },
     },
@@ -333,6 +452,67 @@ export async function loadTopupData() {
       status,
     ),
     affCode: toText(unwrapApiData(data.affCode, "")),
+  };
+}
+
+export async function loadTeamBillingData(teamId: string) {
+  const data = await graphqlQuery<{
+    status: unknown;
+    summary: unknown;
+    topups: unknown;
+  }>([
+    { operation: "status" },
+    {
+      operation: "teamBillingSummary",
+      alias: "summary",
+      params: { team_id: teamId },
+    },
+    { operation: "teamTopups", alias: "topups", params: { team_id: teamId } },
+  ]);
+  const status = normalizeStatus(unwrapApiData(data.status, {}));
+  const summary = asRecord(unwrapApiData(data.summary, {}));
+  return {
+    status,
+    summary: {
+      quota: creditsToMoney(summary.quota, status),
+      used: creditsToMoney(summary.used_quota, status),
+      stripeCustomer: toText(summary.stripe_customer),
+    },
+    topups: asArray(unwrapApiData(data.topups, [])).map((item) =>
+      normalizeInvoice(item, status),
+    ),
+  };
+}
+
+export async function loadTeamSettingsData(teamId: string) {
+  const data = await graphqlQuery<{
+    team: unknown;
+    members: unknown;
+    invitations: unknown;
+    policy: unknown;
+    groups: unknown;
+    models: unknown;
+  }>([
+    { operation: "team", params: { team_id: teamId } },
+    { operation: "teamMembers", alias: "members", params: { team_id: teamId } },
+    {
+      operation: "teamInvitations",
+      alias: "invitations",
+      params: { team_id: teamId },
+    },
+    { operation: "teamPolicy", alias: "policy", params: { team_id: teamId } },
+    { operation: "selfGroups", alias: "groups" },
+    { operation: "userModels", alias: "models" },
+  ]);
+  return {
+    team: normalizeTeam(data.team),
+    members: asArray(unwrapApiData(data.members, [])).map(normalizeTeamMember),
+    invitations: asArray(unwrapApiData(data.invitations, [])).map(
+      normalizeTeamInvitation,
+    ),
+    policy: normalizeTeamPolicy(data.policy),
+    groups: normalizeGroups(unwrapApiData(data.groups, {})),
+    models: asArray(unwrapApiData(data.models, [])).map((item) => toText(item)),
   };
 }
 
@@ -638,6 +818,68 @@ export function normalizeToken(
             .filter(Boolean)
         : [],
     keyPreview: toText(item.key, "****"),
+  };
+}
+
+function normalizeAccountContext(
+  value: unknown,
+  context: DisplayContext = {},
+): AccountContext {
+  const item = asRecord(value);
+  return {
+    teams: asArray(item.teams).map((team) => normalizeTeam(team, context)),
+  };
+}
+
+function normalizeTeam(value: unknown, context: DisplayContext = {}): Team {
+  const item = asRecord(unwrapApiData(value, value));
+  return {
+    id: toText(item.id),
+    name: toText(item.name, "Team"),
+    slug: toText(item.slug),
+    status: toText(item.status, "active"),
+    role: teamRole(item.role),
+    balance: creditsToMoney(item.quota, context),
+    used: creditsToMoney(item.used_quota, context),
+  };
+}
+
+function teamRole(value: unknown): "admin" | "member" | "" {
+  const role = toText(value);
+  return role === "admin" || role === "member" ? role : "";
+}
+
+function normalizeTeamMember(value: unknown): TeamMember {
+  const item = asRecord(value);
+  const role = toText(item.role, "member");
+  return {
+    id: toText(item.id),
+    teamId: toText(item.team_id),
+    userId: toText(item.user_id),
+    role: role === "admin" ? "admin" : "member",
+    status: toText(item.status, "active"),
+  };
+}
+
+function normalizeTeamInvitation(value: unknown): TeamInvitation {
+  const item = asRecord(value);
+  const role = toText(item.role, "member");
+  return {
+    id: toText(item.id),
+    email: toText(item.email),
+    role: role === "admin" ? "admin" : "member",
+    status: toText(item.status, "pending"),
+  };
+}
+
+function normalizeTeamPolicy(value: unknown): TeamPolicy {
+  const item = asRecord(unwrapApiData(value, value));
+  const modelPolicy = asRecord(item.model_policy);
+  const groupPolicy = asRecord(item.group_policy);
+  return {
+    teamId: toText(item.team_id),
+    disabledModels: asArray(modelPolicy.disabled).map((model) => toText(model)),
+    disabledGroups: asArray(groupPolicy.disabled).map((group) => toText(group)),
   };
 }
 
@@ -1040,9 +1282,13 @@ function slugify(value: string): string {
   return slug || "chat";
 }
 
-export async function requestTokenKey(id: string) {
-  const payload = await graphqlMutation<{ tokenKey: unknown }>([
-    { operation: "tokenKey", input: { id } },
+export async function requestTokenKey(id: string, teamId?: string) {
+  const operation = teamId ? "teamTokenKey" : "tokenKey";
+  const payload = await graphqlMutation<Record<string, unknown>>([
+    {
+      operation,
+      input: { id, ...(teamId ? { team_id: teamId } : {}) },
+    },
   ]);
-  return toText(asRecord(unwrapApiData(payload.tokenKey, {})).key);
+  return toText(asRecord(unwrapApiData(payload[operation], {})).key);
 }

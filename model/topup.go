@@ -27,6 +27,8 @@ var (
 type StripeInvoiceTopUpParams struct {
 	PaymentOrderId    string
 	UserId            string
+	AccountType       string
+	AccountId         string
 	InvoiceId         string
 	StripeInvoiceId   string
 	CheckoutSessionId string
@@ -45,6 +47,16 @@ func CompleteStripeInvoiceTopUp(params StripeInvoiceTopUpParams) (bool, error) {
 	if common.IsEmptyID(params.UserId) {
 		return false, errors.New("invalid user id")
 	}
+	if params.AccountType == "" {
+		params.AccountType = AccountTypePersonal
+	}
+	if params.AccountId == "" {
+		params.AccountId = params.UserId
+	}
+	account, err := NormalizeAccountContext(params.AccountType, params.AccountId)
+	if err != nil {
+		return false, err
+	}
 	if strings.TrimSpace(params.InvoiceId) == "" {
 		return false, errors.New("invalid invoice id")
 	}
@@ -59,7 +71,6 @@ func CompleteStripeInvoiceTopUp(params StripeInvoiceTopUpParams) (bool, error) {
 		return false, errors.New("无效的充值额度")
 	}
 
-	var balanceAfter int
 	var created bool
 	var paymentOrder *StripePaymentOrder
 	sourceType := "topup.stripe_checkout"
@@ -68,7 +79,7 @@ func CompleteStripeInvoiceTopUp(params StripeInvoiceTopUpParams) (bool, error) {
 		sourceType = "topup.stripe_invoice"
 		sourceId = params.InvoiceId
 	}
-	err := DB.Transaction(func(tx *gorm.DB) error {
+	err = DB.Transaction(func(tx *gorm.DB) error {
 		var err error
 		if params.PaymentOrderId != "" {
 			var completed bool
@@ -95,6 +106,8 @@ func CompleteStripeInvoiceTopUp(params StripeInvoiceTopUpParams) (bool, error) {
 			InvoiceId:             params.StripeInvoiceId,
 			Kind:                  "topup",
 			UserId:                params.UserId,
+			AccountType:           account.Type,
+			AccountId:             account.Id,
 			SourceType:            sourceType,
 			SourceId:              sourceId,
 			StripePaymentIntentId: params.PaymentIntentId,
@@ -114,17 +127,26 @@ func CompleteStripeInvoiceTopUp(params StripeInvoiceTopUpParams) (bool, error) {
 			return err
 		}
 		if params.CustomerId != "" {
-			if err := tx.Model(&User{}).Where("id = ?", params.UserId).Update("stripe_customer", params.CustomerId).Error; err != nil {
+			if account.IsTeam() {
+				if err := tx.Model(&Team{}).Where("id = ?", account.Id).Updates(map[string]interface{}{
+					"stripe_customer": params.CustomerId,
+					"updated_at":      common.GetTimestamp(),
+				}).Error; err != nil {
+					return err
+				}
+			} else if err := tx.Model(&User{}).Where("id = ?", params.UserId).Update("stripe_customer", params.CustomerId).Error; err != nil {
 				return err
 			}
 		}
-		balanceAfter, err = GrantUserCreditsTx(tx, CreditGrantParams{
-			UserId:     params.UserId,
-			Amount:     quota,
-			SourceType: sourceType,
-			SourceId:   sourceId,
-			RequestId:  common.NewRequestID(),
-			Reason:     "stripe checkout topup completed",
+		_, err = GrantUserCreditsTx(tx, CreditGrantParams{
+			UserId:      params.UserId,
+			AccountType: account.Type,
+			AccountId:   account.Id,
+			Amount:      quota,
+			SourceType:  sourceType,
+			SourceId:    sourceId,
+			RequestId:   common.NewRequestID(),
+			Reason:      "stripe checkout topup completed",
 			Metadata: map[string]interface{}{
 				"fulfillment_id":          params.InvoiceId,
 				"invoice_id":              params.StripeInvoiceId,
@@ -149,7 +171,11 @@ func CompleteStripeInvoiceTopUp(params StripeInvoiceTopUpParams) (bool, error) {
 	if !created {
 		return false, nil
 	}
-	updateUserQuotaCacheAfterCommit(params.UserId, balanceAfter)
+	if account.IsPersonal() {
+		if balanceAfter, err := GetUserQuota(params.UserId, true); err == nil {
+			updateUserQuotaCacheAfterCommit(params.UserId, balanceAfter)
+		}
+	}
 
 	RecordTopupLog(
 		params.UserId,

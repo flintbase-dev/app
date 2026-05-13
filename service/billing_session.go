@@ -232,7 +232,7 @@ func (s *BillingSession) preConsume(c *gin.Context, quota int) *types.NewAPIErro
 func (s *BillingSession) reserveFunding(delta int) error {
 	switch funding := s.funding.(type) {
 	case *WalletFunding:
-		if err := model.ConsumeUserCreditsForRequest(funding.userId, delta, "relay.reserve", walletLedgerSourceId(funding.requestId, "reserve"), funding.requestId, map[string]interface{}{
+		if err := model.ConsumeAccountCreditsForRequest(funding.userId, funding.account, delta, "relay.reserve", walletLedgerSourceId(funding.requestId, "reserve"), funding.requestId, map[string]interface{}{
 			"model": funding.modelName,
 			"phase": "reserve",
 		}); err != nil {
@@ -259,7 +259,7 @@ func (s *BillingSession) reserveFunding(delta int) error {
 func (s *BillingSession) rollbackFundingReserve(delta int) {
 	switch funding := s.funding.(type) {
 	case *WalletFunding:
-		if err := model.RefundUserCreditsForRequest(funding.userId, delta, "relay.refund", walletLedgerSourceId(funding.requestId, "reserve_refund"), funding.requestId, map[string]interface{}{
+		if err := model.RefundAccountCreditsForRequest(funding.userId, funding.account, delta, "relay.refund", walletLedgerSourceId(funding.requestId, "reserve_refund"), funding.requestId, map[string]interface{}{
 			"model": funding.modelName,
 			"phase": "reserve_refund",
 		}); err != nil {
@@ -346,10 +346,27 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 	}
 
 	pref := common.NormalizeBillingPreference(relayInfo.UserSetting.BillingPreference)
+	accountType := relayInfo.AccountType
+	accountId := relayInfo.AccountId
+	if accountType == "" {
+		accountType = model.AccountTypePersonal
+	}
+	if accountId == "" {
+		accountId = relayInfo.UserId
+	}
+	account, accountErr := model.NormalizeAccountContext(accountType, accountId)
+	if accountErr != nil {
+		return nil, types.NewError(accountErr, types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+	}
+	relayInfo.AccountType = account.Type
+	relayInfo.AccountId = account.Id
+	if account.IsTeam() {
+		pref = "wallet_only"
+	}
 
 	// 钱包路径需要先检查用户额度
 	tryWallet := func() (*BillingSession, *types.NewAPIError) {
-		userQuota, err := model.GetUserQuota(relayInfo.UserId, false)
+		userQuota, err := model.GetAccountQuota(account)
 		if err != nil {
 			return nil, types.NewError(err, types.ErrorCodeQueryDataError, types.ErrOptionWithSkipRetry())
 		}
@@ -371,6 +388,7 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 			relayInfo: relayInfo,
 			funding: &WalletFunding{
 				userId:    relayInfo.UserId,
+				account:   account,
 				requestId: relayInfo.RequestId,
 				modelName: relayInfo.OriginModelName,
 			},

@@ -13,11 +13,22 @@ export async function POST(request: Request) {
     .getAll("ids")
     .map((id) => toText(id))
     .filter(Boolean);
+  const teamId = toText(formData.get("team_id"));
   if (ids.length === 0) throw new Error("No token ids selected");
-  const payload = await graphqlMutationFromRequest<{ deleteTokens: unknown }>(
+  const operation = teamId ? "deleteTeamTokens" : "deleteTokens";
+  const payload = await graphqlMutationFromRequest<Record<string, unknown>>(
     request,
-    [{ operation: "deleteTokens", input: { ids } }],
+    [
+      {
+        operation,
+        input: { ids, ...(teamId ? { team_id: teamId } : {}) },
+        ...(teamId ? { params: { team_id: teamId } } : {}),
+      },
+    ],
   );
-  assertApiSuccess(payload.deleteTokens);
-  return redirectTo(request, "/console/token");
+  assertApiSuccess(payload[operation]);
+  return redirectTo(
+    request,
+    teamId ? `/teams/${teamId}/console/token` : "/console/token",
+  );
 }

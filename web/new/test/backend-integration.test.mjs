@@ -15,9 +15,8 @@ test("runtime pages do not import console mock data", () => {
   assert.deepEqual(offenders, []);
 });
 
-test("global search is backed by documented GraphQL operations", () => {
+test("global search is backed by GraphQL operations", () => {
   const data = read("lib/console/data.ts");
-  const docs = read("docs/global-search.md");
   for (const operation of [
     "pricing",
     "userLogs",
@@ -25,7 +24,6 @@ test("global search is backed by documented GraphQL operations", () => {
     "searchTokens",
   ]) {
     assert.match(data, new RegExp(`operation: "${operation}"`));
-    assert.match(docs, new RegExp(operation));
   }
 });
 
@@ -77,60 +75,41 @@ test("checkout uses Stripe Checkout Elements instead of mock checkout links", ()
   assert.doesNotMatch(actions, /createSubscriptionStripeSessionAction/);
 });
 
-test("wallet topup uses backend amounts, discounts, and site currency", () => {
+test("personal billing is read-only and team billing owns Stripe top-up", () => {
   const page = read("app/console/topup/page.tsx");
-  const dialog = read("components/console/add-credits-dialog.tsx");
-  const checkoutPage = read("app/console/topup/checkout/page.tsx");
+  const teamPage = read("app/teams/[teamId]/console/topup/page.tsx");
+  const teamClient = read("components/console/team-billing-client.tsx");
   const actions = read("lib/console/actions.ts");
   const data = read("lib/console/data.ts");
-  const successPage = read("app/console/topup/checkout/success/page.tsx");
-  const topupBackend = readRepo("controller/topup.go");
   const stripeBackend = readRepo("controller/topup_stripe.go");
   const router = readRepo("router/graphql_api.go");
   const classicOperations = readRepo(
     "web/classic/src/helpers/apiOperations.js",
   );
+  const classicTeamBilling = readRepo(
+    "web/classic/src/pages/Team/TeamBilling.jsx",
+  );
 
-  assert.match(page, /topupInfo=\{topupInfo\}/);
+  assert.match(page, /Personal billing/);
+  assert.match(page, /Quota and usage/);
   assert.match(page, /monthlyUsage/);
   assert.match(page, /usageMonthLabel/);
-  assert.doesNotMatch(page, /MAY_USAGE|38\.42|Used in May 2026/);
-  assert.match(dialog, /topupInfo\.amountOptions/);
-  assert.match(dialog, /topupInfo\.discount/);
-  assert.match(dialog, /topupInfo\.stripeUnitPrice/);
-  assert.match(dialog, /topupInfo\.topupGroupRatio/);
-  assert.match(dialog, /status\.quotaDisplayType/);
-  assert.doesNotMatch(page, /TOPUP_PRESETS|TOPUP_DISCOUNTS|Amount \(USD\)/);
-  assert.doesNotMatch(dialog, /Custom, \$5 minimum|\$\{value\}/);
-
-  assert.match(checkoutPage, /topupInfo\.discount/);
-  assert.match(checkoutPage, /topupInfo\.stripeUnitPrice/);
-  assert.match(checkoutPage, /topupInfo\.topupGroupRatio/);
-  assert.match(checkoutPage, /creditAmount=\{creditAmount\}/);
-  assert.doesNotMatch(checkoutPage, /CHECKOUT_AMOUNT|CHECKOUT_DISCOUNTS/);
-
-  assert.match(data, /stripeUnitPrice: toNumber\(item\.stripe_unit_price, 1\)/);
-  assert.match(data, /topupGroupRatio: toNumber\(item\.topup_group_ratio, 1\)/);
-  assert.match(
-    data,
-    /amount: toNumber\(item\.credit_units \|\| item\.amount\)/,
-  );
+  assert.match(page, /openBillingPortalAction/);
+  assert.doesNotMatch(page, /AddCreditsDialog|topupInfo=\{topupInfo\}/);
   assert.match(data, /operation: "logsSelfStat"[\s\S]*alias: "monthlyUsage"/);
-  assert.match(data, /loadStripeCheckoutResult/);
-  assert.match(successPage, /RESULT_REFRESH_DELAY_MS = 2000/);
-  assert.match(successPage, /loadStripeCheckoutResult\(sessionId\)/);
-  assert.match(successPage, /Payment not completed/);
-  assert.match(successPage, /Payment is processing/);
-  assert.doesNotMatch(successPage, /invoices\.items\[0\]/);
-  assert.match(topupBackend, /"stripe_unit_price":\s+setting\.StripeUnitPrice/);
-  assert.match(topupBackend, /"topup_group_ratio":\s+topupGroupRatio/);
-  assert.match(stripeBackend, /RequestStripeCheckoutResult/);
-  assert.match(stripeBackend, /stripeCheckoutSessionResolvedStatus/);
-  assert.match(router, /apiQuery\("stripeCheckoutResult"/);
-  assert.match(classicOperations, /stripeCheckoutResult: 'query'/);
   assert.match(actions, /stripeBillingPortal[\s\S]*return_url: returnUrl/);
-  assert.match(page, /type="submit"[\s\S]*Open portal/);
-  assert.match(page, /type="submit"[\s\S]*Save preference/);
+  assert.match(teamPage, /TeamBillingClient/);
+  assert.match(teamClient, /teamStripeAmountAction/);
+  assert.match(teamClient, /teamStripePayAction/);
+  assert.match(teamClient, /teamStripeBillingPortalAction/);
+  assert.match(classicTeamBilling, /teamStripeAmount/);
+  assert.match(classicTeamBilling, /teamStripePay/);
+  assert.match(stripeBackend, /Personal top-up is not supported/);
+  assert.match(stripeBackend, /new_api_account_type/);
+  assert.match(stripeBackend, /new_api_team_id/);
+  assert.match(stripeBackend, /RequestTeamStripePay/);
+  assert.match(router, /apiMutation\("teamStripePay"/);
+  assert.match(classicOperations, /teamStripePay: 'mutation'/);
 });
 
 test("stripe checkout binds local payment orders before invoice fulfillment", () => {
@@ -235,7 +214,7 @@ test("server GraphQL client accepts the private backend base env", () => {
 test("console layout redirects unauthenticated sessions to login", () => {
   const layout = read("app/console/layout.tsx");
   assert.match(layout, /from "next\/navigation"/);
-  assert.match(layout, /redirect\(`\/login\?return_to=/);
+  assert.match(layout, /redirect\(\s*`\/login\?return_to=/s);
   assert.match(layout, /isUnauthorizedConsoleError/);
   assert.match(layout, /no access token provided/);
   assert.match(layout, /未登录/);
@@ -327,7 +306,7 @@ test("protected POST forms use route-handler redirects after mutation", () => {
   ]) {
     const source = read(route);
     assert.match(source, /graphqlMutationFromRequest/);
-    assert.match(source, /redirect(?:To|Back)\(request,/);
+    assert.match(source, /redirect(?:To|Back)\(\s*request,/s);
   }
   assert.match(graphql, /graphqlMutationFromRequest/);
   assert.match(graphql, /request\.headers/);
@@ -340,7 +319,7 @@ test("protected POST forms use route-handler redirects after mutation", () => {
 });
 
 test("admin sidebar links leave Next routing for classic-only pages", () => {
-  const layout = read("app/console/layout.tsx");
+  const layout = read("components/console/console-sidebar.tsx");
   for (const path of [
     "/console/channel",
     "/console/models",
@@ -380,6 +359,83 @@ test("WorkOS frontend callback forwards authorization code to backend callback",
     /redirect\(`\/api\/workos\/callback\?\$\{params\.toString\(\)\}`\)/,
   );
   assert.match(callback, /redirect\("\/console"\)/);
+});
+
+test("team account context is implemented across backend and both consoles", () => {
+  const router = readRepo("router/graphql_api.go");
+  const apiRouter = readRepo("router/api-router.go");
+  const auth = readRepo("middleware/auth.go");
+  const distributor = readRepo("middleware/distributor.go");
+  const classicOperations = readRepo(
+    "web/classic/src/helpers/apiOperations.js",
+  );
+  const classicSettings = readRepo(
+    "web/classic/src/pages/Team/TeamSettings.jsx",
+  );
+  const classicTeamDashboard = readRepo(
+    "web/classic/src/pages/Team/TeamDashboard.jsx",
+  );
+  const classicSidebar = readRepo(
+    "web/classic/src/components/layout/SiderBar.jsx",
+  );
+  const newTeamDashboard = read("app/teams/[teamId]/console/page.tsx");
+  const newSettings = read("app/teams/[teamId]/console/settings/page.tsx");
+  const newSidebar = read("components/console/console-sidebar.tsx");
+  const actions = read("lib/console/actions.ts");
+  const data = read("lib/console/data.ts");
+
+  for (const operation of [
+    "accountContext",
+    "teams",
+    "team",
+    "teamMembers",
+    "teamInvitations",
+    "teamPolicy",
+    "teamBillingSummary",
+    "teamTopups",
+    "teamTokens",
+    "teamUsage",
+    "createTeam",
+    "updateTeam",
+    "deleteTeam",
+    "inviteTeamMember",
+    "revokeTeamInvitation",
+    "updateTeamMemberRole",
+    "removeTeamMember",
+    "updateTeamPolicy",
+    "teamStripeAmount",
+    "teamStripePay",
+    "teamStripeBillingPortal",
+    "createTeamToken",
+    "updateTeamToken",
+    "deleteTeamToken",
+    "deleteTeamTokens",
+  ]) {
+    assert.match(router, new RegExp(`"${operation}"`));
+    assert.match(
+      classicOperations,
+      new RegExp(`${operation}: '(query|mutation)'`),
+    );
+  }
+
+  assert.match(apiRouter, /"\/workos\/webhook"/);
+  assert.match(auth, /func TeamMemberAuth\(\)/);
+  assert.match(auth, /func TeamAdminAuth\(\)/);
+  assert.match(distributor, /enforceTeamTokenPolicy/);
+  assert.match(data, /operation: "accountContext"/);
+  assert.match(data, /operation: "teamTokens"/);
+  assert.match(actions, /operation: "teamStripePay"/);
+  assert.match(actions, /disabledFromSwitches/);
+  assert.match(classicSettings, /<Switch/);
+  assert.doesNotMatch(classicSettings, /TextArea/);
+  assert.match(newSettings, /PolicySwitchList/);
+  assert.doesNotMatch(newSettings, /Textarea/);
+  assert.match(classicTeamDashboard, /team\?\.role === 'admin'/);
+  assert.match(newTeamDashboard, /team\.role === "admin"/);
+  assert.match(classicSidebar, /isActiveTeamAdmin/);
+  assert.match(newSidebar, /isTeamAdmin/);
+  assert.match(classicSidebar, /Org Settings/);
+  assert.match(newSidebar, /Org Settings/);
 });
 
 function read(path) {

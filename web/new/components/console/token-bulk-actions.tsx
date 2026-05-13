@@ -6,7 +6,13 @@ import { useTransition } from "react";
 import { Button } from "@/components/ui/button";
 import { revealTokenKeysBatchAction } from "@/lib/console/actions";
 
-export function TokenBulkCopyButton({ ids }: { ids: string[] }) {
+export function TokenBulkCopyButton({
+  ids,
+  teamId,
+}: {
+  ids: string[];
+  teamId?: string;
+}) {
   const [pending, startTransition] = useTransition();
   return (
     <Button
@@ -16,7 +22,7 @@ export function TokenBulkCopyButton({ ids }: { ids: string[] }) {
       type="button"
       onClick={() => {
         startTransition(async () => {
-          const keys = await revealTokenKeysBatchAction(ids);
+          const keys = await revealTokenKeysBatchAction(ids, teamId);
           await navigator.clipboard.writeText(
             keys.map((item) => `${item.id}: ${item.key}`).join("\n"),
           );

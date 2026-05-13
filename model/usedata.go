@@ -64,6 +64,10 @@ func GetQuotaDataByUsername(username string, startTime int64, endTime int64) (qu
 }
 
 func GetQuotaDataByUserId(userId string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
+	return GetQuotaDataByAccount(AccountTypePersonal, userId, startTime, endTime)
+}
+
+func GetQuotaDataByAccount(accountType string, accountId string, startTime int64, endTime int64) (quotaData []*QuotaData, err error) {
 	query, err := usageLogsQuery()
 	if err != nil {
 		return nil, err
@@ -71,7 +75,7 @@ func GetQuotaDataByUserId(userId string, startTime int64, endTime int64) (quotaD
 	bucketExpr := usageBucketExpr(3600)
 	query = query.
 		Select(fmt.Sprintf("user_id, any(username) AS username, model_name, %s AS bucket, sum(prompt_tokens + completion_tokens) AS token_used, count() AS count, sum(quota) AS quota", bucketExpr)).
-		Where("user_id = ?", userId).
+		Where("account_type = ? AND account_id = ?", accountType, accountId).
 		Group(fmt.Sprintf("user_id, model_name, %s", bucketExpr))
 	query = orderUsageBucketsAsc(query)
 	query = applyUsageTimeRange(query, startTime, endTime)

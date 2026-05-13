@@ -72,6 +72,41 @@ export type Token = {
   keyPreview: string;
 };
 
+export type Team = {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  role: "admin" | "member" | "";
+  balance: number;
+  used: number;
+};
+
+export type AccountContext = {
+  teams: Team[];
+};
+
+export type TeamMember = {
+  id: string;
+  teamId: string;
+  userId: string;
+  role: "admin" | "member";
+  status: string;
+};
+
+export type TeamInvitation = {
+  id: string;
+  email: string;
+  role: "admin" | "member";
+  status: string;
+};
+
+export type TeamPolicy = {
+  teamId: string;
+  disabledModels: string[];
+  disabledGroups: string[];
+};
+
 export type UserGroup = {
   name: string;
   ratio: string;

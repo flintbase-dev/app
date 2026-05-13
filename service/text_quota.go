@@ -357,7 +357,13 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 		extraContent = append(extraContent, "上游没有返回计费信息，无法扣费（可能是上游超时）")
 		logger.LogError(ctx, fmt.Sprintf("total tokens is 0, cannot consume quota, userId %s, channelId %s, tokenId %s, model %s， pre-consumed quota %d", relayInfo.UserId, relayInfo.ChannelId, relayInfo.TokenId, summary.ModelName, relayInfo.FinalPreConsumedQuota))
 	} else {
-		model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, summary.Quota)
+		account := model.PersonalAccountContext(relayInfo.UserId)
+		if relayInfo.AccountType != "" && relayInfo.AccountId != "" {
+			if normalized, err := model.NormalizeAccountContext(relayInfo.AccountType, relayInfo.AccountId); err == nil {
+				account = normalized
+			}
+		}
+		model.UpdateAccountUsedQuotaAndRequestCount(account, relayInfo.UserId, summary.Quota)
 		model.UpdateChannelUsedQuota(relayInfo.ChannelId, summary.Quota)
 	}
 
@@ -451,6 +457,8 @@ func PostTextConsumeQuota(ctx *gin.Context, relayInfo *relaycommon.RelayInfo, us
 	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
+		AccountType:      relayInfo.AccountType,
+		AccountId:        relayInfo.AccountId,
 		ChannelId:        relayInfo.ChannelId,
 		PromptTokens:     summary.PromptTokens,
 		CompletionTokens: summary.CompletionTokens,

@@ -177,7 +177,8 @@ func getGraphQLOperationEngine() (*gin.Engine, error) {
 				graphqlOperationEngineErr = fmt.Errorf("GraphQL API operation %s has no handler", op.Name)
 				return
 			}
-			handlers := append([]gin.HandlerFunc{}, op.Middlewares...)
+			handlers := []gin.HandlerFunc{graphQLOperationPrepare(op)}
+			handlers = append(handlers, op.Middlewares...)
 			handlers = append(handlers, graphQLOperationResolver(op))
 			engine.Handle(graphQLOperationHTTPMethod(op.Kind), "/"+op.Name, handlers...)
 		}
@@ -187,7 +188,7 @@ func getGraphQLOperationEngine() (*gin.Engine, error) {
 	return graphqlOperationEngine, graphqlOperationEngineErr
 }
 
-func graphQLOperationResolver(operation apiOperation) gin.HandlerFunc {
+func graphQLOperationPrepare(operation apiOperation) gin.HandlerFunc {
 	return func(c *gin.Context) {
 		payload, ok := c.Request.Context().Value(graphqlOperationPayloadKey{}).(graphqlOperationPayload)
 		if !ok {
@@ -195,10 +196,20 @@ func graphQLOperationResolver(operation apiOperation) gin.HandlerFunc {
 				"success": false,
 				"message": "missing GraphQL operation payload",
 			})
+			c.Abort()
 			return
 		}
 		applyGraphQLOperationResourceParams(c, operation, payload)
-		if c.IsAborted() {
+	}
+}
+
+func graphQLOperationResolver(operation apiOperation) gin.HandlerFunc {
+	return func(c *gin.Context) {
+		if _, ok := c.Request.Context().Value(graphqlOperationPayloadKey{}).(graphqlOperationPayload); !ok {
+			c.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "missing GraphQL operation payload",
+			})
 			return
 		}
 		operation.Handler(c)
@@ -538,6 +549,18 @@ func rootAuth() apiOperationOption {
 	return withMiddlewares(middleware.RootAuth())
 }
 
+func teamMemberAuth() apiOperationOption {
+	return withMiddlewares(middleware.TeamMemberAuth())
+}
+
+func teamAdminAuth() apiOperationOption {
+	return withMiddlewares(middleware.TeamAdminAuth())
+}
+
+func accountContextAuth() apiOperationOption {
+	return userAuth()
+}
+
 func userActivity(resourceType string) apiOperationOption {
 	return withMiddlewares(middleware.UserAuth(), middleware.ActivityMutation(resourceType))
 }
@@ -597,6 +620,33 @@ var graphqlAPIOperations = []apiOperation{
 	apiMutation("markInboxItemRead", controller.MarkInboxItemRead, userActivity("message")),
 	apiMutation("markAllInboxRead", controller.MarkAllInboxRead, userActivity("message")),
 	apiQuery("userModels", controller.GetUserModels, userActivity("user_self")),
+	apiQuery("accountContext", controller.GetAccountContext, accountContextAuth()),
+	apiQuery("teams", controller.GetTeams, userActivity("team")),
+	apiQuery("team", controller.GetTeam, teamMemberAuth(), withResourceParams("team_id")),
+	apiQuery("teamMembers", controller.GetTeamMembers, teamAdminAuth(), withResourceParams("team_id")),
+	apiQuery("teamInvitations", controller.GetTeamInvitations, teamAdminAuth(), withResourceParams("team_id")),
+	apiQuery("teamPolicy", controller.GetTeamPolicy, teamAdminAuth(), withResourceParams("team_id")),
+	apiQuery("teamBillingSummary", controller.GetTeamBillingSummary, teamAdminAuth(), withResourceParams("team_id")),
+	apiQuery("teamTopups", controller.GetTeamTopups, teamAdminAuth(), withResourceParams("team_id")),
+	apiQuery("teamTokens", controller.GetTeamTokens, teamMemberAuth(), withResourceParams("team_id")),
+	apiQuery("teamUsage", controller.GetTeamUsage, teamMemberAuth(), withResourceParams("team_id")),
+	apiMutation("createTeam", controller.CreateTeam, userActivity("team"), criticalRateLimit()),
+	apiMutation("updateTeam", controller.UpdateTeam, teamAdminAuth(), withResourceParams("team_id")),
+	apiMutation("deleteTeam", controller.DeleteTeam, teamAdminAuth(), criticalRateLimit(), withResourceParams("team_id")),
+	apiMutation("inviteTeamMember", controller.InviteTeamMember, teamAdminAuth(), criticalRateLimit(), withResourceParams("team_id")),
+	apiMutation("revokeTeamInvitation", controller.RevokeTeamInvitation, teamAdminAuth(), withResourceParams("team_id")),
+	apiMutation("updateTeamMemberRole", controller.UpdateTeamMemberRole, teamAdminAuth(), withResourceParams("team_id")),
+	apiMutation("removeTeamMember", controller.RemoveTeamMember, teamAdminAuth(), withResourceParams("team_id")),
+	apiMutation("updateTeamPolicy", controller.UpdateTeamPolicy, teamAdminAuth(), withResourceParams("team_id")),
+	apiMutation("teamStripeAmount", controller.RequestTeamStripeAmount, teamAdminAuth(), withResourceParams("team_id")),
+	apiMutation("teamStripePay", controller.RequestTeamStripePay, teamAdminAuth(), criticalRateLimit(), withResourceParams("team_id")),
+	apiMutation("teamStripeBillingPortal", controller.RequestTeamStripeBillingPortal, teamAdminAuth(), criticalRateLimit(), withResourceParams("team_id")),
+	apiMutation("createTeamToken", controller.CreateTeamToken, teamMemberAuth(), withResourceParams("team_id")),
+	apiMutation("updateTeamToken", controller.UpdateTeamToken, teamMemberAuth(), withResourceParams("team_id")),
+	apiMutation("deleteTeamToken", controller.DeleteTeamToken, teamMemberAuth(), withResourceParams("team_id", "id")),
+	apiMutation("deleteTeamTokens", controller.DeleteTeamTokens, teamMemberAuth(), withResourceParams("team_id")),
+	apiMutation("teamTokenKey", controller.GetTeamTokenKey, teamMemberAuth(), criticalRateLimit(), disableCache(), withResourceParams("team_id", "id")),
+	apiMutation("teamTokenKeysBatch", controller.GetTeamTokenKeysBatch, teamMemberAuth(), criticalRateLimit(), disableCache(), withResourceParams("team_id")),
 	apiMutation("generateAccessToken", controller.GenerateAccessToken, userActivity("user_self")),
 	apiQuery("affCode", controller.GetAffCode, userActivity("user_self")),
 	apiQuery("topupInfo", controller.GetTopUpInfo, userActivity("user_self")),

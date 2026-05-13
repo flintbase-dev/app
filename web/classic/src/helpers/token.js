@@ -24,8 +24,12 @@ import { API } from './api';
  * @param {number|string} tokenId
  * @returns {Promise<string>} 返回不带 sk- 前缀的真实 token key
  */
-export async function fetchTokenKey(tokenId) {
-  const response = await API.mutation('tokenKey', { id: tokenId });
+export async function fetchTokenKey(tokenId, options = {}) {
+  const teamId = options.teamId || '';
+  const response = await API.mutation(teamId ? 'teamTokenKey' : 'tokenKey', {
+    id: tokenId,
+    ...(teamId ? { team_id: teamId } : {}),
+  });
   const { success, data, message } = response.data || {};
   if (!success || !data?.key) {
     throw new Error(message || 'Failed to fetch token key');
@@ -38,10 +42,17 @@ export async function fetchTokenKey(tokenId) {
  * @param {number[]} tokenIds
  * @returns {Promise<Record<number, string>>} 返回 {id: key} map，key 不带 sk- 前缀
  */
-export async function fetchTokenKeysBatch(tokenIds) {
-  const response = await API.mutation('tokenKeysBatch', {
-    input: { ids: tokenIds },
-  });
+export async function fetchTokenKeysBatch(tokenIds, options = {}) {
+  const teamId = options.teamId || '';
+  const response = await API.mutation(
+    teamId ? 'teamTokenKeysBatch' : 'tokenKeysBatch',
+    {
+      input: {
+        ids: tokenIds,
+        ...(teamId ? { team_id: teamId } : {}),
+      },
+    },
+  );
   const { success, data, message } = response.data || {};
   if (!success || !data?.keys) {
     throw new Error(message || 'Failed to fetch token keys');

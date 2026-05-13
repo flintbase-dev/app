@@ -90,6 +90,7 @@ export function getLucideIcon(key, selected = false) {
     case 'messageManagement':
       return <Megaphone {...commonProps} color={iconColor} />;
     case 'setting':
+    case 'teamSettings':
       return <Settings {...commonProps} color={iconColor} />;
     default:
       return <CircleUser {...commonProps} color={iconColor} />;

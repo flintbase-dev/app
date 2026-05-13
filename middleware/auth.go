@@ -135,6 +135,9 @@ func authHelper(c *gin.Context, minRole int) {
 	c.Set("user_group", user.Group)
 	c.Set("use_access_token", useAccessToken)
 
+	if c.GetBool("skip_auth_next") {
+		return
+	}
 	c.Next()
 }
 
@@ -164,6 +167,60 @@ func AdminAuth() func(c *gin.Context) {
 func RootAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		authHelper(c, common.RoleRootUser)
+	}
+}
+
+func teamIdFromContext(c *gin.Context) string {
+	if teamId := strings.TrimSpace(c.Param("team_id")); teamId != "" {
+		return teamId
+	}
+	if teamId := strings.TrimSpace(c.Query("team_id")); teamId != "" {
+		return teamId
+	}
+	return strings.TrimSpace(c.Query("id"))
+}
+
+func TeamMemberAuth() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		c.Set("skip_auth_next", true)
+		authHelper(c, common.RoleCommonUser)
+		if c.IsAborted() {
+			return
+		}
+		teamId := teamIdFromContext(c)
+		membership, err := model.RequireTeamMember(teamId, c.GetString("id"))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "team membership required"})
+			c.Abort()
+			return
+		}
+		common.SetContextKey(c, constant.ContextKeyAccountType, model.AccountTypeTeam)
+		common.SetContextKey(c, constant.ContextKeyAccountId, teamId)
+		common.SetContextKey(c, constant.ContextKeyTeamId, teamId)
+		common.SetContextKey(c, constant.ContextKeyTeamRole, membership.Role)
+		c.Next()
+	}
+}
+
+func TeamAdminAuth() func(c *gin.Context) {
+	return func(c *gin.Context) {
+		c.Set("skip_auth_next", true)
+		authHelper(c, common.RoleCommonUser)
+		if c.IsAborted() {
+			return
+		}
+		teamId := teamIdFromContext(c)
+		membership, err := model.RequireTeamAdmin(teamId, c.GetString("id"))
+		if err != nil {
+			c.JSON(http.StatusOK, gin.H{"success": false, "message": "team admin permission required"})
+			c.Abort()
+			return
+		}
+		common.SetContextKey(c, constant.ContextKeyAccountType, model.AccountTypeTeam)
+		common.SetContextKey(c, constant.ContextKeyAccountId, teamId)
+		common.SetContextKey(c, constant.ContextKeyTeamId, teamId)
+		common.SetContextKey(c, constant.ContextKeyTeamRole, membership.Role)
+		c.Next()
 	}
 }
 
@@ -241,6 +298,11 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 				})
 			}
 			c.Abort()
+			return
+		}
+
+		if err := validateTokenAccountContext(c, token); err != nil {
+			abortWithOpenAiMessage(c, http.StatusForbidden, err.Error(), types.ErrorCodeAccessDenied)
 			return
 		}
 
@@ -337,6 +399,11 @@ func TokenAuth() func(c *gin.Context) {
 			return
 		}
 
+		if err := validateTokenAccountContext(c, token); err != nil {
+			abortWithOpenAiMessage(c, http.StatusForbidden, err.Error(), types.ErrorCodeAccessDenied)
+			return
+		}
+
 		allowIps := token.GetIpLimits()
 		if len(allowIps) > 0 {
 			clientIp := c.ClientIP()
@@ -399,10 +466,13 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	if token == nil {
 		return fmt.Errorf("token is nil")
 	}
+	token.NormalizeOwnership()
 	c.Set("id", token.UserId)
 	c.Set("token_id", token.Id)
 	c.Set("token_key", token.Key)
 	c.Set("token_name", token.Name)
+	common.SetContextKey(c, constant.ContextKeyAccountType, token.AccountType)
+	common.SetContextKey(c, constant.ContextKeyAccountId, token.AccountId)
 	c.Set("token_unlimited_quota", token.UnlimitedQuota)
 	if !token.UnlimitedQuota {
 		c.Set("token_quota", token.RemainQuota)
@@ -425,4 +495,38 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 		}
 	}
 	return nil
+}
+
+func validateTokenAccountContext(c *gin.Context, token *model.Token) error {
+	token.NormalizeOwnership()
+	switch token.AccountType {
+	case "", model.AccountTypePersonal:
+		token.AccountType = model.AccountTypePersonal
+		if token.AccountId == "" {
+			token.AccountId = token.UserId
+		}
+		common.SetContextKey(c, constant.ContextKeyAccountType, token.AccountType)
+		common.SetContextKey(c, constant.ContextKeyAccountId, token.AccountId)
+		return nil
+	case model.AccountTypeTeam:
+		team, err := model.GetTeamById(token.AccountId)
+		if err != nil {
+			return fmt.Errorf("team is not active")
+		}
+		creatorId := token.CreatedByUserId
+		if creatorId == "" {
+			creatorId = token.UserId
+		}
+		membership, err := model.GetTeamMembership(team.Id, creatorId)
+		if err != nil || membership.Status != model.MembershipActive {
+			return fmt.Errorf("token creator is not an active team member")
+		}
+		common.SetContextKey(c, constant.ContextKeyAccountType, model.AccountTypeTeam)
+		common.SetContextKey(c, constant.ContextKeyAccountId, team.Id)
+		common.SetContextKey(c, constant.ContextKeyTeamId, team.Id)
+		common.SetContextKey(c, constant.ContextKeyTeamRole, membership.Role)
+		return nil
+	default:
+		return fmt.Errorf("unsupported token account type")
+	}
 }

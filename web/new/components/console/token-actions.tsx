@@ -10,10 +10,12 @@ export function TokenSecretButton({
   tokenId,
   mode,
   connectionBase,
+  teamId,
 }: {
   tokenId: string;
   mode: "reveal" | "copy" | "connection";
   connectionBase?: string;
+  teamId?: string;
 }) {
   const [secret, setSecret] = useState("");
   const [copied, setCopied] = useState(false);
@@ -35,7 +37,7 @@ export function TokenSecretButton({
 
   function run() {
     startTransition(async () => {
-      const key = secret || (await revealTokenKeyAction(tokenId));
+      const key = secret || (await revealTokenKeyAction(tokenId, teamId));
       setSecret(key);
       if (mode === "copy" || mode === "connection") {
         const value =

@@ -81,6 +81,9 @@ type RelayInfo struct {
 	TokenKey          string
 	TokenGroup        string
 	UserId            string
+	AccountType       string
+	AccountId         string
+	TeamId            string
 	UsingGroup        string // 使用的分组，当auto跨分组重试时，会变动
 	UserGroup         string // 用户所在分组
 	TokenUnlimited    bool
@@ -233,8 +236,8 @@ func (info *RelayInfo) ToString() string {
 	fmt.Fprintf(b, "FinalPreConsumedQuota: %d, ", info.FinalPreConsumedQuota)
 
 	// User & token info (mask secrets)
-	fmt.Fprintf(b, "User{ Id: %s, Email: %q, Group: %q, UsingGroup: %q, Quota: %d }, ",
-		info.UserId, common.MaskEmail(info.UserEmail), info.UserGroup, info.UsingGroup, info.UserQuota)
+	fmt.Fprintf(b, "User{ Id: %s, Email: %q, Group: %q, UsingGroup: %q, Quota: %d, Account: %s:%s }, ",
+		info.UserId, common.MaskEmail(info.UserEmail), info.UserGroup, info.UsingGroup, info.UserQuota, info.AccountType, info.AccountId)
 	fmt.Fprintf(b, "Token{ Id: %s, Unlimited: %t, Key: ***masked*** }, ", info.TokenId, info.TokenUnlimited)
 
 	// Time info
@@ -383,12 +386,15 @@ func genBaseRelayInfo(c *gin.Context, request dto.Request) *RelayInfo {
 	info := &RelayInfo{
 		Request: request,
 
-		RequestId:  reqId,
-		UserId:     common.GetContextKeyString(c, constant.ContextKeyUserId),
-		UsingGroup: common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
-		UserGroup:  common.GetContextKeyString(c, constant.ContextKeyUserGroup),
-		UserQuota:  common.GetContextKeyInt(c, constant.ContextKeyUserQuota),
-		UserEmail:  common.GetContextKeyString(c, constant.ContextKeyUserEmail),
+		RequestId:   reqId,
+		UserId:      common.GetContextKeyString(c, constant.ContextKeyUserId),
+		AccountType: common.GetContextKeyString(c, constant.ContextKeyAccountType),
+		AccountId:   common.GetContextKeyString(c, constant.ContextKeyAccountId),
+		TeamId:      common.GetContextKeyString(c, constant.ContextKeyTeamId),
+		UsingGroup:  common.GetContextKeyString(c, constant.ContextKeyUsingGroup),
+		UserGroup:   common.GetContextKeyString(c, constant.ContextKeyUserGroup),
+		UserQuota:   common.GetContextKeyInt(c, constant.ContextKeyUserQuota),
+		UserEmail:   common.GetContextKeyString(c, constant.ContextKeyUserEmail),
 
 		OriginModelName: common.GetContextKeyString(c, constant.ContextKeyOriginalModel),
 

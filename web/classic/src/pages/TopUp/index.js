@@ -17,6 +17,6 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import TopUp from '../../components/topup';
+import TopUp from '../../components/topup/PersonalBilling';
 
 export default TopUp;

@@ -31,5 +31,6 @@ func SetApiRouter(router *gin.Engine) {
 	// External protocol callbacks stay as protocol endpoints. They are not
 	// browser data API routes and cannot be represented as GraphQL operations.
 	apiRouter.GET("/workos/callback", middleware.CriticalRateLimit(), controller.WorkOSCallback)
+	apiRouter.POST("/workos/webhook", controller.WorkOSWebhook)
 	apiRouter.POST("/stripe/webhook", controller.StripeWebhook)
 }
