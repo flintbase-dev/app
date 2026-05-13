@@ -23,6 +23,7 @@ import {
   Button,
   Card,
   Input,
+  InputNumber,
   Select,
   Skeleton,
   Space,
@@ -31,8 +32,22 @@ import {
   Tag,
   Typography,
 } from '@douyinfe/semi-ui';
-import { ArrowLeft, Send, Trash2 } from 'lucide-react';
-import { API, showError, showSuccess } from '../../helpers';
+import {
+  ArrowLeft,
+  CreditCard,
+  ExternalLink,
+  Send,
+  Trash2,
+} from 'lucide-react';
+import {
+  API,
+  formatSiteCurrency,
+  renderQuota,
+  renderQuotaWithAmount,
+  showError,
+  showSuccess,
+} from '../../helpers';
+import PaymentConfirmModal from '../../components/topup/modals/PaymentConfirmModal';
 
 const { Title, Text } = Typography;
 
@@ -42,6 +57,8 @@ const TeamSettings = () => {
   const [team, setTeam] = useState(null);
   const [members, setMembers] = useState([]);
   const [invitations, setInvitations] = useState([]);
+  const [billingSummary, setBillingSummary] = useState(null);
+  const [topupOrders, setTopupOrders] = useState([]);
   const [availableModels, setAvailableModels] = useState([]);
   const [availableGroups, setAvailableGroups] = useState([]);
   const [name, setName] = useState('');
@@ -49,6 +66,12 @@ const TeamSettings = () => {
   const [inviteRole, setInviteRole] = useState('member');
   const [disabledModels, setDisabledModels] = useState([]);
   const [disabledGroups, setDisabledGroups] = useState([]);
+  const [topUpCount, setTopUpCount] = useState(5);
+  const [amount, setAmount] = useState(0);
+  const [amountLoading, setAmountLoading] = useState(false);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  const [paymentSession, setPaymentSession] = useState(null);
+  const [confirmOpen, setConfirmOpen] = useState(false);
 
   const load = async () => {
     setLoading(true);
@@ -60,6 +83,8 @@ const TeamSettings = () => {
         policyRes,
         modelsRes,
         groupsRes,
+        billingRes,
+        topupsRes,
       ] = await Promise.all([
         API.query('team', { team_id: teamId }),
         API.query('teamMembers', { team_id: teamId }),
@@ -67,6 +92,8 @@ const TeamSettings = () => {
         API.query('teamPolicy', { team_id: teamId }),
         API.query('userModels'),
         API.query('selfGroups'),
+        API.query('teamBillingSummary', { team_id: teamId }),
+        API.query('teamTopups', { team_id: teamId }),
       ]);
       if (teamRes.data?.success) {
         setTeam(teamRes.data.data);
@@ -93,6 +120,8 @@ const TeamSettings = () => {
           })),
         );
       }
+      if (billingRes.data?.success) setBillingSummary(billingRes.data.data);
+      if (topupsRes.data?.success) setTopupOrders(topupsRes.data.data || []);
     } catch (error) {
       showError(error.message || 'Failed to load Team settings');
     } finally {
@@ -209,6 +238,64 @@ const TeamSettings = () => {
     );
   };
 
+  const getStripeAmount = async (value = topUpCount) => {
+    setAmountLoading(true);
+    try {
+      const res = await API.mutation('teamStripeAmount', {
+        team_id: teamId,
+        amount: Number(value),
+        payment_method: 'stripe',
+      });
+      if (res.data?.message === 'success') {
+        setAmount(Number(res.data.data || 0));
+        return true;
+      }
+      showError(res.data?.data || 'Failed to calculate Stripe amount');
+      return false;
+    } catch (error) {
+      showError(error.message || 'Failed to calculate Stripe amount');
+      return false;
+    } finally {
+      setAmountLoading(false);
+    }
+  };
+
+  const preTopUp = async () => {
+    setPaymentLoading(true);
+    try {
+      const amountOk = await getStripeAmount(topUpCount);
+      if (!amountOk) return;
+      const res = await API.mutation('teamStripePay', {
+        team_id: teamId,
+        amount: Number(topUpCount),
+        payment_method: 'stripe',
+        return_url: `${window.location.origin}/teams/${teamId}/console/settings?show_history=true&session_id={CHECKOUT_SESSION_ID}`,
+      });
+      if (res.data?.message === 'success') {
+        setPaymentSession(res.data.data);
+        setConfirmOpen(true);
+      } else {
+        showError(res.data?.data || 'Failed to start Stripe payment');
+      }
+    } catch (error) {
+      showError(error.message || 'Failed to start Stripe payment');
+    } finally {
+      setPaymentLoading(false);
+    }
+  };
+
+  const openBillingPortal = async () => {
+    const res = await API.mutation('teamStripeBillingPortal', {
+      team_id: teamId,
+      return_url: window.location.href,
+    });
+    if (res.data?.message === 'success' && res.data?.data?.url) {
+      window.location.assign(res.data.data.url);
+      return;
+    }
+    showError(res.data?.data || 'Billing portal is not available');
+  };
+
   const togglePolicyItem = (value, enabled, disabled, setDisabled) => {
     setDisabled(
       enabled
@@ -225,6 +312,9 @@ const TeamSettings = () => {
     () => new Set(disabledGroups),
     [disabledGroups],
   );
+
+  const quota = Number(billingSummary?.quota || 0);
+  const usedQuota = Number(billingSummary?.used_quota || 0);
 
   const memberColumns = useMemo(
     () => [
@@ -279,8 +369,41 @@ const TeamSettings = () => {
     },
   ];
 
+  const topupColumns = [
+    { title: 'Order', dataIndex: 'id' },
+    { title: 'Status', dataIndex: 'status' },
+    {
+      title: 'Credits',
+      render: (_, record) => renderQuota(record.credit_units || 0),
+    },
+    {
+      title: 'Paid',
+      render: (_, record) => formatSiteCurrency(record.money || 0, 2),
+    },
+  ];
+
   return (
     <div className='mt-[60px] px-2'>
+      <PaymentConfirmModal
+        t={(value) => value}
+        open={confirmOpen}
+        handleCancel={() => setConfirmOpen(false)}
+        topUpCount={topUpCount}
+        renderQuotaWithAmount={renderQuotaWithAmount}
+        amountLoading={amountLoading}
+        renderAmount={() => formatSiteCurrency(amount, 2)}
+        payWay='stripe'
+        stripePaymentOptions={[{ type: 'stripe', name: 'Stripe' }]}
+        amountNumber={amount}
+        discountRate={1}
+        paymentSession={paymentSession}
+        onPaymentSuccess={() => {
+          setConfirmOpen(false);
+          setPaymentSession(null);
+          showSuccess('Payment submitted');
+          load();
+        }}
+      />
       <Skeleton loading={loading} active>
         <div className='mb-4 flex items-center gap-2'>
           <Link to={`/teams/${teamId}/console`}>
@@ -336,6 +459,67 @@ const TeamSettings = () => {
             </Space>
           </Card>
         </div>
+        <div className='mt-4 grid grid-cols-1 gap-4 xl:grid-cols-3'>
+          <Card className='!rounded-xl xl:col-span-1'>
+            <Space vertical align='start' className='w-full'>
+              <Text strong>Billing management</Text>
+              <BillingMetric
+                title='Available balance'
+                value={renderQuota(quota)}
+              />
+              <BillingMetric
+                title='Used credit'
+                value={renderQuota(usedQuota)}
+              />
+              <BillingMetric
+                title='Total credit'
+                value={renderQuota(quota + usedQuota)}
+              />
+            </Space>
+          </Card>
+          <Card className='!rounded-xl xl:col-span-2'>
+            <Space vertical align='start' className='w-full'>
+              <div className='flex w-full flex-wrap items-center justify-between gap-3'>
+                <Text strong>Add credits</Text>
+                <Button
+                  icon={<ExternalLink size={16} />}
+                  onClick={openBillingPortal}
+                >
+                  Stripe portal
+                </Button>
+              </div>
+              <InputNumber
+                min={1}
+                value={topUpCount}
+                onChange={(value) => {
+                  setTopUpCount(Number(value || 1));
+                  getStripeAmount(Number(value || 1));
+                }}
+              />
+              <Text type='tertiary'>
+                Estimated charge: {formatSiteCurrency(amount, 2)}
+              </Text>
+              <Button
+                theme='solid'
+                icon={<CreditCard size={16} />}
+                loading={paymentLoading}
+                onClick={preTopUp}
+              >
+                Pay with Stripe
+              </Button>
+            </Space>
+          </Card>
+        </div>
+        <Card className='!rounded-xl mt-4'>
+          <Text strong>Team top-ups</Text>
+          <Table
+            className='mt-3'
+            rowKey='id'
+            columns={topupColumns}
+            dataSource={topupOrders}
+            pagination={false}
+          />
+        </Card>
         <Card className='!rounded-xl mt-4'>
           <Text strong>Members</Text>
           <Table
@@ -431,5 +615,14 @@ const TeamSettings = () => {
     </div>
   );
 };
+
+const BillingMetric = ({ title, value }) => (
+  <div>
+    <Text type='tertiary'>{title}</Text>
+    <Title heading={5} className='!mt-1 !mb-0'>
+      {value}
+    </Title>
+  </div>
+);
 
 export default TeamSettings;

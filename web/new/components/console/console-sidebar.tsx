@@ -136,9 +136,9 @@ export function ConsoleSidebar({
             label: "Account",
             items: [
               { label: "API keys", href: "/console/token", icon: Key },
+              { label: "Billing", href: "/console/topup", icon: Wallet },
               ...(isTeamAdmin
                 ? [
-                    { label: "Billing", href: "/console/topup", icon: Wallet },
                     {
                       label: "Settings",
                       href: "/console/settings",

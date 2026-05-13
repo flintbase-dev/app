@@ -448,7 +448,6 @@ export async function loadTeamBillingData(teamId: string) {
   const data = await graphqlQuery<{
     status: unknown;
     summary: unknown;
-    topups: unknown;
   }>([
     { operation: "status" },
     {
@@ -456,32 +455,34 @@ export async function loadTeamBillingData(teamId: string) {
       alias: "summary",
       params: { team_id: teamId },
     },
-    { operation: "teamTopups", alias: "topups", params: { team_id: teamId } },
   ]);
   const status = normalizeStatus(unwrapApiData(data.status, {}));
   const summary = asRecord(unwrapApiData(data.summary, {}));
+  const quota = creditsToMoney(summary.quota, status);
+  const used = creditsToMoney(summary.used_quota, status);
   return {
     status,
     summary: {
-      quota: creditsToMoney(summary.quota, status),
-      used: creditsToMoney(summary.used_quota, status),
-      stripeCustomer: toText(summary.stripe_customer),
+      quota,
+      used,
+      total: quota + used,
     },
-    topups: asArray(unwrapApiData(data.topups, [])).map((item) =>
-      normalizeInvoice(item, status),
-    ),
   };
 }
 
 export async function loadTeamSettingsData(teamId: string) {
   const data = await graphqlQuery<{
+    status: unknown;
     team: unknown;
     members: unknown;
     invitations: unknown;
     policy: unknown;
     groups: unknown;
     models: unknown;
+    summary: unknown;
+    topups: unknown;
   }>([
+    { operation: "status" },
     { operation: "team", params: { team_id: teamId } },
     { operation: "teamMembers", alias: "members", params: { team_id: teamId } },
     {
@@ -492,8 +493,19 @@ export async function loadTeamSettingsData(teamId: string) {
     { operation: "teamPolicy", alias: "policy", params: { team_id: teamId } },
     { operation: "selfGroups", alias: "groups" },
     { operation: "userModels", alias: "models" },
+    {
+      operation: "teamBillingSummary",
+      alias: "summary",
+      params: { team_id: teamId },
+    },
+    { operation: "teamTopups", alias: "topups", params: { team_id: teamId } },
   ]);
+  const status = normalizeStatus(unwrapApiData(data.status, {}));
+  const summary = asRecord(unwrapApiData(data.summary, {}));
+  const quota = creditsToMoney(summary.quota, status);
+  const used = creditsToMoney(summary.used_quota, status);
   return {
+    status,
     team: normalizeTeam(data.team),
     members: asArray(unwrapApiData(data.members, [])).map(normalizeTeamMember),
     invitations: asArray(unwrapApiData(data.invitations, [])).map(
@@ -502,6 +514,14 @@ export async function loadTeamSettingsData(teamId: string) {
     policy: normalizeTeamPolicy(data.policy),
     groups: normalizeGroups(unwrapApiData(data.groups, {})),
     models: asArray(unwrapApiData(data.models, [])).map((item) => toText(item)),
+    billingSummary: {
+      quota,
+      used,
+      total: quota + used,
+    },
+    topups: asArray(unwrapApiData(data.topups, [])).map((item) =>
+      normalizeInvoice(item, status),
+    ),
   };
 }
 

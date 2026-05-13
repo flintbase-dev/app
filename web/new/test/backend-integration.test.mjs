@@ -75,39 +75,70 @@ test("checkout uses Stripe Checkout Elements instead of mock checkout links", ()
   assert.doesNotMatch(actions, /createSubscriptionStripeSessionAction/);
 });
 
-test("personal billing is read-only and team billing owns Stripe top-up", () => {
+test("personal billing stays full-featured while team billing top-up is admin settings only", () => {
   const page = read("app/console/topup/page.tsx");
   const teamPage = read("app/teams/[teamId]/console/topup/page.tsx");
+  const teamSettings = read("app/teams/[teamId]/console/settings/page.tsx");
   const teamClient = read("components/console/team-billing-client.tsx");
   const actions = read("lib/console/actions.ts");
   const data = read("lib/console/data.ts");
   const stripeBackend = readRepo("controller/topup_stripe.go");
   const router = readRepo("router/graphql_api.go");
+  const classicTopupRoute = readRepo("web/classic/src/pages/TopUp/index.js");
   const classicOperations = readRepo(
     "web/classic/src/helpers/apiOperations.js",
   );
   const classicTeamBilling = readRepo(
     "web/classic/src/pages/Team/TeamBilling.jsx",
   );
+  const classicTeamSettings = readRepo(
+    "web/classic/src/pages/Team/TeamSettings.jsx",
+  );
 
-  assert.match(page, /Personal billing/);
-  assert.match(page, /Quota and usage/);
+  assert.match(page, /AddCreditsDialog/);
+  assert.match(page, /SubscriptionPayButton/);
+  assert.match(page, /topupInfo=\{topupInfo\}/);
   assert.match(page, /monthlyUsage/);
   assert.match(page, /usageMonthLabel/);
   assert.match(page, /openBillingPortalAction/);
-  assert.doesNotMatch(page, /AddCreditsDialog|topupInfo=\{topupInfo\}/);
+  assert.match(page, /updateBillingPreferenceAction/);
+  assert.match(classicTopupRoute, /components\/topup';/);
+  assert.doesNotMatch(classicTopupRoute, /PersonalBilling/);
   assert.match(data, /operation: "logsSelfStat"[\s\S]*alias: "monthlyUsage"/);
   assert.match(actions, /stripeBillingPortal[\s\S]*return_url: returnUrl/);
-  assert.match(teamPage, /TeamBillingClient/);
+  assert.match(actions, /operation: "stripePay"/);
+  assert.doesNotMatch(teamPage, /TeamBillingClient/);
+  assert.doesNotMatch(
+    teamPage,
+    /teamStripePayAction|Stripe portal|Add Team credits|Pay with Stripe/,
+  );
+  assert.match(teamPage, /Available balance/);
+  assert.match(teamPage, /Used credit/);
+  assert.match(teamSettings, /TeamBillingClient/);
   assert.match(teamClient, /teamStripeAmountAction/);
   assert.match(teamClient, /teamStripePayAction/);
   assert.match(teamClient, /teamStripeBillingPortalAction/);
-  assert.match(classicTeamBilling, /teamStripeAmount/);
-  assert.match(classicTeamBilling, /teamStripePay/);
-  assert.match(stripeBackend, /Personal top-up is not supported/);
+  assert.doesNotMatch(
+    classicTeamBilling,
+    /teamStripeAmount|teamStripePay|teamStripeBillingPortal/,
+  );
+  assert.match(classicTeamBilling, /Available balance/);
+  assert.match(classicTeamBilling, /Used credit/);
+  assert.match(classicTeamSettings, /teamStripeAmount/);
+  assert.match(classicTeamSettings, /teamStripePay/);
+  assert.match(classicTeamSettings, /teamStripeBillingPortal/);
+  assert.doesNotMatch(stripeBackend, /Personal top-up is not supported/);
   assert.match(stripeBackend, /new_api_account_type/);
   assert.match(stripeBackend, /new_api_team_id/);
   assert.match(stripeBackend, /RequestTeamStripePay/);
+  assert.match(
+    router,
+    /apiQuery\("teamBillingSummary", controller\.GetTeamBillingSummary, teamMemberAuth\(\)/,
+  );
+  assert.match(
+    router,
+    /apiQuery\("teamTopups", controller\.GetTeamTopups, teamAdminAuth\(\)/,
+  );
   assert.match(router, /apiMutation\("teamStripePay"/);
   assert.match(classicOperations, /teamStripePay: 'mutation'/);
 });

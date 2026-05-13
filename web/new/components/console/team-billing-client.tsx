@@ -134,7 +134,7 @@ export function TeamBillingClient({
         const next = await teamStripePayAction(
           teamId,
           numeric,
-          `${globalThis.location.origin}/teams/${teamId}/console/topup?session_id={CHECKOUT_SESSION_ID}`,
+          `${globalThis.location.origin}/teams/${teamId}/console/settings?session_id={CHECKOUT_SESSION_ID}`,
         );
         setSession(next || null);
       } catch (error) {

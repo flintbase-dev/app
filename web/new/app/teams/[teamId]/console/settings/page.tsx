@@ -1,6 +1,8 @@
 import { ArrowLeft, Send, Trash2 } from "lucide-react";
 import Link from "next/link";
 
+import { TeamBillingClient } from "@/components/console/team-billing-client";
+import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -21,6 +23,7 @@ import {
   updateTeamPolicyAction,
 } from "@/lib/console/actions";
 import { loadTeamSettingsData } from "@/lib/console/data";
+import { fmtMoney, fmtRelative } from "@/lib/console/format";
 import { cn } from "@/lib/utils";
 
 export default async function TeamSettingsPage({
@@ -29,8 +32,17 @@ export default async function TeamSettingsPage({
   params: Promise<{ teamId: string }>;
 }) {
   const { teamId } = await params;
-  const { team, members, invitations, policy, models, groups } =
-    await loadTeamSettingsData(teamId);
+  const {
+    status,
+    team,
+    members,
+    invitations,
+    policy,
+    models,
+    groups,
+    billingSummary,
+    topups,
+  } = await loadTeamSettingsData(teamId);
   const base = `/teams/${teamId}/console`;
   const disabledModels = new Set(policy.disabledModels);
   const disabledGroups = new Set(policy.disabledGroups);
@@ -99,6 +111,72 @@ export default async function TeamSettingsPage({
             </CardContent>
           </Card>
         </div>
+
+        <div className="mt-4 grid gap-4 lg:grid-cols-[22rem_1fr]">
+          <Card>
+            <CardContent className="py-5">
+              <p className="text-sm font-medium">Billing management</p>
+              <div className="mt-4 grid gap-3">
+                <BillingMetric
+                  label="Available balance"
+                  value={fmtMoney(billingSummary.quota, status)}
+                />
+                <BillingMetric
+                  label="Used credit"
+                  value={fmtMoney(billingSummary.used, status)}
+                />
+                <BillingMetric
+                  label="Total credit"
+                  value={fmtMoney(billingSummary.total, status)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+          <TeamBillingClient teamId={teamId} status={status} />
+        </div>
+
+        <Card className="mt-4 overflow-hidden p-0">
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Order</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead className="text-right">Credits</TableHead>
+                <TableHead className="text-right">Paid</TableHead>
+                <TableHead>Created</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {topups.map((invoice) => (
+                <TableRow key={invoice.id}>
+                  <TableCell>
+                    <code className="font-mono text-xs">
+                      {invoice.reference || invoice.id}
+                    </code>
+                  </TableCell>
+                  <TableCell>
+                    <Badge
+                      variant={
+                        invoice.status === "completed" ? "success" : "outline"
+                      }
+                    >
+                      {invoice.status}
+                    </Badge>
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    {fmtMoney(invoice.creditUnits, status)}
+                  </TableCell>
+                  <TableCell className="text-right font-mono">
+                    {fmtMoney(invoice.money, status)}
+                  </TableCell>
+                  <TableCell className="text-xs text-muted-foreground">
+                    {invoice.ts ? fmtRelative(invoice.ts) : "new"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </Card>
 
         <Card className="mt-4">
           <CardContent className="py-5">
@@ -246,6 +324,17 @@ export default async function TeamSettingsPage({
           </CardContent>
         </Card>
       </div>
+    </div>
+  );
+}
+
+function BillingMetric({ label, value }: { label: string; value: string }) {
+  return (
+    <div>
+      <p className="truncate text-[10px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
+        {label}
+      </p>
+      <p className="mt-1 font-mono text-lg font-medium tabular-nums">{value}</p>
     </div>
   );
 }

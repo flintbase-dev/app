@@ -128,20 +128,22 @@ const SiderBar = ({ onNavigate = () => {} }) => {
 
   const financeItems = useMemo(() => {
     const items = activeTeamId
-      ? isActiveTeamAdmin
-        ? [
-            {
-              text: t('Team Billing'),
-              itemKey: 'topup',
-              to: '/topup',
-            },
-            {
-              text: t('Team Settings'),
-              itemKey: 'teamSettings',
-              to: '/settings',
-            },
-          ]
-        : []
+      ? [
+          {
+            text: t('Team Billing'),
+            itemKey: 'topup',
+            to: '/topup',
+          },
+          ...(isActiveTeamAdmin
+            ? [
+                {
+                  text: t('Team Settings'),
+                  itemKey: 'teamSettings',
+                  to: '/settings',
+                },
+              ]
+            : []),
+        ]
       : [
           {
             text: t('Billing'),

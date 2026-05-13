@@ -582,7 +582,7 @@ func UpdateTeamPolicy(c *gin.Context) {
 
 func GetTeamBillingSummary(c *gin.Context) {
 	teamId := teamIdFromRequest(c)
-	if _, ok := requireTeamAdminContext(c, teamId); !ok {
+	if _, ok := requireTeamMemberContext(c, teamId); !ok {
 		return
 	}
 	team, err := model.GetTeamById(teamId)
@@ -591,10 +591,9 @@ func GetTeamBillingSummary(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, gin.H{
-		"team_id":         team.Id,
-		"quota":           team.Quota,
-		"used_quota":      team.UsedQuota,
-		"stripe_customer": team.StripeCustomer,
+		"team_id":    team.Id,
+		"quota":      team.Quota,
+		"used_quota": team.UsedQuota,
 	})
 }
 

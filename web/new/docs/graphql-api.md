@@ -12,7 +12,7 @@
 | Backend registry | `router/graphql_api.go` |
 | Frontend manifest | `web/classic/src/helpers/apiOperations.js` |
 | Generator | `web/classic/scripts/generate-graphql-api-doc.mjs` |
-| Source hash | `38a60d8aa2b0a39b` |
+| Source hash | `ef6cf69718f47f1c` |
 | Operations | `177` total, `81` queries, `96` mutations |
 | Frontend parity | `verified` |
 
@@ -263,7 +263,7 @@ query Setup($input: JSON, $params: JSON) {
 | `teamMembers` | `public` | `teamAdminAuth()` | - | `team_id` | `controller.GetTeamMembers` | `teamAdminAuth()`, `withResourceParams("team_id")` | `router/graphql_api.go:626` |
 | `teamInvitations` | `public` | `teamAdminAuth()` | - | `team_id` | `controller.GetTeamInvitations` | `teamAdminAuth()`, `withResourceParams("team_id")` | `router/graphql_api.go:627` |
 | `teamPolicy` | `public` | `teamAdminAuth()` | - | `team_id` | `controller.GetTeamPolicy` | `teamAdminAuth()`, `withResourceParams("team_id")` | `router/graphql_api.go:628` |
-| `teamBillingSummary` | `public` | `teamAdminAuth()` | - | `team_id` | `controller.GetTeamBillingSummary` | `teamAdminAuth()`, `withResourceParams("team_id")` | `router/graphql_api.go:629` |
+| `teamBillingSummary` | `public` | `teamMemberAuth()` | - | `team_id` | `controller.GetTeamBillingSummary` | `teamMemberAuth()`, `withResourceParams("team_id")` | `router/graphql_api.go:629` |
 | `teamTopups` | `public` | `teamAdminAuth()` | - | `team_id` | `controller.GetTeamTopups` | `teamAdminAuth()`, `withResourceParams("team_id")` | `router/graphql_api.go:630` |
 | `teamTokens` | `public` | `teamMemberAuth()` | - | `team_id` | `controller.GetTeamTokens` | `teamMemberAuth()`, `withResourceParams("team_id")` | `router/graphql_api.go:631` |
 | `teamToken` | `public` | `teamMemberAuth()` | - | `team_id`, `id` | `controller.GetTeamToken` | `teamMemberAuth()`, `withResourceParams("team_id", "id")` | `router/graphql_api.go:632` |

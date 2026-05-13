@@ -107,19 +107,17 @@ const TeamDashboard = () => {
             href={`${base}/log`}
             title='Usage logs'
           />
+          <QuickLink
+            icon={<CreditCard size={18} />}
+            href={`${base}/topup`}
+            title='Team billing'
+          />
           {isTeamAdmin ? (
-            <>
-              <QuickLink
-                icon={<CreditCard size={18} />}
-                href={`${base}/topup`}
-                title='Team billing'
-              />
-              <QuickLink
-                icon={<Settings size={18} />}
-                href={`${base}/settings`}
-                title='Team settings'
-              />
-            </>
+            <QuickLink
+              icon={<Settings size={18} />}
+              href={`${base}/settings`}
+              title='Team settings'
+            />
           ) : null}
         </Row>
       </Skeleton>

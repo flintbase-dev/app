@@ -41,19 +41,13 @@ export default async function TeamDashboardPage({
         <div className="mt-6 grid gap-3 md:grid-cols-4">
           <QuickLink href={`${base}/token`} icon={KeyRound} label="API keys" />
           <QuickLink href={`${base}/log`} icon={ScrollText} label="Usage" />
+          <QuickLink href={`${base}/topup`} icon={CreditCard} label="Billing" />
           {isTeamAdmin ? (
-            <>
-              <QuickLink
-                href={`${base}/topup`}
-                icon={CreditCard}
-                label="Billing"
-              />
-              <QuickLink
-                href={`${base}/settings`}
-                icon={Settings}
-                label="Settings"
-              />
-            </>
+            <QuickLink
+              href={`${base}/settings`}
+              icon={Settings}
+              label="Settings"
+            />
           ) : null}
         </div>
 
