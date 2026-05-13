@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import {
   Button,
@@ -73,7 +73,7 @@ const TeamSettings = () => {
   const [paymentSession, setPaymentSession] = useState(null);
   const [confirmOpen, setConfirmOpen] = useState(false);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const [
@@ -127,11 +127,11 @@ const TeamSettings = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [teamId]);
 
   useEffect(() => {
     if (teamId) load();
-  }, [teamId]);
+  }, [teamId, load]);
 
   const runTeamMutation = async (
     operation,
@@ -285,15 +285,19 @@ const TeamSettings = () => {
   };
 
   const openBillingPortal = async () => {
-    const res = await API.mutation('teamStripeBillingPortal', {
-      team_id: teamId,
-      return_url: window.location.href,
-    });
-    if (res.data?.message === 'success' && res.data?.data?.url) {
-      window.location.assign(res.data.data.url);
-      return;
+    try {
+      const res = await API.mutation('teamStripeBillingPortal', {
+        team_id: teamId,
+        return_url: window.location.href,
+      });
+      if (res.data?.message === 'success' && res.data?.data?.url) {
+        window.location.assign(res.data.data.url);
+        return;
+      }
+      showError(res.data?.data || 'Billing portal is not available');
+    } catch (error) {
+      showError(error.message || 'Billing portal is not available');
     }
-    showError(res.data?.data || 'Billing portal is not available');
   };
 
   const togglePolicyItem = (value, enabled, disabled, setDisabled) => {

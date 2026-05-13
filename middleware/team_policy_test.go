@@ -12,6 +12,17 @@ import (
 )
 
 func TestEnforceTeamTokenPolicyRejectsDisabledModelAndGroup(t *testing.T) {
+	prevGinMode := gin.Mode()
+	prevRedisEnabled := common.RedisEnabled
+	prevDB := model.DB
+	prevLogDB := model.LOG_DB
+	t.Cleanup(func() {
+		gin.SetMode(prevGinMode)
+		common.RedisEnabled = prevRedisEnabled
+		model.DB = prevDB
+		model.LOG_DB = prevLogDB
+	})
+
 	gin.SetMode(gin.TestMode)
 	common.RedisEnabled = false
 	db := testdb.OpenAndReset(t)

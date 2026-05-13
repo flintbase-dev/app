@@ -17,7 +17,7 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import React, { useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { Card, Col, Row, Skeleton, Typography } from '@douyinfe/semi-ui';
 import { API, renderQuota, showError } from '../../helpers';
@@ -29,7 +29,7 @@ const TeamBilling = () => {
   const [loading, setLoading] = useState(true);
   const [summary, setSummary] = useState(null);
 
-  const load = async () => {
+  const load = useCallback(async () => {
     setLoading(true);
     try {
       const res = await API.query('teamBillingSummary', { team_id: teamId });
@@ -39,11 +39,11 @@ const TeamBilling = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [teamId]);
 
   useEffect(() => {
     if (teamId) load();
-  }, [teamId]);
+  }, [teamId, load]);
 
   const quota = Number(summary?.quota || 0);
   const usedQuota = Number(summary?.used_quota || 0);

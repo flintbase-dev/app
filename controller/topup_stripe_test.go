@@ -1,10 +1,13 @@
 package controller
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/model"
+	"github.com/gin-gonic/gin"
 	"github.com/stripe/stripe-go/v85"
 )
 
@@ -68,6 +71,29 @@ func TestRenderStripeCheckoutTextUsesConfiguredTemplate(t *testing.T) {
 	want := "Wallet credits: 100 units / 150 / CNY / tester / spo_test"
 	if got != want {
 		t.Fatalf("rendered text = %q, want %q", got, want)
+	}
+}
+
+func TestTeamIdFromStripeRequestPrefersBodyThenRouteThenQuery(t *testing.T) {
+	prevGinMode := gin.Mode()
+	t.Cleanup(func() {
+		gin.SetMode(prevGinMode)
+	})
+	gin.SetMode(gin.TestMode)
+
+	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/?team_id=team_query", nil)
+	ctx.Params = gin.Params{{Key: "team_id", Value: "team_route"}}
+	if got := teamIdFromStripeRequest(ctx, "team_body"); got != "team_body" {
+		t.Fatalf("team id = %q, want body team id", got)
+	}
+	if got := teamIdFromStripeRequest(ctx, ""); got != "team_route" {
+		t.Fatalf("team id = %q, want route team id", got)
+	}
+
+	ctx.Params = nil
+	if got := teamIdFromStripeRequest(ctx, ""); got != "team_query" {
+		t.Fatalf("team id = %q, want query team id", got)
 	}
 }
 

@@ -319,6 +319,7 @@ func RequestTeamStripeAmount(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
 		return
 	}
+	req.TeamId = teamIdFromStripeRequest(c, req.TeamId)
 	if _, err := model.RequireTeamAdmin(req.TeamId, c.GetString("id")); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Team admin permission required"})
 		return
@@ -338,6 +339,7 @@ func RequestTeamStripePay(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
 		return
 	}
+	req.TeamId = teamIdFromStripeRequest(c, req.TeamId)
 	if _, err := model.RequireTeamAdmin(req.TeamId, c.GetString("id")); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Team admin permission required"})
 		return
@@ -355,6 +357,7 @@ func RequestTeamStripeBillingPortal(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "参数错误"})
 		return
 	}
+	req.TeamId = teamIdFromStripeRequest(c, req.TeamId)
 	if _, err := model.RequireTeamAdmin(req.TeamId, c.GetString("id")); err != nil {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Team admin permission required"})
 		return
@@ -379,6 +382,16 @@ func RequestTeamStripeBillingPortal(c *gin.Context) {
 		return
 	}
 	c.JSON(http.StatusOK, gin.H{"message": "success", "data": gin.H{"url": session.URL}})
+}
+
+func teamIdFromStripeRequest(c *gin.Context, bodyTeamId string) string {
+	if teamId := strings.TrimSpace(bodyTeamId); teamId != "" {
+		return teamId
+	}
+	if teamId := strings.TrimSpace(c.Param("team_id")); teamId != "" {
+		return teamId
+	}
+	return strings.TrimSpace(c.Query("team_id"))
 }
 
 func StripeWebhook(c *gin.Context) {
@@ -943,24 +956,93 @@ func createStripeCustomerForAccount(ctx context.Context, user *model.User, accou
 			}
 			return "", err
 		}
+		if strings.TrimSpace(team.StripeCustomer) != "" {
+			return team.StripeCustomer, nil
+		}
+		if existing, err := findStripeCustomerForAccount(ctx, account); err == nil && existing != "" {
+			persistedCustomer, err := persistTeamStripeCustomer(account.Id, existing)
+			if err != nil {
+				return "", err
+			}
+			return persistedCustomer, nil
+		} else if err != nil {
+			logger.LogWarn(ctx, fmt.Sprintf("Stripe Customer account lookup failed account_type=%s account_id=%s error=%q", account.Type, account.Id, err.Error()))
+		}
 		params.Name = stripe.String(team.Name)
 		params.Metadata[stripeMetadataTeamIDKey] = team.Id
+		params.SetIdempotencyKey(fmt.Sprintf("new-api-customer-%s-%s", account.Type, account.Id))
 	}
 	cus, err := customer.New(params)
 	if err != nil {
 		return "", err
 	}
 	if account.IsTeam() {
-		if err := model.DB.Model(&model.Team{}).Where("id = ?", account.Id).Updates(map[string]interface{}{
-			"stripe_customer": cus.ID,
-			"updated_at":      common.GetTimestamp(),
-		}).Error; err != nil {
+		persistedCustomer, err := persistTeamStripeCustomer(account.Id, cus.ID)
+		if err != nil {
 			logger.LogWarn(ctx, fmt.Sprintf("Stripe Customer created but team save failed team_id=%s customer_id=%s error=%q", account.Id, cus.ID, err.Error()))
+			if _, delErr := customer.Del(cus.ID, nil); delErr != nil {
+				logger.LogWarn(ctx, fmt.Sprintf("Stripe Customer cleanup failed after team save error team_id=%s customer_id=%s error=%q", account.Id, cus.ID, delErr.Error()))
+			}
 			return "", err
 		}
-		return cus.ID, nil
+		if persistedCustomer != cus.ID {
+			if _, delErr := customer.Del(cus.ID, nil); delErr != nil {
+				logger.LogWarn(ctx, fmt.Sprintf("Stripe Customer cleanup failed after concurrent team customer save team_id=%s customer_id=%s persisted_customer_id=%s error=%q", account.Id, cus.ID, persistedCustomer, delErr.Error()))
+			}
+			return persistedCustomer, nil
+		}
+		return persistedCustomer, nil
 	}
 	return cus.ID, nil
+}
+
+func findStripeCustomerForAccount(ctx context.Context, account model.AccountContext) (string, error) {
+	query := fmt.Sprintf("metadata['%s']:'%s' AND metadata['%s']:'%s'",
+		stripeMetadataAccountTypeKey,
+		stripeSearchEscape(account.Type),
+		stripeMetadataAccountIDKey,
+		stripeSearchEscape(account.Id),
+	)
+	iter := customer.Search(&stripe.CustomerSearchParams{
+		SearchParams: stripe.SearchParams{
+			Context: ctx,
+			Query:   query,
+			Limit:   stripe.Int64(1),
+			Single:  true,
+		},
+	})
+	if iter.Next() {
+		cus := iter.Customer()
+		if cus != nil && !cus.Deleted {
+			return cus.ID, nil
+		}
+	}
+	return "", iter.Err()
+}
+
+func persistTeamStripeCustomer(teamId string, customerId string) (string, error) {
+	result := model.DB.Model(&model.Team{}).Where("id = ? AND stripe_customer = ''", teamId).Updates(map[string]interface{}{
+		"stripe_customer": customerId,
+		"updated_at":      common.GetTimestamp(),
+	})
+	if result.Error != nil {
+		return "", result.Error
+	}
+	if result.RowsAffected > 0 {
+		return customerId, nil
+	}
+	var team model.Team
+	if err := model.DB.Select("stripe_customer").Where("id = ?", teamId).First(&team).Error; err != nil {
+		return "", err
+	}
+	if strings.TrimSpace(team.StripeCustomer) != "" {
+		return team.StripeCustomer, nil
+	}
+	return "", errors.New("team stripe customer was not persisted")
+}
+
+func stripeSearchEscape(value string) string {
+	return strings.NewReplacer(`\`, `\\`, `'`, `\'`).Replace(value)
 }
 
 func stripeCustomerRequiresCheckoutDetails(cus *stripe.Customer) bool {

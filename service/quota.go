@@ -15,6 +15,9 @@ import (
 )
 
 func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
+	if relayInfo == nil {
+		return errors.New("relay info is nil")
+	}
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
@@ -39,9 +42,12 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 }
 
 func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int, sendEmail bool) (err error) {
+	if relayInfo == nil {
+		return errors.New("relay info is nil")
+	}
 
 	// 1) Consume from wallet quota OR subscription item
-	if relayInfo != nil && relayInfo.BillingSource == BillingSourceSubscription {
+	if relayInfo.BillingSource == BillingSourceSubscription {
 		if common.IsEmptyID(relayInfo.SubscriptionId) {
 			return errors.New("subscription id is missing")
 		}
@@ -59,7 +65,8 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 			if normalized, normalizeErr := model.NormalizeAccountContext(relayInfo.AccountType, relayInfo.AccountId); normalizeErr == nil {
 				account = normalized
 			} else {
-				common.SysLog(fmt.Sprintf("quota: account normalization failed, falling back to personal user_id=%s account_type=%s account_id=%s request_id=%s error=%v", relayInfo.UserId, relayInfo.AccountType, relayInfo.AccountId, relayInfo.RequestId, normalizeErr))
+				common.SysLog(fmt.Sprintf("quota: account normalization failed user_id=%s account_type=%s account_id=%s request_id=%s error=%v", relayInfo.UserId, relayInfo.AccountType, relayInfo.AccountId, relayInfo.RequestId, normalizeErr))
+				return fmt.Errorf("invalid account context: account_type=%s account_id=%s request_id=%s: %w", relayInfo.AccountType, relayInfo.AccountId, relayInfo.RequestId, normalizeErr)
 			}
 		}
 		if quota > 0 {

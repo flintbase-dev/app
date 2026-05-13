@@ -498,26 +498,40 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 }
 
 func validateTokenAccountContext(c *gin.Context, token *model.Token) error {
-	token.NormalizeOwnership()
+	if token == nil {
+		return fmt.Errorf("token is nil")
+	}
+	token.UserId = strings.TrimSpace(token.UserId)
+	token.CreatedByUserId = strings.TrimSpace(token.CreatedByUserId)
+	token.AccountType = strings.TrimSpace(token.AccountType)
+	token.AccountId = strings.TrimSpace(token.AccountId)
+	if token.UserId == "" {
+		return fmt.Errorf("token user id is required")
+	}
+	if token.AccountType == "" || token.AccountId == "" {
+		return fmt.Errorf("token account ownership is required")
+	}
+	account, err := model.NormalizeAccountContext(token.AccountType, token.AccountId)
+	if err != nil {
+		return err
+	}
 	switch token.AccountType {
-	case "", model.AccountTypePersonal:
-		token.AccountType = model.AccountTypePersonal
-		if token.AccountId == "" {
-			token.AccountId = token.UserId
+	case model.AccountTypePersonal:
+		if account.Id != token.UserId {
+			return fmt.Errorf("personal token account does not match token user")
 		}
-		common.SetContextKey(c, constant.ContextKeyAccountType, token.AccountType)
-		common.SetContextKey(c, constant.ContextKeyAccountId, token.AccountId)
+		common.SetContextKey(c, constant.ContextKeyAccountType, account.Type)
+		common.SetContextKey(c, constant.ContextKeyAccountId, account.Id)
 		return nil
 	case model.AccountTypeTeam:
-		team, err := model.GetTeamById(token.AccountId)
+		if token.CreatedByUserId == "" {
+			return fmt.Errorf("team token creator is required")
+		}
+		team, err := model.GetTeamById(account.Id)
 		if err != nil {
 			return fmt.Errorf("team is not active")
 		}
-		creatorId := token.CreatedByUserId
-		if creatorId == "" {
-			creatorId = token.UserId
-		}
-		membership, err := model.GetTeamMembership(team.Id, creatorId)
+		membership, err := model.GetTeamMembership(team.Id, token.CreatedByUserId)
 		if err != nil || membership.Status != model.MembershipActive {
 			return fmt.Errorf("token creator is not an active team member")
 		}

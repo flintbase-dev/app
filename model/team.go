@@ -353,7 +353,7 @@ func GetTeamById(teamId string) (*Team, error) {
 
 func GetTeamByWorkOSOrganizationId(workOSOrganizationId string) (*Team, error) {
 	var team Team
-	if err := DB.First(&team, "workos_organization_id = ?", strings.TrimSpace(workOSOrganizationId)).Error; err != nil {
+	if err := DB.First(&team, "workos_organization_id = ? AND status = ?", strings.TrimSpace(workOSOrganizationId), TeamStatusActive).Error; err != nil {
 		return nil, err
 	}
 	return &team, nil
@@ -599,6 +599,18 @@ func activeAdminCountTx(tx *gorm.DB, teamId string) (int64, error) {
 	return count, err
 }
 
+func lockActiveAdminMembershipsTx(tx *gorm.DB, teamId string) (int64, error) {
+	var admins []TeamMembership
+	err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Where("team_id = ? AND role = ? AND status = ?", teamId, TeamRoleAdmin, MembershipActive).
+		Order("id ASC").
+		Find(&admins).Error
+	if err != nil {
+		return 0, err
+	}
+	return int64(len(admins)), nil
+}
+
 func UpdateTeamMemberRole(teamId string, targetUserId string, role string) error {
 	role, err := normalizeTeamRole(role)
 	if err != nil {
@@ -610,7 +622,7 @@ func UpdateTeamMemberRole(teamId string, targetUserId string, role string) error
 			return err
 		}
 		if membership.Role == TeamRoleAdmin && role != TeamRoleAdmin && membership.Status == MembershipActive {
-			count, err := activeAdminCountTx(tx, teamId)
+			count, err := lockActiveAdminMembershipsTx(tx, teamId)
 			if err != nil {
 				return err
 			}
@@ -653,7 +665,7 @@ func RemoveTeamMember(teamId string, targetUserId string) error {
 			return err
 		}
 		if membership.Role == TeamRoleAdmin && membership.Status == MembershipActive {
-			count, err := activeAdminCountTx(tx, teamId)
+			count, err := lockActiveAdminMembershipsTx(tx, teamId)
 			if err != nil {
 				return err
 			}
