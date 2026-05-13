@@ -333,6 +333,10 @@ test("protected POST forms use route-handler redirects after mutation", () => {
   assert.match(graphql, /request\.headers/);
   assert.match(redirects, /NextResponse\.redirect/);
   assert.match(redirects, /, 303\)/);
+  assert.match(redirects, /x-forwarded-host/);
+  assert.match(redirects, /x-forwarded-proto/);
+  assert.doesNotMatch(redirects, /new URL\(path,\s*request\.url\)/);
+  assert.doesNotMatch(redirects, /new URL\(fallbackPath,\s*request\.url\)/);
 });
 
 test("admin sidebar links leave Next routing for classic-only pages", () => {

@@ -74,14 +74,47 @@ func newFrontendProxy(rawURL string) *httputil.ReverseProxy {
 	proxy := httputil.NewSingleHostReverseProxy(target)
 	originalDirector := proxy.Director
 	proxy.Director = func(req *http.Request) {
+		forwardedHost := requestHost(req)
+		forwardedProto := requestProto(req)
 		originalDirector(req)
 		req.Header.Set("Accept-Encoding", "identity")
+		if forwardedHost != "" {
+			req.Header.Set("X-Forwarded-Host", forwardedHost)
+		}
+		if forwardedProto != "" {
+			req.Header.Set("X-Forwarded-Proto", forwardedProto)
+		}
 	}
 	proxy.ErrorHandler = func(w http.ResponseWriter, _ *http.Request, err error) {
 		common.SysError("web/new frontend proxy error: " + err.Error())
 		http.Error(w, "web/new frontend is unavailable", http.StatusBadGateway)
 	}
 	return proxy
+}
+
+func requestHost(req *http.Request) string {
+	if host := firstHeaderValue(req.Header.Get("X-Forwarded-Host")); host != "" {
+		return host
+	}
+	return req.Host
+}
+
+func requestProto(req *http.Request) string {
+	if proto := firstHeaderValue(req.Header.Get("X-Forwarded-Proto")); proto != "" {
+		return proto
+	}
+	if req.TLS != nil {
+		return "https"
+	}
+	return "http"
+}
+
+func firstHeaderValue(value string) string {
+	if value == "" {
+		return ""
+	}
+	first, _, _ := strings.Cut(value, ",")
+	return strings.TrimSpace(first)
 }
 
 func handleUISwitch(c *gin.Context) {

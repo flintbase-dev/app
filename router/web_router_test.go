@@ -168,6 +168,39 @@ func TestWebRouterRequestsIdentityEncodingFromNewFrontend(t *testing.T) {
 	require.Equal(t, "new:/console", string(body))
 }
 
+func TestWebRouterForwardsBrowserOriginToNewFrontend(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	upstreamHeaders := make(chan http.Header, 1)
+	upstream := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		upstreamHeaders <- r.Header.Clone()
+		_, _ = w.Write([]byte("ok"))
+	}))
+	defer upstream.Close()
+
+	router := gin.New()
+	SetWebRouter(router, WebAssets{
+		ClassicBuildFS:   testClassicFS,
+		ClassicIndexPage: testClassicIndex,
+		NewFrontendURL:   upstream.URL,
+	})
+	server := httptest.NewServer(router)
+	defer server.Close()
+
+	request, err := http.NewRequest(http.MethodPost, server.URL+"/console/token/actions/create", nil)
+	require.NoError(t, err)
+	request.Host = "127.0.0.1:3000"
+	request.Header.Set("X-Forwarded-Host", "app.example.test")
+	request.Header.Set("X-Forwarded-Proto", "https")
+	response, err := http.DefaultClient.Do(request)
+	require.NoError(t, err)
+	defer response.Body.Close()
+
+	require.Equal(t, http.StatusOK, response.StatusCode)
+	headers := <-upstreamHeaders
+	require.Equal(t, "app.example.test", headers.Get("X-Forwarded-Host"))
+	require.Equal(t, "https", headers.Get("X-Forwarded-Proto"))
+}
+
 func TestPrepareWebNewStandaloneAssetsLinksBuildAssets(t *testing.T) {
 	root := t.TempDir()
 	standaloneDir := filepath.Join(root, "web", "new", ".next", "standalone")

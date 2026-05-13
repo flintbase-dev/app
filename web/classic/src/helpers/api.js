@@ -151,10 +151,31 @@ function createGraphQLAPI() {
           `GraphQL redirect operation ${operation} returned no location`,
         );
       }
-      window.location.assign(location);
+      window.location.assign(normalizeRedirectLocation(location));
       return response;
     },
   };
+}
+
+function normalizeRedirectLocation(location) {
+  try {
+    const target = new URL(location, window.location.origin);
+    if (
+      target.origin === window.location.origin ||
+      isLoopbackHost(target.hostname)
+    ) {
+      return `${target.pathname}${target.search}${target.hash}`;
+    }
+  } catch {
+    return location;
+  }
+  return location;
+}
+
+function isLoopbackHost(hostname) {
+  return (
+    hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1'
+  );
 }
 
 export { API_OPERATIONS };

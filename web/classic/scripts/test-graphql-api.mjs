@@ -12,6 +12,10 @@ const backendSource = fs.readFileSync(
   path.join(appRoot, 'router/graphql_api.go'),
   'utf8',
 );
+const classicAPIHelper = fs.readFileSync(
+  path.join(frontendRoot, 'src/helpers/api.js'),
+  'utf8',
+);
 
 const backendOperations = {};
 const operationPattern = /\bapi(Query|Mutation)\(\s*"([^"]+)"/g;
@@ -105,6 +109,16 @@ for (const filePath of sourceFiles) {
       `REST-style GraphQL path variables remain in ${path.relative(frontendRoot, filePath)}`,
     );
   }
+}
+
+if (!/normalizeRedirectLocation/.test(classicAPIHelper)) {
+  fail(
+    'Classic GraphQL redirect helper must normalize browser-local redirects',
+  );
+}
+
+if (!/isLoopbackHost/.test(classicAPIHelper)) {
+  fail('Classic GraphQL redirect helper must avoid loopback redirect leaks');
 }
 
 if (process.exitCode) {
