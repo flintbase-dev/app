@@ -368,7 +368,7 @@ func RequestTeamStripeBillingPortal(c *gin.Context) {
 		return
 	}
 	team, err := model.GetTeamById(req.TeamId)
-	if err != nil || strings.TrimSpace(team.StripeCustomer) == "" {
+	if err != nil || team == nil || strings.TrimSpace(team.StripeCustomer) == "" {
 		c.JSON(http.StatusOK, gin.H{"message": "error", "data": "Team has no Stripe customer"})
 		return
 	}
@@ -945,7 +945,10 @@ func createStripeCustomerForAccount(ctx context.Context, user *model.User, accou
 	}
 	if account.IsTeam() {
 		team, err := model.GetTeamById(account.Id)
-		if err != nil {
+		if err != nil || team == nil {
+			if err == nil {
+				err = fmt.Errorf("team not found")
+			}
 			return "", err
 		}
 		params.Name = stripe.String(team.Name)

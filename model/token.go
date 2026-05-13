@@ -46,9 +46,7 @@ func (token *Token) NormalizeOwnership() {
 		token.AccountType = AccountTypePersonal
 	}
 	if token.AccountId == "" {
-		if token.AccountType == AccountTypeTeam {
-			token.AccountId = token.UserId
-		} else {
+		if token.AccountType == AccountTypePersonal {
 			token.AccountId = token.CreatedByUserId
 		}
 	}

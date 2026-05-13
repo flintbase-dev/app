@@ -852,7 +852,8 @@ export const useLogsData = (teamId = '') => {
     const localPageSize =
       parseInt(localStorage.getItem('page-size')) || ITEMS_PER_PAGE;
     setPageSize(localPageSize);
-    loadLogs(activePage, localPageSize)
+    setActivePage(1);
+    loadLogs(1, localPageSize)
       .then()
       .catch((reason) => {
         showError(reason);
@@ -864,7 +865,7 @@ export const useLogsData = (teamId = '') => {
     if (formApi) {
       handleEyeClick();
     }
-  }, [formApi]);
+  }, [formApi, teamId]);
 
   // Check if any record has expandable content
   const hasExpandableRows = () => {

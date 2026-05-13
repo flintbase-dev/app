@@ -34,19 +34,19 @@ func NormalizeAccountContext(accountType string, accountId string) (AccountConte
 		ctx.Type = AccountTypePersonal
 	}
 	if ctx.Id == "" {
-		return ctx, errors.New("account id is required")
+		return AccountContext{}, errors.New("account id is required")
 	}
 	switch ctx.Type {
 	case AccountTypePersonal:
 		if !common.IsTypedID(ctx.Id, "usr") {
-			return ctx, errors.New("personal account id must be a user id")
+			return AccountContext{}, errors.New("personal account id must be a user id")
 		}
 	case AccountTypeTeam:
 		if !common.IsTypedID(ctx.Id, "team") {
-			return ctx, errors.New("team account id must be a team id")
+			return AccountContext{}, errors.New("team account id must be a team id")
 		}
 	default:
-		return ctx, errors.New("unsupported account type")
+		return AccountContext{}, errors.New("unsupported account type")
 	}
 	return ctx, nil
 }

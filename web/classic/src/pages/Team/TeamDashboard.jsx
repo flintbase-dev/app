@@ -41,13 +41,23 @@ const TeamDashboard = () => {
   useEffect(() => {
     const load = async () => {
       setLoading(true);
+      setTeam(null);
+      setTokens({ total: 0, items: [] });
       try {
         const [teamRes, tokensRes] = await Promise.all([
           API.query('team', { team_id: teamId }),
           API.query('teamTokens', { team_id: teamId, p: 1, page_size: 5 }),
         ]);
-        if (teamRes.data?.success) setTeam(teamRes.data.data);
-        if (tokensRes.data?.success) setTokens(tokensRes.data.data || tokens);
+        if (teamRes.data?.success) {
+          setTeam(teamRes.data.data);
+        } else {
+          showError(teamRes.data?.message || 'Failed to load team');
+        }
+        if (tokensRes.data?.success) {
+          setTokens(tokensRes.data.data || { total: 0, items: [] });
+        } else {
+          showError(tokensRes.data?.message || 'Failed to load team tokens');
+        }
       } catch (error) {
         showError(error.message || 'Failed to load team dashboard');
       } finally {

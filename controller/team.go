@@ -3,6 +3,7 @@ package controller
 import (
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
 	"strconv"
@@ -15,12 +16,15 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
+const maxWorkOSWebhookPayloadBytes int64 = 1 << 20
+
 type teamIdRequest struct {
 	TeamId string `json:"team_id"`
 	Id     string `json:"id"`
 }
 
 func WorkOSWebhook(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxWorkOSWebhookPayloadBytes)
 	payload, err := io.ReadAll(c.Request.Body)
 	if err != nil {
 		c.AbortWithStatus(http.StatusServiceUnavailable)
@@ -161,6 +165,8 @@ type teamTokenBatch struct {
 	Ids    []string `json:"ids"`
 }
 
+// teamIdFromRequest falls back to JSON binding, which consumes the request body.
+// Callers that need to bind another JSON payload should bind it before using this helper.
 func teamIdFromRequest(c *gin.Context) string {
 	if id := strings.TrimSpace(c.Param("team_id")); id != "" {
 		return id
@@ -450,8 +456,8 @@ func RevokeTeamInvitation(c *gin.Context) {
 	if _, ok := requireTeamAdminContext(c, req.TeamId); !ok {
 		return
 	}
-	var invitation model.TeamInvitation
-	if err := model.DB.First(&invitation, "id = ? AND team_id = ?", req.InvitationId, req.TeamId).Error; err != nil {
+	invitation, err := model.GetTeamInvitationById(req.InvitationId, req.TeamId)
+	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
@@ -619,8 +625,12 @@ func GetTeamTokens(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	total, _ := model.CountVisibleAccountTokens(account, currentUserId(c), allowAll)
-	pageInfo.SetTotal(int(total))
+	total, err := model.CountVisibleAccountTokens(account, currentUserId(c), allowAll)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("failed to count team tokens team_id=%s user_id=%s error=%v", teamId, currentUserId(c), err))
+	} else {
+		pageInfo.SetTotal(int(total))
+	}
 	pageInfo.SetItems(buildMaskedTokenResponses(tokens))
 	common.ApiSuccess(c, pageInfo)
 }
@@ -705,6 +715,28 @@ func CreateTeamToken(c *gin.Context) {
 	common.ApiSuccess(c, buildMaskedTokenResponse(&cleanToken))
 }
 
+func GetTeamToken(c *gin.Context) {
+	teamId := teamIdFromRequest(c)
+	membership, ok := requireTeamMemberContext(c, teamId)
+	if !ok {
+		return
+	}
+	tokenId := strings.TrimSpace(c.Param("id"))
+	if tokenId == "" {
+		tokenId = strings.TrimSpace(c.Query("id"))
+	}
+	token, err := model.GetTokenByIdForAccount(tokenId, model.TeamAccountContext(teamId))
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if membership.Role != model.TeamRoleAdmin && token.CreatedByUserId != currentUserId(c) {
+		common.ApiError(c, errors.New("team members can only view their own team tokens"))
+		return
+	}
+	common.ApiSuccess(c, buildMaskedTokenResponse(token))
+}
+
 func UpdateTeamToken(c *gin.Context) {
 	var req struct {
 		model.Token
@@ -740,16 +772,30 @@ func UpdateTeamToken(c *gin.Context) {
 		common.ApiError(c, errors.New("team members can only update their own team tokens"))
 		return
 	}
-	cleanToken.Name = token.Name
-	cleanToken.Status = token.Status
-	cleanToken.ExpiredTime = token.ExpiredTime
-	cleanToken.RemainQuota = token.RemainQuota
-	cleanToken.UnlimitedQuota = token.UnlimitedQuota
-	cleanToken.ModelLimitsEnabled = token.ModelLimitsEnabled
-	cleanToken.ModelLimits = token.ModelLimits
-	cleanToken.AllowIps = token.AllowIps
-	cleanToken.Group = token.Group
-	cleanToken.CrossGroupRetry = token.CrossGroupRetry
+	if token.Status == common.TokenStatusEnabled {
+		if cleanToken.Status == common.TokenStatusExpired && cleanToken.ExpiredTime <= common.GetTimestamp() && cleanToken.ExpiredTime != -1 {
+			common.ApiError(c, errors.New("expired team token cannot be enabled"))
+			return
+		}
+		if cleanToken.Status == common.TokenStatusExhausted && cleanToken.RemainQuota <= 0 && !cleanToken.UnlimitedQuota {
+			common.ApiError(c, errors.New("exhausted team token cannot be enabled"))
+			return
+		}
+	}
+	if c.Query("status_only") != "" {
+		cleanToken.Status = token.Status
+	} else {
+		cleanToken.Name = token.Name
+		cleanToken.Status = token.Status
+		cleanToken.ExpiredTime = token.ExpiredTime
+		cleanToken.RemainQuota = token.RemainQuota
+		cleanToken.UnlimitedQuota = token.UnlimitedQuota
+		cleanToken.ModelLimitsEnabled = token.ModelLimitsEnabled
+		cleanToken.ModelLimits = token.ModelLimits
+		cleanToken.AllowIps = token.AllowIps
+		cleanToken.Group = token.Group
+		cleanToken.CrossGroupRetry = token.CrossGroupRetry
+	}
 	if err := cleanToken.Update(); err != nil {
 		common.ApiError(c, err)
 		return

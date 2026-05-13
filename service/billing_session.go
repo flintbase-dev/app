@@ -352,7 +352,11 @@ func NewBillingSession(c *gin.Context, relayInfo *relaycommon.RelayInfo, preCons
 		accountType = model.AccountTypePersonal
 	}
 	if accountId == "" {
-		accountId = relayInfo.UserId
+		if accountType == model.AccountTypePersonal {
+			accountId = relayInfo.UserId
+		} else if accountType == model.AccountTypeTeam {
+			return nil, types.NewError(fmt.Errorf("team account id is required"), types.ErrorCodeInvalidRequest, types.ErrOptionWithSkipRetry())
+		}
 	}
 	account, accountErr := model.NormalizeAccountContext(accountType, accountId)
 	if accountErr != nil {

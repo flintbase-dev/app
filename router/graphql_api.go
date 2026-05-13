@@ -629,6 +629,7 @@ var graphqlAPIOperations = []apiOperation{
 	apiQuery("teamBillingSummary", controller.GetTeamBillingSummary, teamAdminAuth(), withResourceParams("team_id")),
 	apiQuery("teamTopups", controller.GetTeamTopups, teamAdminAuth(), withResourceParams("team_id")),
 	apiQuery("teamTokens", controller.GetTeamTokens, teamMemberAuth(), withResourceParams("team_id")),
+	apiQuery("teamToken", controller.GetTeamToken, teamMemberAuth(), withResourceParams("team_id", "id")),
 	apiQuery("teamUsage", controller.GetTeamUsage, teamMemberAuth(), withResourceParams("team_id")),
 	apiMutation("createTeam", controller.CreateTeam, userActivity("team"), criticalRateLimit()),
 	apiMutation("updateTeam", controller.UpdateTeam, teamAdminAuth(), withResourceParams("team_id")),

@@ -108,7 +108,7 @@ CREATE TABLE teams (
     workos_organization_id TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
-    created_by_user_id VARCHAR(32) NOT NULL REFERENCES users(id),
+    created_by_user_id VARCHAR(32) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     stripe_customer VARCHAR(128) DEFAULT '',
     quota BIGINT DEFAULT 0,
     used_quota BIGINT DEFAULT 0,
@@ -149,7 +149,7 @@ CREATE TABLE team_invitations (
     workos_invitation_id TEXT NOT NULL UNIQUE,
     status VARCHAR(32) NOT NULL,
     invited_by_user_id VARCHAR(32) NOT NULL REFERENCES users(id),
-    accepted_by_user_id VARCHAR(32),
+    accepted_by_user_id VARCHAR(32) REFERENCES users(id) ON DELETE SET NULL,
     expires_at BIGINT DEFAULT 0,
     created_at BIGINT NOT NULL,
     updated_at BIGINT NOT NULL

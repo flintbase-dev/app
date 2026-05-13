@@ -177,7 +177,7 @@ func teamIdFromContext(c *gin.Context) string {
 	if teamId := strings.TrimSpace(c.Query("team_id")); teamId != "" {
 		return teamId
 	}
-	return strings.TrimSpace(c.Query("id"))
+	return ""
 }
 
 func TeamMemberAuth() func(c *gin.Context) {

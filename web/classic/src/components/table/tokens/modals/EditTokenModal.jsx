@@ -156,8 +156,9 @@ const EditTokenModal = (props) => {
 
   const loadToken = async () => {
     setLoading(true);
-    let res = await API.query('token', {
+    let res = await API.query(props.teamId ? 'teamToken' : 'token', {
       id: props.editingToken.id,
+      ...(props.teamId ? { team_id: props.teamId } : {}),
     });
     const { success, message, data } = res.data;
     if (success) {

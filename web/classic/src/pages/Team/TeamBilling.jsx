@@ -83,9 +83,14 @@ const TeamBilling = () => {
       });
       if (res.data?.message === 'success') {
         setAmount(Number(res.data.data || 0));
+        return true;
       } else {
         showError(res.data?.data || 'Failed to calculate Stripe amount');
+        return false;
       }
+    } catch (error) {
+      showError(error.message || 'Failed to calculate Stripe amount');
+      return false;
     } finally {
       setAmountLoading(false);
     }
@@ -94,7 +99,8 @@ const TeamBilling = () => {
   const preTopUp = async () => {
     setPaymentLoading(true);
     try {
-      await getStripeAmount(topUpCount);
+      const amountOk = await getStripeAmount(topUpCount);
+      if (!amountOk) return;
       const res = await API.mutation('teamStripePay', {
         team_id: teamId,
         amount: Number(topUpCount),
@@ -107,6 +113,8 @@ const TeamBilling = () => {
       } else {
         showError(res.data?.data || 'Failed to start Stripe payment');
       }
+    } catch (error) {
+      showError(error.message || 'Failed to start Stripe payment');
     } finally {
       setPaymentLoading(false);
     }

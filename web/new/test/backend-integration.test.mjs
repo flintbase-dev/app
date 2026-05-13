@@ -394,6 +394,7 @@ test("team account context is implemented across backend and both consoles", () 
     "teamBillingSummary",
     "teamTopups",
     "teamTokens",
+    "teamToken",
     "teamUsage",
     "createTeam",
     "updateTeam",
@@ -424,6 +425,7 @@ test("team account context is implemented across backend and both consoles", () 
   assert.match(distributor, /enforceTeamTokenPolicy/);
   assert.match(data, /operation: "accountContext"/);
   assert.match(data, /operation: "teamTokens"/);
+  assert.match(data, /operation: "teamToken"/);
   assert.match(actions, /operation: "teamStripePay"/);
   assert.match(actions, /disabledFromSwitches/);
   assert.match(classicSettings, /<Switch/);

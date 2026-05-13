@@ -124,36 +124,72 @@ export function TeamBillingClient({
   const startPayment = () => {
     startTransition(async () => {
       setMessage("");
+      setPaymentComplete(false);
       const numeric = Number(amount || 0);
-      const next = await teamStripePayAction(
-        teamId,
-        numeric,
-        `${globalThis.location.origin}/teams/${teamId}/console/topup?session_id={CHECKOUT_SESSION_ID}`,
-      );
-      setSession(next);
+      if (!Number.isFinite(numeric) || numeric <= 0) {
+        setMessage("Enter a valid amount greater than 0.");
+        return;
+      }
+      try {
+        const next = await teamStripePayAction(
+          teamId,
+          numeric,
+          `${globalThis.location.origin}/teams/${teamId}/console/topup?session_id={CHECKOUT_SESSION_ID}`,
+        );
+        setSession(next || null);
+      } catch (error) {
+        setSession(null);
+        setMessage(
+          error instanceof Error ? error.message : "Unable to start payment",
+        );
+      }
     });
   };
 
   const confirmPayment = () => {
     startTransition(async () => {
-      const result = await actionsRef.current?.confirm({
-        redirect: "if_required",
-      });
-      setMessage(
-        result
-          ? "Payment submitted. Billing will refresh after Stripe confirms it."
-          : "Payment was not submitted.",
-      );
+      try {
+        if (!actionsRef.current) {
+          setMessage("Payment form is not ready.");
+          return;
+        }
+        const result = await actionsRef.current.confirm({
+          redirect: "if_required",
+        });
+        setMessage(
+          result
+            ? "Payment submitted. Billing will refresh after Stripe confirms it."
+            : "Payment was not submitted.",
+        );
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Payment confirmation failed",
+        );
+      }
     });
   };
 
   const openPortal = () => {
     startTransition(async () => {
-      const url = await teamStripeBillingPortalAction(
-        teamId,
-        globalThis.location.href,
-      );
-      if (url) globalThis.location.assign(url);
+      try {
+        const url = await teamStripeBillingPortalAction(
+          teamId,
+          globalThis.location.href,
+        );
+        if (url) {
+          globalThis.location.assign(url);
+          return;
+        }
+        setMessage("Billing portal is not available.");
+      } catch (error) {
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Unable to open billing portal",
+        );
+      }
     });
   };
 

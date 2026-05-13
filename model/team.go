@@ -308,13 +308,21 @@ func CountTeamsCreatedByUser(userId string) (int64, error) {
 }
 
 func CountActiveTeamMemberships(userId string) (int64, error) {
+	return countActiveTeamMembershipsTx(DB, userId)
+}
+
+func countActiveTeamMembershipsTx(tx *gorm.DB, userId string) (int64, error) {
 	var count int64
-	err := DB.Model(&TeamMembership{}).Where("user_id = ? AND status = ?", userId, MembershipActive).Count(&count).Error
+	err := tx.Model(&TeamMembership{}).Where("user_id = ? AND status = ?", userId, MembershipActive).Count(&count).Error
 	return count, err
 }
 
 func CanActivateTeamMembership(userId string) error {
-	count, err := CountActiveTeamMemberships(userId)
+	return canActivateTeamMembershipTx(DB, userId)
+}
+
+func canActivateTeamMembershipTx(tx *gorm.DB, userId string) error {
+	count, err := countActiveTeamMembershipsTx(tx, userId)
 	if err != nil {
 		return err
 	}
@@ -474,6 +482,15 @@ func FindPendingTeamInvitationByEmail(teamId string, email string) (*TeamInvitat
 	return &invitation, nil
 }
 
+func GetTeamInvitationById(invitationId string, teamId string) (*TeamInvitation, error) {
+	var invitation TeamInvitation
+	err := DB.First(&invitation, "id = ? AND team_id = ?", strings.TrimSpace(invitationId), strings.TrimSpace(teamId)).Error
+	if err != nil {
+		return nil, err
+	}
+	return &invitation, nil
+}
+
 func CreateTeamInvitation(params InviteTeamMemberParams) (*TeamInvitation, error) {
 	role, err := normalizeTeamRole(params.Role)
 	if err != nil {
@@ -526,7 +543,7 @@ func SyncTeamMembership(params SyncTeamMembershipParams) (*TeamMembership, error
 		switch {
 		case err == nil:
 			if status == MembershipActive && membership.Status != MembershipActive {
-				if err := CanActivateTeamMembership(params.UserId); err != nil {
+				if err := canActivateTeamMembershipTx(tx, params.UserId); err != nil {
 					return err
 				}
 			}
@@ -544,7 +561,7 @@ func SyncTeamMembership(params SyncTeamMembershipParams) (*TeamMembership, error
 			}
 		case errors.Is(err, gorm.ErrRecordNotFound):
 			if status == MembershipActive {
-				if err := CanActivateTeamMembership(params.UserId); err != nil {
+				if err := canActivateTeamMembershipTx(tx, params.UserId); err != nil {
 					return err
 				}
 			}
@@ -679,7 +696,7 @@ func GetTeamPolicy(teamId string) (*TeamPolicy, error) {
 			GroupPolicy: encodePolicySet(doc.Groups),
 			UpdatedAt:   common.GetTimestamp(),
 		}
-		err = DB.Create(&policy).Error
+		return &policy, nil
 	}
 	return &policy, err
 }

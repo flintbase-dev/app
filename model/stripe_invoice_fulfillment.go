@@ -55,15 +55,19 @@ func CreateStripeInvoiceFulfillmentTx(tx *gorm.DB, params StripeInvoiceFulfillme
 	if params.AccountType == "" {
 		params.AccountType = AccountTypePersonal
 	}
-	if params.AccountId == "" {
+	if params.AccountId == "" && params.AccountType == AccountTypePersonal {
 		params.AccountId = params.UserId
+	}
+	account, err := NormalizeAccountContext(params.AccountType, params.AccountId)
+	if err != nil {
+		return false, err
 	}
 	fulfillment := StripeInvoiceFulfillment{
 		InvoiceId:             invoiceId,
 		Kind:                  strings.TrimSpace(params.Kind),
 		UserId:                params.UserId,
-		AccountType:           params.AccountType,
-		AccountId:             params.AccountId,
+		AccountType:           account.Type,
+		AccountId:             account.Id,
 		SourceType:            strings.TrimSpace(params.SourceType),
 		SourceId:              strings.TrimSpace(params.SourceId),
 		StripePaymentIntentId: strings.TrimSpace(params.StripePaymentIntentId),

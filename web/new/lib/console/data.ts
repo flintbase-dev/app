@@ -226,9 +226,9 @@ export async function loadTokenEditor(
     fields.push(
       teamId
         ? {
-            operation: "teamTokens",
-            alias: "tokenList",
-            params: { team_id: teamId, p: 1, page_size: 1000 },
+            operation: "teamToken",
+            alias: "token",
+            params: { team_id: teamId, id },
           }
         : { operation: "token", params: { id } },
     );
@@ -238,24 +238,13 @@ export async function loadTokenEditor(
     models: unknown;
     status: unknown;
     token?: unknown;
-    tokenList?: unknown;
   }>(fields);
   const status = normalizeStatus(unwrapApiData(data.status, {}));
-  const teamToken =
-    teamId && id
-      ? normalizePageInfo<Token>(data.tokenList, (item) =>
-          normalizeToken(item, status),
-        ).items.find((item) => item.id === id)
-      : null;
   return {
     status,
     groups: normalizeGroups(unwrapApiData(data.groups, {})),
     models: asArray(unwrapApiData(data.models, [])).map((item) => toText(item)),
-    token: id
-      ? teamId
-        ? (teamToken ?? null)
-        : normalizeToken(data.token, status)
-      : null,
+    token: id ? normalizeToken(data.token, status) : null,
   };
 }
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import { createTeamAction } from "@/lib/console/actions";
 import { cn } from "@/lib/utils";
 
@@ -32,7 +33,15 @@ export default function CreateTeamPage() {
         <form action={createTeamAction} className="mt-6">
           <Card>
             <CardContent className="flex flex-col gap-4 py-5">
-              <Input name="name" placeholder="Team name" required />
+              <div className="flex flex-col gap-2">
+                <Label htmlFor="team-name">Team name</Label>
+                <Input
+                  id="team-name"
+                  name="name"
+                  placeholder="Team name"
+                  required
+                />
+              </div>
               <div className="flex justify-end gap-2 border-t border-border pt-4">
                 <Link
                   href="/console"

@@ -490,7 +490,11 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           onOk={createTeam}
           onCancel={() => setTeamCreateOpen(false)}
         >
+          <label className='mb-2 block text-sm font-medium' htmlFor='team-name'>
+            {t('Team name')}
+          </label>
           <Input
+            id='team-name'
             value={teamName}
             onChange={setTeamName}
             placeholder={t('Team name')}

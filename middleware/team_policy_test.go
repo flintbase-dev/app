@@ -64,4 +64,26 @@ func TestEnforceTeamTokenPolicyRejectsDisabledModelAndGroup(t *testing.T) {
 	if err := enforceTeamTokenPolicy(ctx, &ModelRequest{Model: "gpt-4o"}); err == nil {
 		t.Fatalf("disabled group should be rejected")
 	}
+
+	recorder = httptest.NewRecorder()
+	ctx, _ = gin.CreateTestContext(recorder)
+	common.SetContextKey(ctx, constant.ContextKeyTeamId, team.Id)
+	common.SetContextKey(ctx, constant.ContextKeyUsingGroup, "default")
+	if err := enforceTeamTokenPolicy(ctx, &ModelRequest{Model: "gpt-4o"}); err != nil {
+		t.Fatalf("allowed model and group should pass: %v", err)
+	}
+
+	recorder = httptest.NewRecorder()
+	ctx, _ = gin.CreateTestContext(recorder)
+	common.SetContextKey(ctx, constant.ContextKeyUsingGroup, "premium")
+	if err := enforceTeamTokenPolicy(ctx, &ModelRequest{Model: "gpt-4.1"}); err != nil {
+		t.Fatalf("empty team id should skip policy checks: %v", err)
+	}
+
+	recorder = httptest.NewRecorder()
+	ctx, _ = gin.CreateTestContext(recorder)
+	common.SetContextKey(ctx, constant.ContextKeyTeamId, team.Id)
+	if err := enforceTeamTokenPolicy(ctx, nil); err != nil {
+		t.Fatalf("nil model request should skip policy checks: %v", err)
+	}
 }

@@ -52,6 +52,7 @@ export const API_OPERATION_TYPES = Object.freeze({
   teamBillingSummary: 'query',
   teamTopups: 'query',
   teamTokens: 'query',
+  teamToken: 'query',
   teamUsage: 'query',
   createTeam: 'mutation',
   updateTeam: 'mutation',

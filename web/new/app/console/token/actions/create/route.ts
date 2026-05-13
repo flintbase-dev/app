@@ -15,9 +15,11 @@ export async function POST(request: Request) {
     createTokenFieldsFromForm(formData),
   );
   for (const result of Object.values(payload)) assertApiSuccess(result);
-  const teamId = toText(formData.get("team_id"));
+  const teamId = toText(formData.get("team_id")).trim();
   return redirectTo(
     request,
-    teamId ? `/teams/${teamId}/console/token` : "/console/token",
+    teamId
+      ? `/teams/${encodeURIComponent(teamId)}/console/token`
+      : "/console/token",
   );
 }

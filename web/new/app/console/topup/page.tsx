@@ -107,6 +107,8 @@ export default async function TopupPage() {
                     {invoice.hostedInvoiceUrl ? (
                       <Link
                         href={invoice.hostedInvoiceUrl}
+                        target="_blank"
+                        rel="noopener noreferrer"
                         className="text-xs text-muted-foreground hover:text-foreground"
                       >
                         View

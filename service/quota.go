@@ -58,6 +58,8 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 		if relayInfo.AccountType != "" && relayInfo.AccountId != "" {
 			if normalized, normalizeErr := model.NormalizeAccountContext(relayInfo.AccountType, relayInfo.AccountId); normalizeErr == nil {
 				account = normalized
+			} else {
+				common.SysLog(fmt.Sprintf("quota: account normalization failed, falling back to personal user_id=%s account_type=%s account_id=%s request_id=%s error=%v", relayInfo.UserId, relayInfo.AccountType, relayInfo.AccountId, relayInfo.RequestId, normalizeErr))
 			}
 		}
 		if quota > 0 {

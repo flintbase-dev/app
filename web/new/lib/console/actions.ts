@@ -73,11 +73,19 @@ export async function revealTokenKeysBatchAction(
   }));
 }
 
+function requirePositiveAmount(amount: number): number {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Amount must be a number greater than 0");
+  }
+  return amount;
+}
+
 export async function teamStripeAmountAction(teamId: string, amount: number) {
+  const safeAmount = requirePositiveAmount(amount);
   const payload = await graphqlMutation<{ teamStripeAmount: unknown }>([
     {
       operation: "teamStripeAmount",
-      input: { team_id: teamId, amount, payment_method: "stripe" },
+      input: { team_id: teamId, amount: safeAmount, payment_method: "stripe" },
       params: { team_id: teamId },
     },
   ]);
@@ -90,12 +98,13 @@ export async function teamStripePayAction(
   amount: number,
   returnUrl: string,
 ) {
+  const safeAmount = requirePositiveAmount(amount);
   const payload = await graphqlMutation<{ teamStripePay: unknown }>([
     {
       operation: "teamStripePay",
       input: {
         team_id: teamId,
-        amount,
+        amount: safeAmount,
         payment_method: "stripe",
         return_url: returnUrl,
       },

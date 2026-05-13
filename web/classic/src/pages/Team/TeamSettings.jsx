@@ -104,89 +104,109 @@ const TeamSettings = () => {
     if (teamId) load();
   }, [teamId]);
 
-  const updateTeam = async () => {
-    const res = await API.mutation('updateTeam', { team_id: teamId, name });
-    if (res.data?.success) {
-      showSuccess('Team updated');
-      load();
-    } else {
-      showError(res.data?.message || 'Failed to update Team');
+  const runTeamMutation = async (
+    operation,
+    payload,
+    successMessage,
+    failureMessage,
+    onSuccess,
+  ) => {
+    try {
+      const res = await API.mutation(operation, payload);
+      if (res.data?.success) {
+        showSuccess(successMessage);
+        onSuccess?.();
+        load();
+      } else {
+        showError(res.data?.message || failureMessage);
+      }
+    } catch (error) {
+      showError(error.message || failureMessage);
     }
+  };
+
+  const updateTeam = async () => {
+    await runTeamMutation(
+      'updateTeam',
+      { team_id: teamId, name },
+      'Team updated',
+      'Failed to update Team',
+    );
   };
 
   const invite = async () => {
-    const res = await API.mutation('inviteTeamMember', {
-      team_id: teamId,
-      email: inviteEmail,
-      role: inviteRole,
-    });
-    if (res.data?.success) {
-      showSuccess('Invitation sent');
-      setInviteEmail('');
-      load();
-    } else {
-      showError(res.data?.message || 'Failed to send invitation');
+    const normalizedEmail = inviteEmail.trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      showError('Enter a valid email address');
+      return;
     }
+    await runTeamMutation(
+      'inviteTeamMember',
+      {
+        team_id: teamId,
+        email: normalizedEmail,
+        role: inviteRole,
+      },
+      'Invitation sent',
+      'Failed to send invitation',
+      () => setInviteEmail(''),
+    );
   };
 
   const updateRole = async (userId, role) => {
-    const res = await API.mutation('updateTeamMemberRole', {
-      team_id: teamId,
-      user_id: userId,
-      role,
-    });
-    if (res.data?.success) {
-      showSuccess('Role updated');
-      load();
-    } else {
-      showError(res.data?.message || 'Failed to update role');
-    }
+    await runTeamMutation(
+      'updateTeamMemberRole',
+      {
+        team_id: teamId,
+        user_id: userId,
+        role,
+      },
+      'Role updated',
+      'Failed to update role',
+    );
   };
 
   const removeMember = async (userId) => {
-    const res = await API.mutation('removeTeamMember', {
-      team_id: teamId,
-      user_id: userId,
-    });
-    if (res.data?.success) {
-      showSuccess('Member removed');
-      load();
-    } else {
-      showError(res.data?.message || 'Failed to remove member');
-    }
+    await runTeamMutation(
+      'removeTeamMember',
+      {
+        team_id: teamId,
+        user_id: userId,
+      },
+      'Member removed',
+      'Failed to remove member',
+    );
   };
 
   const revokeInvitation = async (invitationId) => {
-    const res = await API.mutation('revokeTeamInvitation', {
-      team_id: teamId,
-      invitation_id: invitationId,
-    });
-    if (res.data?.success) {
-      showSuccess('Invitation revoked');
-      load();
-    } else {
-      showError(res.data?.message || 'Failed to revoke invitation');
-    }
+    await runTeamMutation(
+      'revokeTeamInvitation',
+      {
+        team_id: teamId,
+        invitation_id: invitationId,
+      },
+      'Invitation revoked',
+      'Failed to revoke invitation',
+    );
   };
 
   const updatePolicy = async () => {
-    const res = await API.mutation('updateTeamPolicy', {
-      team_id: teamId,
-      model_policy: {
-        default_enabled: true,
-        disabled: disabledModels,
+    await runTeamMutation(
+      'updateTeamPolicy',
+      {
+        team_id: teamId,
+        model_policy: {
+          default_enabled: true,
+          disabled: disabledModels,
+        },
+        group_policy: {
+          default_enabled: true,
+          disabled: disabledGroups,
+        },
       },
-      group_policy: {
-        default_enabled: true,
-        disabled: disabledGroups,
-      },
-    });
-    if (res.data?.success) {
-      showSuccess('Policy updated');
-      load();
-    } else {
-      showError(res.data?.message || 'Failed to update policy');
-    }
+      'Policy updated',
+      'Failed to update policy',
+    );
   };
 
   const togglePolicyItem = (value, enabled, disabled, setDisabled) => {
@@ -279,7 +299,15 @@ const TeamSettings = () => {
           <Card className='!rounded-xl'>
             <Space vertical align='start' className='w-full'>
               <Text strong>Profile</Text>
-              <Input value={name} onChange={setName} placeholder='Team name' />
+              <label className='text-sm font-medium' htmlFor='team-name'>
+                Team name
+              </label>
+              <Input
+                id='team-name'
+                value={name}
+                onChange={setName}
+                placeholder='Team name'
+              />
               <Button theme='solid' onClick={updateTeam}>
                 Save Team
               </Button>
