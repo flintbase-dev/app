@@ -1,7 +1,5 @@
 # Logging and Accounting Architecture
 
-This deployment is fresh-install only. There is no migration or compatibility path for the removed legacy unified log table, dashboard quota aggregate table, or balance-only accounting model.
-
 ## Log Taxonomy
 
 | Category | Business fact | Storage | Retention | Notes |
