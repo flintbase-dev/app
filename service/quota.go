@@ -61,6 +61,9 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 	} else {
 		// Wallet
 		account := model.PersonalAccountContext(relayInfo.UserId)
+		if (relayInfo.AccountType != "") != (relayInfo.AccountId != "") {
+			return fmt.Errorf("partial account context: user_id=%s account_type=%s account_id=%s request_id=%s", relayInfo.UserId, relayInfo.AccountType, relayInfo.AccountId, relayInfo.RequestId)
+		}
 		if relayInfo.AccountType != "" && relayInfo.AccountId != "" {
 			if normalized, normalizeErr := model.NormalizeAccountContext(relayInfo.AccountType, relayInfo.AccountId); normalizeErr == nil {
 				account = normalized

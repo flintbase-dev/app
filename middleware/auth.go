@@ -188,6 +188,11 @@ func TeamMemberAuth() func(c *gin.Context) {
 			return
 		}
 		teamId := teamIdFromContext(c)
+		if teamId == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "team_id is required"})
+			c.Abort()
+			return
+		}
 		membership, err := model.RequireTeamMember(teamId, c.GetString("id"))
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "team membership required"})
@@ -210,6 +215,11 @@ func TeamAdminAuth() func(c *gin.Context) {
 			return
 		}
 		teamId := teamIdFromContext(c)
+		if teamId == "" {
+			c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "team_id is required"})
+			c.Abort()
+			return
+		}
 		membership, err := model.RequireTeamAdmin(teamId, c.GetString("id"))
 		if err != nil {
 			c.JSON(http.StatusOK, gin.H{"success": false, "message": "team admin permission required"})

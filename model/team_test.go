@@ -90,6 +90,43 @@ func TestCreateTeamWithCreatorSeedsAdminPolicyAndLastAdminRules(t *testing.T) {
 	}
 }
 
+func TestSyncTeamMembershipCannotRemoveLastActiveAdmin(t *testing.T) {
+	db := setupTeamModelTestDB(t)
+	creator := seedTeamTestUser(t, db, "user_team_sync_admin", "sync-admin@example.com", "workos_sync_admin")
+
+	team, err := CreateTeamWithCreator(CreateTeamParams{
+		Name:                 "Sync Guard Team",
+		CreatedByUserId:      creator.Id,
+		WorkOSOrganizationId: "org_sync_guard",
+		WorkOSMembershipId:   "om_sync_admin",
+	})
+	if err != nil {
+		t.Fatalf("CreateTeamWithCreator returned error: %v", err)
+	}
+
+	_, err = SyncTeamMembership(SyncTeamMembershipParams{
+		TeamId:                         team.Id,
+		UserId:                         creator.Id,
+		WorkOSOrganizationMembershipId: "om_sync_admin",
+		Role:                           TeamRoleMember,
+		Status:                         MembershipActive,
+	})
+	if err == nil {
+		t.Fatalf("expected last admin webhook demotion to be rejected")
+	}
+
+	_, err = SyncTeamMembership(SyncTeamMembershipParams{
+		TeamId:                         team.Id,
+		UserId:                         creator.Id,
+		WorkOSOrganizationMembershipId: "om_sync_admin",
+		Role:                           TeamRoleAdmin,
+		Status:                         MembershipInactive,
+	})
+	if err == nil {
+		t.Fatalf("expected last admin webhook removal to be rejected")
+	}
+}
+
 func TestTeamPolicyAndMembershipLimits(t *testing.T) {
 	db := setupTeamModelTestDB(t)
 	common.OptionMapRWMutex.Lock()

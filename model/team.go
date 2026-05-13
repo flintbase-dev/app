@@ -547,6 +547,15 @@ func SyncTeamMembership(params SyncTeamMembershipParams) (*TeamMembership, error
 					return err
 				}
 			}
+			if membership.Role == TeamRoleAdmin && membership.Status == MembershipActive && (role != TeamRoleAdmin || status != MembershipActive) {
+				count, err := lockActiveAdminMembershipsTx(tx, params.TeamId)
+				if err != nil {
+					return err
+				}
+				if count <= 1 {
+					return errors.New("cannot sync away the last active team admin")
+				}
+			}
 			updates := map[string]interface{}{
 				"workos_organization_membership_id": strings.TrimSpace(params.WorkOSOrganizationMembershipId),
 				"role":                              role,
