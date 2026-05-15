@@ -111,3 +111,68 @@ func TestDeleteWorkOSOrganizationReturnsNonNotFoundErrors(t *testing.T) {
 		t.Fatalf("error = %v, want WorkOSAPIError status 500", err)
 	}
 }
+
+func TestRevokeWorkOSInvitationTreatsNotFoundAsAlreadyRevoked(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"not found"}`))
+	}))
+	t.Cleanup(server.Close)
+
+	err := RevokeWorkOSInvitation(context.Background(), WorkOSConfig{
+		APIBaseURL: server.URL,
+		APIKey:     "sk_test",
+	}, " inv_missing ")
+	if err != nil {
+		t.Fatalf("RevokeWorkOSInvitation returned error for missing invitation: %v", err)
+	}
+	if gotMethod != http.MethodPost {
+		t.Fatalf("method = %q, want POST", gotMethod)
+	}
+	if gotPath != "/user_management/invitations/inv_missing/revoke" {
+		t.Fatalf("path = %q, want /user_management/invitations/inv_missing/revoke", gotPath)
+	}
+}
+
+func TestRevokeWorkOSInvitationRejectsEmptyInvitationId(t *testing.T) {
+	called := false
+	server := httptest.NewServer(http.HandlerFunc(func(http.ResponseWriter, *http.Request) {
+		called = true
+	}))
+	t.Cleanup(server.Close)
+
+	err := RevokeWorkOSInvitation(context.Background(), WorkOSConfig{
+		APIBaseURL: server.URL,
+		APIKey:     "sk_test",
+	}, " ")
+	if err == nil {
+		t.Fatalf("RevokeWorkOSInvitation should reject empty invitation id")
+	}
+	if called {
+		t.Fatalf("RevokeWorkOSInvitation should not call WorkOS for empty invitation id")
+	}
+}
+
+func TestRevokeWorkOSInvitationReturnsNonNotFoundErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"message":"temporary failure"}`))
+	}))
+	t.Cleanup(server.Close)
+
+	err := RevokeWorkOSInvitation(context.Background(), WorkOSConfig{
+		APIBaseURL: server.URL,
+		APIKey:     "sk_test",
+	}, "inv_error")
+	if err == nil {
+		t.Fatalf("RevokeWorkOSInvitation should return non-404 WorkOS errors")
+	}
+	var apiErr *WorkOSAPIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("error = %v, want WorkOSAPIError status 500", err)
+	}
+}

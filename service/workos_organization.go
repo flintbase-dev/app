@@ -255,8 +255,17 @@ func SendWorkOSOrganizationInvitation(ctx context.Context, cfg WorkOSConfig, org
 }
 
 func RevokeWorkOSInvitation(ctx context.Context, cfg WorkOSConfig, invitationID string) error {
+	invitationID = strings.TrimSpace(invitationID)
+	if invitationID == "" {
+		return errors.New("workos invitation id is required")
+	}
 	var invitation WorkOSInvitation
-	return workOSAPIRequest(ctx, cfg, http.MethodPost, workOSInvitationsPath+"/"+strings.TrimSpace(invitationID)+"/revoke", nil, &invitation)
+	err := workOSAPIRequest(ctx, cfg, http.MethodPost, workOSInvitationsPath+"/"+invitationID+"/revoke", nil, &invitation)
+	var apiErr *WorkOSAPIError
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	return err
 }
 
 func (membership WorkOSOrganizationMembership) Organization() string {
