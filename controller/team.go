@@ -424,19 +424,23 @@ func InviteTeamMember(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
-	invitation, err := service.SendWorkOSOrganizationInvitation(c.Request.Context(), cfg, team.WorkOSOrganizationId, req.Email, req.Role, user.WorkOSId)
+	local, err := model.CreateTeamInvitation(model.InviteTeamMemberParams{
+		TeamId:          team.Id,
+		Email:           req.Email,
+		Role:            req.Role,
+		InvitedByUserId: currentUserId(c),
+	})
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	local, err := model.CreateTeamInvitation(model.InviteTeamMemberParams{
-		TeamId:             team.Id,
-		Email:              req.Email,
-		Role:               req.Role,
-		InvitedByUserId:    currentUserId(c),
-		WorkOSInvitationId: invitation.ID,
-		ExpiresAt:          invitation.ExpiryTimestamp(),
-	})
+	invitation, err := service.SendWorkOSOrganizationInvitation(c.Request.Context(), cfg, team.WorkOSOrganizationId, req.Email, req.Role, user.WorkOSId)
+	if err != nil {
+		_ = model.MarkTeamInvitationStatus(local.WorkOSInvitationId, model.InvitationRevoked, "")
+		common.ApiError(c, err)
+		return
+	}
+	local, err = model.AttachWorkOSInvitationToTeamInvitation(local.Id, invitation.ID, invitation.ExpiryTimestamp())
 	if err != nil {
 		common.ApiError(c, err)
 		return

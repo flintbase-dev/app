@@ -138,6 +138,51 @@ func TestSyncTeamMembershipCannotRemoveLastActiveAdmin(t *testing.T) {
 	}
 }
 
+func TestCreateTeamInvitationCanReserveLocalRowBeforeWorkOSId(t *testing.T) {
+	db := setupTeamModelTestDB(t)
+	creator := seedTeamTestUser(t, db, "user_team_invitation_admin", "invitation-admin@example.com", "workos_invitation_admin")
+	team, err := CreateTeamWithCreator(CreateTeamParams{
+		Name:                 "Invitation Team",
+		CreatedByUserId:      creator.Id,
+		WorkOSOrganizationId: "org_invitation",
+		WorkOSMembershipId:   "om_invitation_admin",
+	})
+	if err != nil {
+		t.Fatalf("CreateTeamWithCreator returned error: %v", err)
+	}
+
+	local, err := CreateTeamInvitation(InviteTeamMemberParams{
+		TeamId:          team.Id,
+		Email:           "Invitee@Example.com",
+		Role:            TeamRoleMember,
+		InvitedByUserId: creator.Id,
+	})
+	if err != nil {
+		t.Fatalf("CreateTeamInvitation returned error: %v", err)
+	}
+	if local.WorkOSInvitationId != local.Id {
+		t.Fatalf("reserved invitation workos id = %q, want local id %q", local.WorkOSInvitationId, local.Id)
+	}
+	pending, err := FindPendingTeamInvitationByEmail(team.Id, "invitee@example.com")
+	if err != nil {
+		t.Fatalf("reserved invitation should be discoverable by pending email lookup: %v", err)
+	}
+	if pending.Id != local.Id {
+		t.Fatalf("pending invitation id = %q, want %q", pending.Id, local.Id)
+	}
+
+	attached, err := AttachWorkOSInvitationToTeamInvitation(local.Id, "inv_workos", 12345)
+	if err != nil {
+		t.Fatalf("AttachWorkOSInvitationToTeamInvitation returned error: %v", err)
+	}
+	if attached.WorkOSInvitationId != "inv_workos" {
+		t.Fatalf("attached workos id = %q, want inv_workos", attached.WorkOSInvitationId)
+	}
+	if attached.ExpiresAt != 12345 {
+		t.Fatalf("attached expires_at = %d, want 12345", attached.ExpiresAt)
+	}
+}
+
 func TestTeamPolicyAndMembershipLimits(t *testing.T) {
 	db := setupTeamModelTestDB(t)
 	common.OptionMapRWMutex.Lock()

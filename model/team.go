@@ -509,13 +509,41 @@ func CreateTeamInvitation(params InviteTeamMemberParams) (*TeamInvitation, error
 		InvitedByUserId:    strings.TrimSpace(params.InvitedByUserId),
 		ExpiresAt:          params.ExpiresAt,
 	}
-	if invitation.TeamId == "" || invitation.InvitedByUserId == "" || invitation.WorkOSInvitationId == "" {
+	if invitation.TeamId == "" || invitation.InvitedByUserId == "" {
 		return nil, errors.New("invalid team invitation args")
+	}
+	if invitation.WorkOSInvitationId == "" {
+		fillTypedID(&invitation.Id, "tinv")
+		invitation.WorkOSInvitationId = invitation.Id
 	}
 	if err := DB.Create(invitation).Error; err != nil {
 		return nil, err
 	}
 	return invitation, nil
+}
+
+func AttachWorkOSInvitationToTeamInvitation(invitationId string, workOSInvitationId string, expiresAt int64) (*TeamInvitation, error) {
+	invitationId = strings.TrimSpace(invitationId)
+	workOSInvitationId = strings.TrimSpace(workOSInvitationId)
+	if invitationId == "" || workOSInvitationId == "" {
+		return nil, errors.New("invalid team invitation args")
+	}
+	result := DB.Model(&TeamInvitation{}).Where("id = ? AND status = ?", invitationId, InvitationPending).Updates(map[string]interface{}{
+		"workos_invitation_id": workOSInvitationId,
+		"expires_at":           expiresAt,
+		"updated_at":           common.GetTimestamp(),
+	})
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	var invitation TeamInvitation
+	if err := DB.First(&invitation, "id = ?", invitationId).Error; err != nil {
+		return nil, err
+	}
+	return &invitation, nil
 }
 
 func MarkTeamInvitationStatus(workOSInvitationId string, status string, acceptedByUserId string) error {

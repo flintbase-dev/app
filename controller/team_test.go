@@ -1,23 +1,39 @@
 package controller
 
 import (
+	"bytes"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/internal/testdb"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 func setupTeamControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
+	prevRedisEnabled := common.RedisEnabled
+	prevDB := model.DB
+	prevLogDB := model.LOG_DB
+
 	common.RedisEnabled = false
 	db := testdb.OpenAndReset(t)
 	model.DB = db
 	model.LOG_DB = db
+
+	t.Cleanup(func() {
+		common.RedisEnabled = prevRedisEnabled
+		model.DB = prevDB
+		model.LOG_DB = prevLogDB
+	})
 	return db
 }
 
@@ -149,5 +165,69 @@ func TestHandleWorkOSMembershipWebhookAcceptsMatchingInvitation(t *testing.T) {
 	}
 	if accepted.Status != model.InvitationAccepted || accepted.AcceptedByUserId != invitee.Id {
 		t.Fatalf("invitation status=%q accepted_by=%q, want accepted by invitee", accepted.Status, accepted.AcceptedByUserId)
+	}
+}
+
+func TestInviteTeamMemberCreatesLocalInvitationBeforeCallingWorkOS(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTeamControllerTestDB(t)
+	inviter := seedTeamControllerUser(t, db, "user_team_invite_order_admin", "invite-order-admin@example.com", "workos_invite_order_admin")
+	team, err := model.CreateTeamWithCreator(model.CreateTeamParams{
+		Name:                 "Invite Order Team",
+		CreatedByUserId:      inviter.Id,
+		WorkOSOrganizationId: "org_invite_order",
+		WorkOSMembershipId:   "om_invite_order_admin",
+	})
+	if err != nil {
+		t.Fatalf("CreateTeamWithCreator returned error: %v", err)
+	}
+
+	var sawLocalBeforeWorkOS atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodPost || r.URL.Path != "/user_management/invitations" {
+			http.Error(w, "unexpected WorkOS request", http.StatusNotFound)
+			return
+		}
+		pending, err := model.FindPendingTeamInvitationByEmail(team.Id, "invitee@example.com")
+		if err == nil && pending.Status == model.InvitationPending && strings.HasPrefix(pending.WorkOSInvitationId, "tinv_") {
+			sawLocalBeforeWorkOS.Store(true)
+		}
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"id":"inv_workos_order","email":"invitee@example.com","organization_id":"org_invite_order","state":"pending","expires_at":"2026-05-16T00:00:00Z"}`))
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("WORKOS_API_BASE_URL", server.URL)
+	t.Setenv("WORKOS_API_KEY", "sk_test")
+	t.Setenv("WORKOS_CLIENT_ID", "client_test")
+	t.Setenv("WORKOS_REDIRECT_URI", "http://app.example.com/api/workos/callback")
+
+	payload, err := json.Marshal(inviteTeamMemberRequest{
+		TeamId: team.Id,
+		Email:  "invitee@example.com",
+		Role:   model.TeamRoleMember,
+	})
+	if err != nil {
+		t.Fatalf("failed to marshal invite payload: %v", err)
+	}
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/teams/invite", bytes.NewReader(payload))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set("id", inviter.Id)
+
+	InviteTeamMember(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("InviteTeamMember status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	if !sawLocalBeforeWorkOS.Load() {
+		t.Fatalf("local pending invitation was not visible before WorkOS invitation request")
+	}
+	pending, err := model.FindPendingTeamInvitationByEmail(team.Id, "invitee@example.com")
+	if err != nil {
+		t.Fatalf("pending invitation missing after invite: %v", err)
+	}
+	if pending.WorkOSInvitationId != "inv_workos_order" {
+		t.Fatalf("workos invitation id = %q, want inv_workos_order", pending.WorkOSInvitationId)
 	}
 }
