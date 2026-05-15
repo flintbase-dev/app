@@ -85,6 +85,9 @@ func CompleteStripeInvoiceTopUp(params StripeInvoiceTopUpParams) (bool, error) {
 			var completed bool
 			completed, paymentOrder, err = CompleteStripePaymentOrderTx(tx, CompleteStripePaymentOrderParams{
 				OrderId:                 params.PaymentOrderId,
+				UserId:                  params.UserId,
+				AccountType:             account.Type,
+				AccountId:               account.Id,
 				StripeCheckoutSessionId: params.CheckoutSessionId,
 				StripeInvoiceId:         params.StripeInvoiceId,
 				StripePaymentIntentId:   params.PaymentIntentId,

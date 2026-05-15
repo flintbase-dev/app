@@ -231,3 +231,144 @@ func TestInviteTeamMemberCreatesLocalInvitationBeforeCallingWorkOS(t *testing.T)
 		t.Fatalf("workos invitation id = %q, want inv_workos_order", pending.WorkOSInvitationId)
 	}
 }
+
+func TestTeamTokenSecretRevealPermissionMatrix(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTeamControllerTestDB(t)
+	admin := seedTeamControllerUser(t, db, "user_team_token_admin", "team-token-admin@example.com", "workos_team_token_admin")
+	member := seedTeamControllerUser(t, db, "user_team_token_member", "team-token-member@example.com", "workos_team_token_member")
+	outsider := seedTeamControllerUser(t, db, "user_team_token_outsider", "team-token-outsider@example.com", "workos_team_token_outsider")
+	team, err := model.CreateTeamWithCreator(model.CreateTeamParams{
+		Name:                 "Token Permission Team",
+		CreatedByUserId:      admin.Id,
+		WorkOSOrganizationId: "org_token_permissions",
+		WorkOSMembershipId:   "om_token_permissions_admin",
+	})
+	if err != nil {
+		t.Fatalf("CreateTeamWithCreator returned error: %v", err)
+	}
+	if _, err := model.SyncTeamMembership(model.SyncTeamMembershipParams{
+		TeamId:                         team.Id,
+		UserId:                         member.Id,
+		WorkOSOrganizationMembershipId: "om_token_permissions_member",
+		Role:                           model.TeamRoleMember,
+		Status:                         model.MembershipActive,
+	}); err != nil {
+		t.Fatalf("SyncTeamMembership returned error: %v", err)
+	}
+
+	memberToken := seedTeamControllerToken(t, model.Token{
+		UserId:          member.Id,
+		CreatedByUserId: member.Id,
+		AccountType:     model.AccountTypeTeam,
+		AccountId:       team.Id,
+		Key:             "sk-member-secret",
+		Name:            "member token",
+		Status:          common.TokenStatusEnabled,
+	})
+	adminToken := seedTeamControllerToken(t, model.Token{
+		UserId:          admin.Id,
+		CreatedByUserId: admin.Id,
+		AccountType:     model.AccountTypeTeam,
+		AccountId:       team.Id,
+		Key:             "sk-admin-secret",
+		Name:            "admin token",
+		Status:          common.TokenStatusEnabled,
+	})
+
+	single := performTeamControllerRequest(t, GetTeamTokenKey, http.MethodGet, "/api/teams/tokens/key?team_id="+team.Id+"&id="+memberToken.Id, nil, member.Id)
+	if !single.Success || single.Data["key"] != memberToken.Key {
+		t.Fatalf("member should reveal own token, got %+v", single)
+	}
+	single = performTeamControllerRequest(t, GetTeamTokenKey, http.MethodGet, "/api/teams/tokens/key?team_id="+team.Id+"&id="+adminToken.Id, nil, member.Id)
+	if single.Success {
+		t.Fatalf("member should not reveal another member token")
+	}
+	single = performTeamControllerRequest(t, GetTeamTokenKey, http.MethodGet, "/api/teams/tokens/key?team_id="+team.Id+"&id="+memberToken.Id, nil, admin.Id)
+	if !single.Success || single.Data["key"] != memberToken.Key {
+		t.Fatalf("admin should reveal team member token, got %+v", single)
+	}
+	single = performTeamControllerRequest(t, GetTeamTokenKey, http.MethodGet, "/api/teams/tokens/key?team_id="+team.Id+"&id="+memberToken.Id, nil, outsider.Id)
+	if single.Success {
+		t.Fatalf("non-member should not reveal team token")
+	}
+
+	batchBody := teamTokenBatch{TeamId: team.Id, Ids: []string{memberToken.Id, adminToken.Id}}
+	batch := performTeamControllerRequest(t, GetTeamTokenKeysBatch, http.MethodPost, "/api/teams/tokens/keys", batchBody, member.Id)
+	memberKeys := responseDataMap(t, batch, "keys")
+	if !batch.Success || memberKeys[memberToken.Id] != memberToken.Key {
+		t.Fatalf("member batch should include own token, got %+v", batch)
+	}
+	if _, ok := memberKeys[adminToken.Id]; ok {
+		t.Fatalf("member batch should not include another member token")
+	}
+	batch = performTeamControllerRequest(t, GetTeamTokenKeysBatch, http.MethodPost, "/api/teams/tokens/keys", batchBody, admin.Id)
+	adminKeys := responseDataMap(t, batch, "keys")
+	if !batch.Success || adminKeys[memberToken.Id] != memberToken.Key || adminKeys[adminToken.Id] != adminToken.Key {
+		t.Fatalf("admin batch should include all requested team token secrets, got %+v", batch)
+	}
+	batch = performTeamControllerRequest(t, GetTeamTokenKeysBatch, http.MethodPost, "/api/teams/tokens/keys", batchBody, outsider.Id)
+	if batch.Success {
+		t.Fatalf("non-member batch should not reveal team token secrets")
+	}
+}
+
+type teamControllerResponse struct {
+	Success bool                   `json:"success"`
+	Message string                 `json:"message"`
+	Data    map[string]interface{} `json:"data"`
+}
+
+func seedTeamControllerToken(t *testing.T, token model.Token) *model.Token {
+	t.Helper()
+	token.CreatedTime = common.GetTimestamp()
+	token.AccessedTime = token.CreatedTime
+	token.ExpiredTime = -1
+	if err := token.Insert(); err != nil {
+		t.Fatalf("failed to seed token: %v", err)
+	}
+	return &token
+}
+
+func performTeamControllerRequest(t *testing.T, handler gin.HandlerFunc, method string, target string, body any, userId string) teamControllerResponse {
+	t.Helper()
+	var requestBody *bytes.Reader
+	if body == nil {
+		requestBody = bytes.NewReader(nil)
+	} else {
+		payload, err := json.Marshal(body)
+		if err != nil {
+			t.Fatalf("failed to marshal request body: %v", err)
+		}
+		requestBody = bytes.NewReader(payload)
+	}
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(method, target, requestBody)
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set("id", userId)
+
+	handler(ctx)
+
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("handler status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response teamControllerResponse
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to decode response %q: %v", recorder.Body.String(), err)
+	}
+	return response
+}
+
+func responseDataMap(t *testing.T, response teamControllerResponse, key string) map[string]interface{} {
+	t.Helper()
+	value, ok := response.Data[key]
+	if !ok {
+		t.Fatalf("response data missing key %q: %+v", key, response)
+	}
+	mapped, ok := value.(map[string]interface{})
+	if !ok {
+		t.Fatalf("response data key %q = %T, want object", key, value)
+	}
+	return mapped
+}

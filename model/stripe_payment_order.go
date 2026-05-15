@@ -63,6 +63,9 @@ type CreatePendingStripePaymentOrderParams struct {
 
 type CompleteStripePaymentOrderParams struct {
 	OrderId                 string
+	UserId                  string
+	AccountType             string
+	AccountId               string
 	StripeCheckoutSessionId string
 	StripeInvoiceId         string
 	StripePaymentIntentId   string
@@ -193,6 +196,9 @@ func CompleteStripePaymentOrderTx(tx *gorm.DB, params CompleteStripePaymentOrder
 		}
 		return false, nil, err
 	}
+	if err := validateStripePaymentOrderAccount(order, params.UserId, params.AccountType, params.AccountId); err != nil {
+		return false, &order, err
+	}
 	if order.Status == common.TopUpStatusSuccess {
 		return false, &order, nil
 	}
@@ -248,6 +254,35 @@ func CompleteStripePaymentOrderTx(tx *gorm.DB, params CompleteStripePaymentOrder
 		}
 	}
 	return true, &order, nil
+}
+
+func validateStripePaymentOrderAccount(order StripePaymentOrder, userId string, accountType string, accountId string) error {
+	userId = strings.TrimSpace(userId)
+	accountType = strings.TrimSpace(accountType)
+	accountId = strings.TrimSpace(accountId)
+	if userId == "" && accountType == "" && accountId == "" {
+		return nil
+	}
+	if userId == "" {
+		return errors.New("stripe payment order user mismatch")
+	}
+	if accountType == "" {
+		accountType = AccountTypePersonal
+	}
+	if accountId == "" {
+		accountId = userId
+	}
+	account, err := NormalizeAccountContext(accountType, accountId)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(order.UserId) != userId {
+		return errors.New("stripe payment order user mismatch")
+	}
+	if strings.TrimSpace(order.AccountType) != account.Type || strings.TrimSpace(order.AccountId) != account.Id {
+		return errors.New("stripe payment order account mismatch")
+	}
+	return nil
 }
 
 func FailStripePaymentOrder(orderId string, providerPayload string) error {

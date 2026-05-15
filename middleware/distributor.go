@@ -131,12 +131,15 @@ func Distribute() func(c *gin.Context) {
 				}
 			}
 		}
+		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
+		if newAPIError := SetupContextForSelectedChannel(c, channel, modelRequest.Model); newAPIError != nil {
+			abortWithOpenAiMessage(c, newAPIError.StatusCode, newAPIError.Error(), newAPIError.GetErrorCode())
+			return
+		}
 		if err := enforceTeamTokenPolicy(c, modelRequest); err != nil {
 			abortWithOpenAiMessage(c, http.StatusForbidden, err.Error(), types.ErrorCodeAccessDenied)
 			return
 		}
-		common.SetContextKey(c, constant.ContextKeyRequestStartTime, time.Now())
-		SetupContextForSelectedChannel(c, channel, modelRequest.Model)
 		c.Next()
 		if channel != nil && c.Writer != nil && c.Writer.Status() < http.StatusBadRequest {
 			service.RecordChannelAffinity(c, channel.Id)
@@ -156,7 +159,7 @@ func enforceTeamTokenPolicy(c *gin.Context, modelRequest *ModelRequest) error {
 	modelName := strings.TrimSpace(modelRequest.Model)
 	if modelName != "" {
 		matchName := ratio_setting.FormatMatchingModelName(modelName)
-		if !model.TeamPolicyAllowsModel(policy, matchName) && !model.TeamPolicyAllowsModel(policy, modelName) {
+		if !model.TeamPolicyAllowsModel(policy, matchName) || !model.TeamPolicyAllowsModel(policy, modelName) {
 			return fmt.Errorf("team policy disables model %s", modelName)
 		}
 	}

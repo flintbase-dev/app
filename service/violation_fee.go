@@ -123,17 +123,16 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 		return false
 	}
 
+	account, err := ResolveRelayAccountContext(relayInfo)
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("failed to resolve violation fee account context: %s", err.Error()))
+		return false
+	}
 	if err := PostConsumeQuota(relayInfo, feeQuota, 0, true); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("failed to charge violation fee: %s", err.Error()))
 		return false
 	}
 
-	account := model.PersonalAccountContext(relayInfo.UserId)
-	if relayInfo.AccountType != "" && relayInfo.AccountId != "" {
-		if normalized, err := model.NormalizeAccountContext(relayInfo.AccountType, relayInfo.AccountId); err == nil {
-			account = normalized
-		}
-	}
 	model.UpdateAccountUsedQuotaAndRequestCount(account, relayInfo.UserId, feeQuota)
 	model.UpdateChannelUsedQuota(relayInfo.ChannelId, feeQuota)
 

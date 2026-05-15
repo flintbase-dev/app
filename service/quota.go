@@ -41,9 +41,33 @@ func PreConsumeTokenQuota(relayInfo *relaycommon.RelayInfo, quota int) error {
 	return nil
 }
 
+func ResolveRelayAccountContext(relayInfo *relaycommon.RelayInfo) (model.AccountContext, error) {
+	if relayInfo == nil {
+		return model.AccountContext{}, errors.New("relay info is nil")
+	}
+	if (relayInfo.AccountType != "") != (relayInfo.AccountId != "") {
+		return model.AccountContext{}, fmt.Errorf("partial account context: user_id=%s account_type=%s account_id=%s request_id=%s", relayInfo.UserId, relayInfo.AccountType, relayInfo.AccountId, relayInfo.RequestId)
+	}
+	if relayInfo.AccountType == "" && relayInfo.AccountId == "" {
+		return model.PersonalAccountContext(relayInfo.UserId), nil
+	}
+	account, err := model.NormalizeAccountContext(relayInfo.AccountType, relayInfo.AccountId)
+	if err != nil {
+		common.SysLog(fmt.Sprintf("quota: account normalization failed user_id=%s account_type=%s account_id=%s request_id=%s error=%v", relayInfo.UserId, relayInfo.AccountType, relayInfo.AccountId, relayInfo.RequestId, err))
+		return model.AccountContext{}, fmt.Errorf("invalid account context: account_type=%s account_id=%s request_id=%s: %w", relayInfo.AccountType, relayInfo.AccountId, relayInfo.RequestId, err)
+	}
+	relayInfo.AccountType = account.Type
+	relayInfo.AccountId = account.Id
+	return account, nil
+}
+
 func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQuota int, sendEmail bool) (err error) {
 	if relayInfo == nil {
 		return errors.New("relay info is nil")
+	}
+	account, err := ResolveRelayAccountContext(relayInfo)
+	if err != nil {
+		return err
 	}
 
 	// 1) Consume from wallet quota OR subscription item
@@ -60,18 +84,6 @@ func PostConsumeQuota(relayInfo *relaycommon.RelayInfo, quota int, preConsumedQu
 		}
 	} else {
 		// Wallet
-		account := model.PersonalAccountContext(relayInfo.UserId)
-		if (relayInfo.AccountType != "") != (relayInfo.AccountId != "") {
-			return fmt.Errorf("partial account context: user_id=%s account_type=%s account_id=%s request_id=%s", relayInfo.UserId, relayInfo.AccountType, relayInfo.AccountId, relayInfo.RequestId)
-		}
-		if relayInfo.AccountType != "" && relayInfo.AccountId != "" {
-			if normalized, normalizeErr := model.NormalizeAccountContext(relayInfo.AccountType, relayInfo.AccountId); normalizeErr == nil {
-				account = normalized
-			} else {
-				common.SysLog(fmt.Sprintf("quota: account normalization failed user_id=%s account_type=%s account_id=%s request_id=%s error=%v", relayInfo.UserId, relayInfo.AccountType, relayInfo.AccountId, relayInfo.RequestId, normalizeErr))
-				return fmt.Errorf("invalid account context: account_type=%s account_id=%s request_id=%s: %w", relayInfo.AccountType, relayInfo.AccountId, relayInfo.RequestId, normalizeErr)
-			}
-		}
 		if quota > 0 {
 			err = model.ConsumeAccountCreditsForRequest(relayInfo.UserId, account, quota, "relay.settle", walletLedgerSourceId(relayInfo.RequestId, "settle"), relayInfo.RequestId, map[string]interface{}{
 				"model": relayInfo.OriginModelName,
