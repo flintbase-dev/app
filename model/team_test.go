@@ -1,6 +1,7 @@
 package model
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/QuantumNous/new-api/common"
@@ -11,10 +12,20 @@ import (
 func setupTeamModelTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
+	prevRedisEnabled := common.RedisEnabled
+	prevDB := DB
+	prevLogDB := LOG_DB
+
 	common.RedisEnabled = false
 	db := testdb.OpenAndReset(t)
 	DB = db
 	LOG_DB = db
+
+	t.Cleanup(func() {
+		common.RedisEnabled = prevRedisEnabled
+		DB = prevDB
+		LOG_DB = prevLogDB
+	})
 	return db
 }
 
@@ -50,7 +61,7 @@ func TestCreateTeamWithCreatorSeedsAdminPolicyAndLastAdminRules(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTeamWithCreator returned error: %v", err)
 	}
-	if team.Id == "" || team.Id[:5] != "team_" {
+	if !strings.HasPrefix(team.Id, "team_") {
 		t.Fatalf("team id = %q, want team_ prefix", team.Id)
 	}
 

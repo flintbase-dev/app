@@ -55,6 +55,17 @@ type WorkOSInvitation struct {
 	ExpiresAtCamel string `json:"expiresAt"`
 }
 
+type WorkOSAPIError struct {
+	Method     string
+	Path       string
+	StatusCode int
+	Message    string
+}
+
+func (e *WorkOSAPIError) Error() string {
+	return fmt.Sprintf("workos api failed: method=%s path=%s status=%d message=%s", e.Method, e.Path, e.StatusCode, e.Message)
+}
+
 type WorkOSWebhookEvent struct {
 	ID    string          `json:"id"`
 	Type  string          `json:"event"`
@@ -102,7 +113,12 @@ func workOSAPIRequest(ctx context.Context, cfg WorkOSConfig, method string, path
 		return err
 	}
 	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
-		return fmt.Errorf("workos api failed: method=%s path=%s status=%d message=%s", method, path, resp.StatusCode, workOSErrorMessage(respBody))
+		return &WorkOSAPIError{
+			Method:     method,
+			Path:       path,
+			StatusCode: resp.StatusCode,
+			Message:    workOSErrorMessage(respBody),
+		}
 	}
 	if out != nil && len(respBody) > 0 {
 		if err := json.Unmarshal(respBody, out); err != nil {
@@ -137,7 +153,12 @@ func CreateWorkOSOrganization(ctx context.Context, cfg WorkOSConfig, name string
 }
 
 func DeleteWorkOSOrganization(ctx context.Context, cfg WorkOSConfig, organizationID string) error {
-	return workOSAPIRequest(ctx, cfg, http.MethodDelete, workOSOrganizationsPath+"/"+strings.TrimSpace(organizationID), nil, nil)
+	err := workOSAPIRequest(ctx, cfg, http.MethodDelete, workOSOrganizationsPath+"/"+strings.TrimSpace(organizationID), nil, nil)
+	var apiErr *WorkOSAPIError
+	if errors.As(err, &apiErr) && apiErr.StatusCode == http.StatusNotFound {
+		return nil
+	}
+	return err
 }
 
 func UpdateWorkOSOrganization(ctx context.Context, cfg WorkOSConfig, organizationID string, name string) (*WorkOSOrganization, error) {

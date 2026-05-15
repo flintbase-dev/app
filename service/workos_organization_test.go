@@ -1,10 +1,14 @@
 package service
 
 import (
+	"context"
 	"crypto/hmac"
 	"crypto/sha256"
 	"encoding/hex"
+	"errors"
 	"fmt"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 	"time"
 )
@@ -59,5 +63,51 @@ func TestWorkOSOrganizationPayloadHelpersAcceptSnakeAndCamelCase(t *testing.T) {
 	}
 	if invitation.ExpiryTimestamp() == 0 {
 		t.Fatalf("invitation expiry should parse camel-case timestamp")
+	}
+}
+
+func TestDeleteWorkOSOrganizationTreatsNotFoundAsAlreadyDeleted(t *testing.T) {
+	var gotMethod string
+	var gotPath string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		gotMethod = r.Method
+		gotPath = r.URL.Path
+		w.WriteHeader(http.StatusNotFound)
+		_, _ = w.Write([]byte(`{"message":"not found"}`))
+	}))
+	t.Cleanup(server.Close)
+
+	err := DeleteWorkOSOrganization(context.Background(), WorkOSConfig{
+		APIBaseURL: server.URL,
+		APIKey:     "sk_test",
+	}, " org_missing ")
+	if err != nil {
+		t.Fatalf("DeleteWorkOSOrganization returned error for missing organization: %v", err)
+	}
+	if gotMethod != http.MethodDelete {
+		t.Fatalf("method = %q, want DELETE", gotMethod)
+	}
+	if gotPath != "/organizations/org_missing" {
+		t.Fatalf("path = %q, want /organizations/org_missing", gotPath)
+	}
+}
+
+func TestDeleteWorkOSOrganizationReturnsNonNotFoundErrors(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusInternalServerError)
+		_, _ = w.Write([]byte(`{"message":"temporary failure"}`))
+	}))
+	t.Cleanup(server.Close)
+
+	err := DeleteWorkOSOrganization(context.Background(), WorkOSConfig{
+		APIBaseURL: server.URL,
+		APIKey:     "sk_test",
+	}, "org_error")
+	if err == nil {
+		t.Fatalf("DeleteWorkOSOrganization should return non-404 WorkOS errors")
+	}
+	var apiErr *WorkOSAPIError
+	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusInternalServerError {
+		t.Fatalf("error = %v, want WorkOSAPIError status 500", err)
 	}
 }
