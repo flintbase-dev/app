@@ -674,6 +674,11 @@ var graphqlAPIOperations = []apiOperation{
 	apiMutation("manageUser", controller.ManageUser, adminAudit("user")),
 	apiMutation("updateUser", controller.UpdateUser, adminAudit("user")),
 	apiMutation("deleteUser", controller.DeleteUser, adminAudit("user"), withResourceParams("id")),
+	apiQuery("adminTeams", controller.AdminListTeams, adminAudit("team")),
+	apiQuery("searchTeams", controller.AdminSearchTeams, adminAudit("team")),
+	apiQuery("adminTeam", controller.AdminGetTeam, adminAudit("team"), withResourceParams("id")),
+	apiMutation("adminUpdateTeam", controller.AdminUpdateTeam, adminAudit("team"), withResourceParams("team_id")),
+	apiMutation("adminDeactivateTeam", controller.AdminDeactivateTeam, adminAudit("team"), criticalRateLimit(), withResourceParams("team_id")),
 
 	apiQuery("subscriptionPlans", controller.GetSubscriptionPlans, userActivity("subscription")),
 	apiQuery("subscriptionSelf", controller.GetSubscriptionSelf, userActivity("subscription")),

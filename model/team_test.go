@@ -64,6 +64,9 @@ func TestCreateTeamWithCreatorSeedsAdminPolicyAndLastAdminRules(t *testing.T) {
 	if !strings.HasPrefix(team.Id, "team_") {
 		t.Fatalf("team id = %q, want team_ prefix", team.Id)
 	}
+	if team.Group != "default" {
+		t.Fatalf("team group = %q, want default", team.Group)
+	}
 
 	membership, err := GetTeamMembership(team.Id, creator.Id)
 	if err != nil {
@@ -98,6 +101,69 @@ func TestCreateTeamWithCreatorSeedsAdminPolicyAndLastAdminRules(t *testing.T) {
 	}
 	if err := UpdateTeamMemberRole(team.Id, creator.Id, TeamRoleMember); err != nil {
 		t.Fatalf("expected downgrade with another active admin to succeed: %v", err)
+	}
+}
+
+func TestAdminTeamManagementUpdatesSearchesAndDeactivatesMemberships(t *testing.T) {
+	db := setupTeamModelTestDB(t)
+	creator := seedTeamTestUser(t, db, "user_admin_team_creator", "admin-team@example.com", "workos_admin_team")
+	member := seedTeamTestUser(t, db, "user_admin_team_member", "admin-team-member@example.com", "workos_admin_team_member")
+	team, err := CreateTeamWithCreator(CreateTeamParams{
+		Name:                 "Admin Managed Team",
+		CreatedByUserId:      creator.Id,
+		WorkOSOrganizationId: "org_admin_managed",
+		WorkOSMembershipId:   "om_admin_managed",
+	})
+	if err != nil {
+		t.Fatalf("CreateTeamWithCreator returned error: %v", err)
+	}
+	if _, err := SyncTeamMembership(SyncTeamMembershipParams{
+		TeamId:                         team.Id,
+		UserId:                         member.Id,
+		WorkOSOrganizationMembershipId: "om_admin_member",
+		Role:                           TeamRoleMember,
+		Status:                         MembershipActive,
+	}); err != nil {
+		t.Fatalf("SyncTeamMembership returned error: %v", err)
+	}
+
+	updated, err := AdminUpdateTeam(team.Id, "Updated Admin Team", "enterprise", 12345)
+	if err != nil {
+		t.Fatalf("AdminUpdateTeam returned error: %v", err)
+	}
+	if updated.Name != "Updated Admin Team" || updated.Group != "enterprise" || updated.Quota != 12345 {
+		t.Fatalf("updated team = %+v, want name/group/quota changes", updated)
+	}
+
+	pageInfo := &common.PageInfo{Page: 1, PageSize: 20}
+	teams, total, err := ListAdminTeams(pageInfo)
+	if err != nil {
+		t.Fatalf("ListAdminTeams returned error: %v", err)
+	}
+	if total != 1 || len(teams) != 1 {
+		t.Fatalf("ListAdminTeams total=%d len=%d, want one team", total, len(teams))
+	}
+	if teams[0].ActiveMemberCount != 2 || teams[0].CreatedByEmail != creator.Email {
+		t.Fatalf("admin team summary = %+v, want member count and creator email", teams[0])
+	}
+
+	searched, total, err := SearchAdminTeams("Updated", "enterprise", TeamStatusActive, 0, 20)
+	if err != nil {
+		t.Fatalf("SearchAdminTeams returned error: %v", err)
+	}
+	if total != 1 || len(searched) != 1 || searched[0].Id != team.Id {
+		t.Fatalf("SearchAdminTeams total=%d teams=%+v, want updated team", total, searched)
+	}
+
+	if err := DeactivateUserTeamMemberships(member.Id); err != nil {
+		t.Fatalf("DeactivateUserTeamMemberships returned error: %v", err)
+	}
+	var membership TeamMembership
+	if err := db.First(&membership, "team_id = ? AND user_id = ?", team.Id, member.Id).Error; err != nil {
+		t.Fatalf("failed to reload member membership: %v", err)
+	}
+	if membership.Status != MembershipInactive {
+		t.Fatalf("membership status = %q, want inactive", membership.Status)
 	}
 }
 

@@ -46,6 +46,7 @@ import MessageManagement from './pages/MessageManagement';
 import PersonalSetting from './components/settings/PersonalSetting';
 import Setup from './pages/Setup';
 import SetupCheck from './components/layout/SetupCheck';
+import TeamManagement from './pages/TeamManagement';
 import TeamDashboard from './pages/Team/TeamDashboard';
 import TeamBilling from './pages/Team/TeamBilling';
 import TeamSettings from './pages/Team/TeamSettings';
@@ -207,6 +208,14 @@ function App() {
           element={
             <AdminRoute>
               <User />
+            </AdminRoute>
+          }
+        />
+        <Route
+          path='/console/team'
+          element={
+            <AdminRoute>
+              <TeamManagement />
             </AdminRoute>
           }
         />

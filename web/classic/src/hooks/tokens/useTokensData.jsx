@@ -485,7 +485,7 @@ export const useTokensData = (
       .catch((reason) => {
         showError(reason);
       });
-    API.query('selfGroups')
+    API.query('selfGroups', teamId ? { team_id: teamId } : {})
       .then((res) => {
         if (res.data.success && res.data.data) {
           const ratios = {};

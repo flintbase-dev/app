@@ -90,6 +90,9 @@ func TestValidateTokenAccountContextAcceptsTeamOwnership(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateTeamWithCreator returned error: %v", err)
 	}
+	if _, err := model.AdminUpdateTeam(team.Id, team.Name, "enterprise", team.Quota); err != nil {
+		t.Fatalf("AdminUpdateTeam returned error: %v", err)
+	}
 
 	ctx, _ := gin.CreateTestContext(httptest.NewRecorder())
 	err = validateTokenAccountContext(ctx, &model.Token{
@@ -109,6 +112,9 @@ func TestValidateTokenAccountContextAcceptsTeamOwnership(t *testing.T) {
 	}
 	if got := common.GetContextKeyString(ctx, constant.ContextKeyTeamId); got != team.Id {
 		t.Fatalf("team id context = %q, want %q", got, team.Id)
+	}
+	if got := common.GetContextKeyString(ctx, constant.ContextKeyTeamGroup); got != "enterprise" {
+		t.Fatalf("team group context = %q, want enterprise", got)
 	}
 }
 

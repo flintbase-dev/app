@@ -18,31 +18,26 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import { Typography } from '@douyinfe/semi-ui';
+import { Building2 } from 'lucide-react';
+import CompactModeToggle from '../../common/ui/CompactModeToggle';
 
-const EnableDisableUserModal = ({
-  visible,
-  onCancel,
-  onConfirm,
-  user,
-  action,
-  t,
-}) => {
-  const isDisable = action === 'disable';
+const { Text } = Typography;
 
+const TeamsDescription = ({ compactMode, setCompactMode, t }) => {
   return (
-    <Modal
-      title={isDisable ? t('确定要禁用此用户吗？') : t('确定要启用此用户吗？')}
-      visible={visible}
-      onCancel={onCancel}
-      onOk={onConfirm}
-      type='warning'
-    >
-      {isDisable
-        ? t('此操作将从 WorkOS 侧停用用户的团队成员身份，并禁用本地用户账户')
-        : t('此操作将启用用户账户')}
-    </Modal>
+    <div className='flex flex-col md:flex-row justify-between items-start md:items-center gap-2 w-full'>
+      <div className='flex items-center text-blue-500'>
+        <Building2 size={18} className='mr-2' />
+        <Text>{t('团队管理')}</Text>
+      </div>
+      <CompactModeToggle
+        compactMode={compactMode}
+        setCompactMode={setCompactMode}
+        t={t}
+      />
+    </div>
   );
 };
 
-export default EnableDisableUserModal;
+export default TeamsDescription;

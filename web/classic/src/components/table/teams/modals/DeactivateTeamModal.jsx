@@ -18,31 +18,28 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { Modal } from '@douyinfe/semi-ui';
+import { Modal, Typography } from '@douyinfe/semi-ui';
 
-const EnableDisableUserModal = ({
-  visible,
-  onCancel,
-  onConfirm,
-  user,
-  action,
-  t,
-}) => {
-  const isDisable = action === 'disable';
+const { Text } = Typography;
 
+const DeactivateTeamModal = ({ visible, onCancel, onConfirm, team, t }) => {
   return (
     <Modal
-      title={isDisable ? t('确定要禁用此用户吗？') : t('确定要启用此用户吗？')}
+      title={t('确定要停用此团队吗？')}
       visible={visible}
       onCancel={onCancel}
       onOk={onConfirm}
       type='warning'
+      okButtonProps={{ type: 'danger' }}
     >
-      {isDisable
-        ? t('此操作将从 WorkOS 侧停用用户的团队成员身份，并禁用本地用户账户')
-        : t('此操作将启用用户账户')}
+      <div className='space-y-2'>
+        <Text>{t('此操作会从 WorkOS 侧删除团队组织并停用本地团队。')}</Text>
+        <div className='text-sm text-gray-500'>
+          {t('团队')}: {team?.name || team?.id || '-'}
+        </div>
+      </div>
     </Modal>
   );
 };
 
-export default EnableDisableUserModal;
+export default DeactivateTeamModal;

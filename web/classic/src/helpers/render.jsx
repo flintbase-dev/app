@@ -46,6 +46,7 @@ import {
   CalendarClock,
   Inbox,
   Megaphone,
+  Building2,
 } from 'lucide-react';
 
 // 获取侧边栏Lucide图标组件
@@ -89,6 +90,8 @@ export function getLucideIcon(key, selected = false) {
       return <CalendarClock {...commonProps} color={iconColor} />;
     case 'messageManagement':
       return <Megaphone {...commonProps} color={iconColor} />;
+    case 'team':
+      return <Building2 {...commonProps} color={iconColor} />;
     case 'setting':
     case 'teamSettings':
       return <Settings {...commonProps} color={iconColor} />;

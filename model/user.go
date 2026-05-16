@@ -128,6 +128,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"subscription":      true,
 			"redemption":        true,
 			"user":              true,
+			"team":              true,
 			"messageManagement": true,
 			"setting":           false, // 管理员不能访问系统设置
 		}
@@ -140,6 +141,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"subscription":      true,
 			"redemption":        true,
 			"user":              true,
+			"team":              true,
 			"messageManagement": true,
 			"setting":           true,
 		}

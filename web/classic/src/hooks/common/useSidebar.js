@@ -49,6 +49,7 @@ export const DEFAULT_ADMIN_CONFIG = {
     models: true,
     redemption: true,
     user: true,
+    team: true,
     subscription: true,
     messageManagement: true,
     setting: true,

@@ -235,12 +235,12 @@ func GetUserModels(c *gin.Context) {
 	if common.IsEmptyID(id) {
 		id = c.GetString("id")
 	}
-	user, err := model.GetUserCache(id)
+	group, err := resolvePolicyGroupForRequest(c, id)
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	groups := service.GetUserUsableGroups(user.Group)
+	groups := service.GetUserUsableGroups(group)
 	var models []string
 	for group := range groups {
 		for _, g := range model.GetGroupEnabledModels(group) {
@@ -446,11 +446,28 @@ func ManageUser(c *gin.Context) {
 	}
 	switch req.Action {
 	case "disable":
-		user.Status = common.UserStatusDisabled
 		if user.Role == common.RoleRootUser {
 			common.ApiErrorI18n(c, i18n.MsgUserCannotDisableRootUser)
 			return
 		}
+		if user.WorkOSId == "" {
+			common.ApiError(c, errors.New("WorkOS user id is required"))
+			return
+		}
+		cfg, err := service.WorkOSConfigFromRequest(c.Request)
+		if err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if err := service.DeactivateWorkOSUserOrganizationMemberships(c.Request.Context(), cfg, user.WorkOSId); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		if err := model.DeactivateUserTeamMemberships(user.Id); err != nil {
+			common.ApiError(c, err)
+			return
+		}
+		user.Status = common.UserStatusDisabled
 	case "enable":
 		user.Status = common.UserStatusEnabled
 	case "delete":

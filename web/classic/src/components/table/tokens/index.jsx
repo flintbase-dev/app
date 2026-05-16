@@ -89,7 +89,10 @@ function TokensPage({ teamId = '' }) {
 
   const loadModels = async () => {
     try {
-      const res = await API.query('userModels');
+      const res = await API.query(
+        'userModels',
+        teamId ? { team_id: teamId } : {},
+      );
       const { success, message, data } = res.data || {};
       if (success) {
         const categories = getModelCategories(tokensData.t);

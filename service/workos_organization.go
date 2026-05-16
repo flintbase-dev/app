@@ -211,6 +211,26 @@ func DeactivateWorkOSOrganizationMembership(ctx context.Context, cfg WorkOSConfi
 	return workOSAPIRequest(ctx, cfg, http.MethodPut, workOSOrganizationMembershipsPath+"/"+strings.TrimSpace(membershipID)+"/deactivate", nil, &membership)
 }
 
+func DeactivateWorkOSUserOrganizationMemberships(ctx context.Context, cfg WorkOSConfig, workOSUserID string) error {
+	workOSUserID = strings.TrimSpace(workOSUserID)
+	if workOSUserID == "" {
+		return errors.New("workos user id is required")
+	}
+	memberships, err := ListWorkOSOrganizationMemberships(ctx, cfg, "", workOSUserID)
+	if err != nil {
+		return err
+	}
+	for _, membership := range memberships {
+		if strings.TrimSpace(membership.ID) == "" || !strings.EqualFold(strings.TrimSpace(membership.Status), "active") {
+			continue
+		}
+		if err := DeactivateWorkOSOrganizationMembership(ctx, cfg, membership.ID); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func ListWorkOSOrganizationMemberships(ctx context.Context, cfg WorkOSConfig, organizationID string, userID string) ([]WorkOSOrganizationMembership, error) {
 	values := url.Values{}
 	if organizationID != "" {

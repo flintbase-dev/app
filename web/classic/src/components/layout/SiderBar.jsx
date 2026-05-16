@@ -38,6 +38,7 @@ const routerMap = {
   redemption: '/console/redemption',
   topup: '/console/topup',
   user: '/console/user',
+  team: '/console/team',
   subscription: '/console/subscription',
   messageManagement: '/console/message-management',
   log: '/console/log',
@@ -197,6 +198,12 @@ const SiderBar = ({ onNavigate = () => {} }) => {
         text: t('用户管理'),
         itemKey: 'user',
         to: '/user',
+        className: isAdmin() ? '' : 'tableHiddle',
+      },
+      {
+        text: t('团队管理'),
+        itemKey: 'team',
+        to: '/team',
         className: isAdmin() ? '' : 'tableHiddle',
       },
       {

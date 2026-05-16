@@ -78,7 +78,9 @@ test("checkout uses Stripe Checkout Elements instead of mock checkout links", ()
 test("personal billing stays full-featured while team billing top-up is admin settings only", () => {
   const page = read("app/console/topup/page.tsx");
   const teamPage = read("app/teams/[teamId]/console/topup/page.tsx");
-  const teamSettings = read("app/teams/[teamId]/console/settings/page.tsx");
+  const teamBillingSettings = read(
+    "app/teams/[teamId]/console/settings/billing/page.tsx",
+  );
   const teamClient = read("components/console/team-billing-client.tsx");
   const actions = read("lib/console/actions.ts");
   const data = read("lib/console/data.ts");
@@ -114,7 +116,7 @@ test("personal billing stays full-featured while team billing top-up is admin se
   );
   assert.match(teamPage, /Available balance/);
   assert.match(teamPage, /Used credit/);
-  assert.match(teamSettings, /TeamBillingClient/);
+  assert.match(teamBillingSettings, /TeamBillingClient/);
   assert.match(teamClient, /teamStripeAmountAction/);
   assert.match(teamClient, /teamStripePayAction/);
   assert.match(teamClient, /teamStripeBillingPortalAction/);
@@ -411,6 +413,16 @@ test("team account context is implemented across backend and both consoles", () 
   );
   const newTeamDashboard = read("app/teams/[teamId]/console/page.tsx");
   const newSettings = read("app/teams/[teamId]/console/settings/page.tsx");
+  const newSettingsSections = read(
+    "app/teams/[teamId]/console/settings/_sections.tsx",
+  );
+  const newPolicySettings = read(
+    "app/teams/[teamId]/console/settings/policy/page.tsx",
+  );
+  const newMembersSettings = read(
+    "app/teams/[teamId]/console/settings/members/page.tsx",
+  );
+  const newInviteDialog = read("components/console/invite-members-dialog.tsx");
   const newCreateTeam = read("app/console/teams/new/page.tsx");
   const newSidebar = read("components/console/console-sidebar.tsx");
   const actions = read("lib/console/actions.ts");
@@ -464,10 +476,15 @@ test("team account context is implemented across backend and both consoles", () 
   assert.doesNotMatch(classicSettings, /TextArea/);
   assert.match(classicSidebar, /confirmLoading=\{teamCreatePending\}/);
   assert.match(newCreateTeam, /<Button type="submit" variant="brand">/);
-  assert.match(newSettings, /PolicySwitchList/);
-  assert.match(newSettings, /<Button type="submit"[^>]*>\s*Save Team/);
-  assert.match(newSettings, /<Button type="submit"[^>]*>\s*<Send/);
-  assert.doesNotMatch(newSettings, /Textarea/);
+  assert.match(newSettings, /GeneralForm/);
+  assert.match(newPolicySettings, /PolicySwitchList/);
+  assert.match(
+    newSettingsSections,
+    /<Button type="submit"[^>]*>\s*Save changes/,
+  );
+  assert.match(newMembersSettings, /InviteMembersDialog/);
+  assert.match(newInviteDialog, /<Send/);
+  assert.doesNotMatch(newSettingsSections, /Textarea/);
   assert.match(classicTeamDashboard, /team\?\.role === 'admin'/);
   assert.match(newTeamDashboard, /team\.role === "admin"/);
   assert.match(classicSidebar, /isActiveTeamAdmin/);

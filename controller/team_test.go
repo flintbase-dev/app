@@ -232,6 +232,150 @@ func TestInviteTeamMemberCreatesLocalInvitationBeforeCallingWorkOS(t *testing.T)
 	}
 }
 
+func TestAdminDeactivateTeamDeletesWorkOSOrganizationAndLocalTeam(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTeamControllerTestDB(t)
+	creator := seedTeamControllerUser(t, db, "user_admin_deactivate_team", "admin-deactivate@example.com", "workos_admin_deactivate")
+	team, err := model.CreateTeamWithCreator(model.CreateTeamParams{
+		Name:                 "Admin Deactivate Team",
+		CreatedByUserId:      creator.Id,
+		WorkOSOrganizationId: "org_admin_deactivate",
+		WorkOSMembershipId:   "om_admin_deactivate",
+	})
+	if err != nil {
+		t.Fatalf("CreateTeamWithCreator returned error: %v", err)
+	}
+
+	var sawDelete atomic.Bool
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Method != http.MethodDelete || r.URL.Path != "/organizations/org_admin_deactivate" {
+			http.Error(w, "unexpected WorkOS request", http.StatusNotFound)
+			return
+		}
+		sawDelete.Store(true)
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("WORKOS_API_BASE_URL", server.URL)
+	t.Setenv("WORKOS_API_KEY", "sk_test")
+	t.Setenv("WORKOS_CLIENT_ID", "client_test")
+	t.Setenv("WORKOS_REDIRECT_URI", "http://app.example.com/api/workos/callback")
+
+	payload, err := json.Marshal(map[string]string{"team_id": team.Id})
+	if err != nil {
+		t.Fatalf("failed to marshal deactivate payload: %v", err)
+	}
+	recorder := httptest.NewRecorder()
+	ctx, _ := gin.CreateTestContext(recorder)
+	ctx.Request = httptest.NewRequest(http.MethodPost, "/api/admin/teams/deactivate", bytes.NewReader(payload))
+	ctx.Request.Header.Set("Content-Type", "application/json")
+	ctx.Set("id", creator.Id)
+	AdminDeactivateTeam(ctx)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("AdminDeactivateTeam status = %d, body = %s", recorder.Code, recorder.Body.String())
+	}
+	var response struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &response); err != nil {
+		t.Fatalf("failed to decode response %q: %v", recorder.Body.String(), err)
+	}
+	if !response.Success {
+		t.Fatalf("AdminDeactivateTeam failed: %+v", response)
+	}
+	if !sawDelete.Load() {
+		t.Fatalf("WorkOS organization delete was not called")
+	}
+	if _, err := model.GetTeamById(team.Id); err == nil {
+		t.Fatalf("team should no longer be active after admin deactivate")
+	}
+	var membership model.TeamMembership
+	if err := db.First(&membership, "team_id = ? AND user_id = ?", team.Id, creator.Id).Error; err != nil {
+		t.Fatalf("failed to reload team membership: %v", err)
+	}
+	if membership.Status != model.MembershipInactive {
+		t.Fatalf("membership status = %q, want inactive", membership.Status)
+	}
+}
+
+func TestManageUserDisableDeactivatesWorkOSMembershipsAndLocalTeamMemberships(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	db := setupTeamControllerTestDB(t)
+	admin := seedTeamControllerUser(t, db, "user_disable_admin", "disable-admin@example.com", "workos_disable_admin")
+	admin.Role = common.RoleAdminUser
+	if err := db.Save(admin).Error; err != nil {
+		t.Fatalf("failed to promote admin user: %v", err)
+	}
+	target := seedTeamControllerUser(t, db, "user_disable_target", "disable-target@example.com", "workos_disable_target")
+	team, err := model.CreateTeamWithCreator(model.CreateTeamParams{
+		Name:                 "Disable Target Team",
+		CreatedByUserId:      admin.Id,
+		WorkOSOrganizationId: "org_disable_target",
+		WorkOSMembershipId:   "om_disable_admin",
+	})
+	if err != nil {
+		t.Fatalf("CreateTeamWithCreator returned error: %v", err)
+	}
+	if _, err := model.SyncTeamMembership(model.SyncTeamMembershipParams{
+		TeamId:                         team.Id,
+		UserId:                         target.Id,
+		WorkOSOrganizationMembershipId: "om_disable_target",
+		Role:                           model.TeamRoleMember,
+		Status:                         model.MembershipActive,
+	}); err != nil {
+		t.Fatalf("SyncTeamMembership returned error: %v", err)
+	}
+
+	var deactivated []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/user_management/organization_memberships":
+			if got := r.URL.Query().Get("user_id"); got != "workos_disable_target" {
+				t.Fatalf("user_id query = %q, want workos_disable_target", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"data":[{"id":"om_disable_target","status":"active"},{"id":"om_disable_inactive","status":"inactive"}]}`))
+		case r.Method == http.MethodPut && r.URL.Path == "/user_management/organization_memberships/om_disable_target/deactivate":
+			deactivated = append(deactivated, r.URL.Path)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"om_disable_target","status":"inactive"}`))
+		default:
+			http.Error(w, "unexpected WorkOS request", http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+	t.Setenv("WORKOS_API_BASE_URL", server.URL)
+	t.Setenv("WORKOS_API_KEY", "sk_test")
+	t.Setenv("WORKOS_CLIENT_ID", "client_test")
+	t.Setenv("WORKOS_REDIRECT_URI", "http://app.example.com/api/workos/callback")
+
+	response := performTeamControllerRequest(t, ManageUser, http.MethodPost, "/api/admin/users/manage", ManageRequest{
+		Id:     target.Id,
+		Action: "disable",
+	}, admin.Id)
+	if !response.Success {
+		t.Fatalf("ManageUser disable failed: %+v", response)
+	}
+	if len(deactivated) != 1 {
+		t.Fatalf("deactivated WorkOS memberships = %+v, want one active membership", deactivated)
+	}
+	disabled, err := model.GetUserById(target.Id, false)
+	if err != nil {
+		t.Fatalf("failed to reload disabled user: %v", err)
+	}
+	if disabled.Status != common.UserStatusDisabled {
+		t.Fatalf("user status = %d, want disabled", disabled.Status)
+	}
+	var membership model.TeamMembership
+	if err := db.First(&membership, "team_id = ? AND user_id = ?", team.Id, target.Id).Error; err != nil {
+		t.Fatalf("failed to reload team membership: %v", err)
+	}
+	if membership.Status != model.MembershipInactive {
+		t.Fatalf("membership status = %q, want inactive", membership.Status)
+	}
+}
+
 func TestTeamTokenSecretRevealPermissionMatrix(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := setupTeamControllerTestDB(t)
@@ -347,6 +491,12 @@ func performTeamControllerRequest(t *testing.T, handler gin.HandlerFunc, method 
 	ctx.Request = httptest.NewRequest(method, target, requestBody)
 	ctx.Request.Header.Set("Content-Type", "application/json")
 	ctx.Set("id", userId)
+	if userId != "" {
+		if user, err := model.GetUserById(userId, false); err == nil {
+			ctx.Set("role", user.Role)
+			ctx.Set("username", user.Username)
+		}
+	}
 
 	handler(ctx)
 

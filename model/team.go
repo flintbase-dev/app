@@ -32,6 +32,7 @@ type Team struct {
 	WorkOSOrganizationId string `json:"workos_organization_id" gorm:"column:workos_organization_id;type:text;not null;uniqueIndex"`
 	Name                 string `json:"name" gorm:"type:text;not null"`
 	Slug                 string `json:"slug" gorm:"type:text;not null;uniqueIndex"`
+	Group                string `json:"group" gorm:"column:group;type:varchar(64);not null;default:'default'"`
 	CreatedByUserId      string `json:"created_by_user_id" gorm:"type:varchar(32);not null;index"`
 	StripeCustomer       string `json:"stripe_customer" gorm:"type:varchar(128);default:'';index"`
 	Quota                int    `json:"quota" gorm:"default:0"`
@@ -45,6 +46,25 @@ type Team struct {
 
 func (Team) TableName() string {
 	return "teams"
+}
+
+type AdminTeam struct {
+	Id                   string `json:"id"`
+	WorkOSOrganizationId string `json:"workos_organization_id"`
+	Name                 string `json:"name"`
+	Slug                 string `json:"slug"`
+	Group                string `json:"group"`
+	CreatedByUserId      string `json:"created_by_user_id"`
+	CreatedByUsername    string `json:"created_by_username"`
+	CreatedByEmail       string `json:"created_by_email"`
+	StripeCustomer       string `json:"stripe_customer"`
+	Quota                int    `json:"quota"`
+	UsedQuota            int    `json:"used_quota"`
+	RequestCount         int    `json:"request_count"`
+	ActiveMemberCount    int64  `json:"active_member_count"`
+	Status               string `json:"status"`
+	CreatedAt            int64  `json:"created_at"`
+	UpdatedAt            int64  `json:"updated_at"`
 }
 
 type TeamMembership struct {
@@ -205,6 +225,14 @@ func TeamSlugFromName(name string) string {
 	return slug
 }
 
+func normalizeTeamGroup(group string) string {
+	group = strings.TrimSpace(group)
+	if group == "" {
+		return "default"
+	}
+	return group
+}
+
 func uniqueTeamSlugTx(tx *gorm.DB, name string) (string, error) {
 	base := TeamSlugFromName(name)
 	slug := base
@@ -270,6 +298,7 @@ func CreateTeamWithCreator(params CreateTeamParams) (*Team, error) {
 			WorkOSOrganizationId: params.WorkOSOrganizationId,
 			Name:                 params.Name,
 			Slug:                 slug,
+			Group:                "default",
 			CreatedByUserId:      params.CreatedByUserId,
 			Status:               TeamStatusActive,
 			CreatedAt:            now,
@@ -346,9 +375,97 @@ func ListTeamsForUser(userId string) ([]Team, error) {
 	return teams, err
 }
 
+func adminTeamsSelectQuery(query *gorm.DB) *gorm.DB {
+	return query.Select(
+		`teams.id,
+teams.workos_organization_id,
+teams.name,
+teams.slug,
+teams."group",
+teams.created_by_user_id,
+created_by.username AS created_by_username,
+created_by.email AS created_by_email,
+teams.stripe_customer,
+teams.quota,
+teams.used_quota,
+teams.request_count,
+teams.status,
+teams.created_at,
+teams.updated_at,
+(SELECT COUNT(*) FROM team_memberships tm WHERE tm.team_id = teams.id AND tm.status = ?) AS active_member_count`,
+		MembershipActive,
+	)
+}
+
+func adminTeamsBaseQuery() *gorm.DB {
+	return DB.Table("teams").Joins("LEFT JOIN users created_by ON created_by.id = teams.created_by_user_id")
+}
+
+func applyAdminTeamFilters(query *gorm.DB, keyword string, group string, status string) *gorm.DB {
+	keyword = strings.TrimSpace(keyword)
+	group = strings.TrimSpace(group)
+	status = strings.TrimSpace(status)
+	if keyword != "" {
+		like := "%" + keyword + "%"
+		query = query.Where(
+			"teams.id = ? OR teams.name ILIKE ? OR teams.slug ILIKE ? OR teams.workos_organization_id ILIKE ? OR created_by.username ILIKE ? OR created_by.email ILIKE ?",
+			keyword,
+			like,
+			like,
+			like,
+			like,
+			like,
+		)
+	}
+	if group != "" {
+		query = query.Where(`teams."group" = ?`, group)
+	}
+	if status != "" {
+		query = query.Where("teams.status = ?", status)
+	}
+	return query
+}
+
+func ListAdminTeams(pageInfo *common.PageInfo) ([]AdminTeam, int64, error) {
+	var total int64
+	if err := adminTeamsBaseQuery().Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var teams []AdminTeam
+	err := adminTeamsSelectQuery(adminTeamsBaseQuery()).
+		Order("teams.created_at DESC").
+		Limit(pageInfo.GetPageSize()).
+		Offset(pageInfo.GetStartIdx()).
+		Scan(&teams).Error
+	return teams, total, err
+}
+
+func SearchAdminTeams(keyword string, group string, status string, startIdx int, num int) ([]AdminTeam, int64, error) {
+	query := applyAdminTeamFilters(adminTeamsBaseQuery(), keyword, group, status)
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
+		return nil, 0, err
+	}
+	var teams []AdminTeam
+	err := adminTeamsSelectQuery(applyAdminTeamFilters(adminTeamsBaseQuery(), keyword, group, status)).
+		Order("teams.created_at DESC").
+		Limit(num).
+		Offset(startIdx).
+		Scan(&teams).Error
+	return teams, total, err
+}
+
 func GetTeamById(teamId string) (*Team, error) {
 	var team Team
 	if err := DB.First(&team, "id = ? AND status = ?", teamId, TeamStatusActive).Error; err != nil {
+		return nil, err
+	}
+	return &team, nil
+}
+
+func GetTeamByIdAnyStatus(teamId string) (*Team, error) {
+	var team Team
+	if err := DB.First(&team, "id = ?", strings.TrimSpace(teamId)).Error; err != nil {
 		return nil, err
 	}
 	return &team, nil
@@ -377,6 +494,30 @@ func UpdateTeam(teamId string, name string) (*Team, error) {
 	return GetTeamById(teamId)
 }
 
+func AdminUpdateTeam(teamId string, name string, group string, quota int) (*Team, error) {
+	name = strings.TrimSpace(name)
+	if name == "" {
+		return nil, errors.New("team name is required")
+	}
+	group = normalizeTeamGroup(group)
+	if quota < 0 {
+		return nil, errors.New("team quota cannot be negative")
+	}
+	result := DB.Model(&Team{}).Where("id = ? AND status = ?", strings.TrimSpace(teamId), TeamStatusActive).Updates(map[string]interface{}{
+		"name":       name,
+		"group":      group,
+		"quota":      quota,
+		"updated_at": common.GetTimestamp(),
+	})
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return nil, gorm.ErrRecordNotFound
+	}
+	return GetTeamById(teamId)
+}
+
 func DeleteTeam(teamId string) error {
 	now := common.GetTimestamp()
 	return DB.Transaction(func(tx *gorm.DB) error {
@@ -395,6 +536,16 @@ func DeleteTeam(teamId string) error {
 			"updated_at": now,
 		}).Error
 	})
+}
+
+func DeactivateUserTeamMemberships(userId string) error {
+	now := common.GetTimestamp()
+	return DB.Model(&TeamMembership{}).
+		Where("user_id = ? AND status = ?", strings.TrimSpace(userId), MembershipActive).
+		Updates(map[string]interface{}{
+			"status":     MembershipInactive,
+			"updated_at": now,
+		}).Error
 }
 
 func UpdateTeamFromWorkOSOrganization(workOSOrganizationId string, name string) error {

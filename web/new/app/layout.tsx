@@ -1,6 +1,6 @@
+import { Agentation } from "agentation";
 import type { Metadata } from "next";
 import { Geist, IBM_Plex_Mono } from "next/font/google";
-import { Agentation } from "agentation";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 

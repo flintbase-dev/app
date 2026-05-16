@@ -90,8 +90,8 @@ const TeamSettings = () => {
         API.query('teamMembers', { team_id: teamId }),
         API.query('teamInvitations', { team_id: teamId }),
         API.query('teamPolicy', { team_id: teamId }),
-        API.query('userModels'),
-        API.query('selfGroups'),
+        API.query('userModels', { team_id: teamId }),
+        API.query('selfGroups', { team_id: teamId }),
         API.query('teamBillingSummary', { team_id: teamId }),
         API.query('teamTopups', { team_id: teamId }),
       ]);

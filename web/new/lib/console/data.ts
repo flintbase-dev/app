@@ -217,9 +217,10 @@ export async function loadTokenEditor(
   options: { teamId?: string } = {},
 ) {
   const teamId = options.teamId;
+  const accountScope = teamId ? { params: { team_id: teamId } } : {};
   const fields: GraphQLOperationField[] = [
-    { operation: "selfGroups", alias: "groups" },
-    { operation: "userModels", alias: "models" },
+    { operation: "selfGroups", alias: "groups", ...accountScope },
+    { operation: "userModels", alias: "models", ...accountScope },
     { operation: "status" },
   ];
   if (id) {
@@ -491,8 +492,8 @@ export async function loadTeamSettingsData(teamId: string) {
       params: { team_id: teamId },
     },
     { operation: "teamPolicy", alias: "policy", params: { team_id: teamId } },
-    { operation: "selfGroups", alias: "groups" },
-    { operation: "userModels", alias: "models" },
+    { operation: "selfGroups", alias: "groups", params: { team_id: teamId } },
+    { operation: "userModels", alias: "models", params: { team_id: teamId } },
     {
       operation: "teamBillingSummary",
       alias: "summary",

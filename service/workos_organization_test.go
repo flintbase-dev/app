@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 )
@@ -174,5 +175,37 @@ func TestRevokeWorkOSInvitationReturnsNonNotFoundErrors(t *testing.T) {
 	var apiErr *WorkOSAPIError
 	if !errors.As(err, &apiErr) || apiErr.StatusCode != http.StatusInternalServerError {
 		t.Fatalf("error = %v, want WorkOSAPIError status 500", err)
+	}
+}
+
+func TestDeactivateWorkOSUserOrganizationMembershipsDeactivatesOnlyActiveMemberships(t *testing.T) {
+	var deactivated []string
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		switch {
+		case r.Method == http.MethodGet && r.URL.Path == "/user_management/organization_memberships":
+			if got := r.URL.Query().Get("user_id"); got != "user_workos" {
+				t.Fatalf("user_id query = %q, want user_workos", got)
+			}
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"data":[{"id":"om_active","status":"active"},{"id":"om_pending","status":"pending"},{"id":"om_inactive","status":"inactive"}]}`))
+		case r.Method == http.MethodPut && strings.HasSuffix(r.URL.Path, "/deactivate"):
+			deactivated = append(deactivated, r.URL.Path)
+			w.Header().Set("Content-Type", "application/json")
+			_, _ = w.Write([]byte(`{"id":"om_active","status":"inactive"}`))
+		default:
+			http.Error(w, "unexpected WorkOS request", http.StatusNotFound)
+		}
+	}))
+	t.Cleanup(server.Close)
+
+	err := DeactivateWorkOSUserOrganizationMemberships(context.Background(), WorkOSConfig{
+		APIBaseURL: server.URL,
+		APIKey:     "sk_test",
+	}, " user_workos ")
+	if err != nil {
+		t.Fatalf("DeactivateWorkOSUserOrganizationMemberships returned error: %v", err)
+	}
+	if len(deactivated) != 1 || deactivated[0] != "/user_management/organization_memberships/om_active/deactivate" {
+		t.Fatalf("deactivated paths = %+v, want only active membership", deactivated)
 	}
 }

@@ -108,6 +108,7 @@ CREATE TABLE teams (
     workos_organization_id TEXT NOT NULL UNIQUE,
     name TEXT NOT NULL,
     slug TEXT NOT NULL UNIQUE,
+    "group" VARCHAR(64) NOT NULL DEFAULT 'default',
     created_by_user_id VARCHAR(32) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
     stripe_customer VARCHAR(128) DEFAULT '',
     quota BIGINT DEFAULT 0,

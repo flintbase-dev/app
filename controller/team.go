@@ -137,6 +137,14 @@ type updateTeamRequest struct {
 	Name   string `json:"name"`
 }
 
+type adminUpdateTeamRequest struct {
+	TeamId string `json:"team_id"`
+	Id     string `json:"id"`
+	Name   string `json:"name"`
+	Group  string `json:"group"`
+	Quota  int    `json:"quota"`
+}
+
 type inviteTeamMemberRequest struct {
 	TeamId string `json:"team_id"`
 	Email  string `json:"email"`
@@ -229,6 +237,49 @@ func GetTeams(c *gin.Context) {
 	common.ApiSuccess(c, teams)
 }
 
+func AdminListTeams(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	teams, total, err := model.ListAdminTeams(pageInfo)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(teams)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func AdminSearchTeams(c *gin.Context) {
+	pageInfo := common.GetPageQuery(c)
+	teams, total, err := model.SearchAdminTeams(
+		c.Query("keyword"),
+		c.Query("group"),
+		c.Query("status"),
+		pageInfo.GetStartIdx(),
+		pageInfo.GetPageSize(),
+	)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	pageInfo.SetTotal(int(total))
+	pageInfo.SetItems(teams)
+	common.ApiSuccess(c, pageInfo)
+}
+
+func AdminGetTeam(c *gin.Context) {
+	teamId := strings.TrimSpace(c.Param("id"))
+	if teamId == "" {
+		teamId = strings.TrimSpace(c.Query("id"))
+	}
+	team, err := model.GetTeamByIdAnyStatus(teamId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, team)
+}
+
 func GetTeam(c *gin.Context) {
 	teamId := teamIdFromRequest(c)
 	membership, ok := requireTeamMemberContext(c, teamId)
@@ -242,6 +293,61 @@ func GetTeam(c *gin.Context) {
 	}
 	team.Role = membership.Role
 	common.ApiSuccess(c, team)
+}
+
+func AdminUpdateTeam(c *gin.Context) {
+	var req adminUpdateTeamRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	teamId := strings.TrimSpace(req.TeamId)
+	if teamId == "" {
+		teamId = strings.TrimSpace(req.Id)
+	}
+	teamBeforeUpdate, err := model.GetTeamById(teamId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	cfg, err := service.WorkOSConfigFromRequest(c.Request)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if _, err := service.UpdateWorkOSOrganization(c.Request.Context(), cfg, teamBeforeUpdate.WorkOSOrganizationId, req.Name); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	team, err := model.AdminUpdateTeam(teamId, req.Name, req.Group, req.Quota)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, team)
+}
+
+func AdminDeactivateTeam(c *gin.Context) {
+	teamId := teamIdFromRequest(c)
+	team, err := model.GetTeamById(teamId)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	cfg, err := service.WorkOSConfigFromRequest(c.Request)
+	if err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := service.DeleteWorkOSOrganization(c.Request.Context(), cfg, team.WorkOSOrganizationId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	if err := model.DeleteTeam(teamId); err != nil {
+		common.ApiError(c, err)
+		return
+	}
+	common.ApiSuccess(c, true)
 }
 
 func CreateTeam(c *gin.Context) {

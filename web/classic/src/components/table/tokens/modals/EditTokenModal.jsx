@@ -103,7 +103,10 @@ const EditTokenModal = (props) => {
   };
 
   const loadModels = async () => {
-    let res = await API.query('userModels');
+    let res = await API.query(
+      'userModels',
+      props.teamId ? { team_id: props.teamId } : {},
+    );
     const { success, message, data } = res.data;
     if (success) {
       const categories = getModelCategories(t);
@@ -132,7 +135,10 @@ const EditTokenModal = (props) => {
   };
 
   const loadGroups = async () => {
-    let res = await API.query('selfGroups');
+    let res = await API.query(
+      'selfGroups',
+      props.teamId ? { team_id: props.teamId } : {},
+    );
     const { success, message, data } = res.data;
     if (success) {
       let localGroupOptions = Object.entries(data).map(([group, info]) => ({

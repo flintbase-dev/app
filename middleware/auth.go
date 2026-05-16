@@ -203,6 +203,9 @@ func TeamMemberAuth() func(c *gin.Context) {
 		common.SetContextKey(c, constant.ContextKeyAccountId, teamId)
 		common.SetContextKey(c, constant.ContextKeyTeamId, teamId)
 		common.SetContextKey(c, constant.ContextKeyTeamRole, membership.Role)
+		if team, err := model.GetTeamById(teamId); err == nil {
+			common.SetContextKey(c, constant.ContextKeyTeamGroup, team.Group)
+		}
 		c.Next()
 	}
 }
@@ -230,6 +233,9 @@ func TeamAdminAuth() func(c *gin.Context) {
 		common.SetContextKey(c, constant.ContextKeyAccountId, teamId)
 		common.SetContextKey(c, constant.ContextKeyTeamId, teamId)
 		common.SetContextKey(c, constant.ContextKeyTeamRole, membership.Role)
+		if team, err := model.GetTeamById(teamId); err == nil {
+			common.SetContextKey(c, constant.ContextKeyTeamGroup, team.Group)
+		}
 		c.Next()
 	}
 }
@@ -445,11 +451,18 @@ func TokenAuth() func(c *gin.Context) {
 
 		userCache.WriteContext(c)
 
-		userGroup := userCache.Group
+		accountGroup := userCache.Group
+		if common.GetContextKeyString(c, constant.ContextKeyAccountType) == model.AccountTypeTeam {
+			if teamGroup := common.GetContextKeyString(c, constant.ContextKeyTeamGroup); teamGroup != "" {
+				accountGroup = teamGroup
+			}
+			common.SetContextKey(c, constant.ContextKeyUserGroup, accountGroup)
+		}
+
+		usingGroup := accountGroup
 		tokenGroup := token.Group
 		if tokenGroup != "" {
-			// check common.UserUsableGroups[userGroup]
-			if _, ok := service.GetUserUsableGroups(userGroup)[tokenGroup]; !ok {
+			if _, ok := service.GetUserUsableGroups(accountGroup)[tokenGroup]; !ok {
 				abortWithOpenAiMessage(c, http.StatusForbidden, fmt.Sprintf("无权访问 %s 分组", tokenGroup))
 				return
 			}
@@ -460,9 +473,9 @@ func TokenAuth() func(c *gin.Context) {
 					return
 				}
 			}
-			userGroup = tokenGroup
+			usingGroup = tokenGroup
 		}
-		common.SetContextKey(c, constant.ContextKeyUsingGroup, userGroup)
+		common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
 
 		err = SetupContextForToken(c, token, parts...)
 		if err != nil {
@@ -549,6 +562,7 @@ func validateTokenAccountContext(c *gin.Context, token *model.Token) error {
 		common.SetContextKey(c, constant.ContextKeyAccountId, team.Id)
 		common.SetContextKey(c, constant.ContextKeyTeamId, team.Id)
 		common.SetContextKey(c, constant.ContextKeyTeamRole, membership.Role)
+		common.SetContextKey(c, constant.ContextKeyTeamGroup, team.Group)
 		return nil
 	default:
 		return fmt.Errorf("unsupported token account type")
