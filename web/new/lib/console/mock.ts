@@ -52,10 +52,7 @@ export type Token = {
   unlimited_quota: boolean;
   used: number;
   last_used_at: string | null;
-  model_limits: string[]; // model ids
-  allow_ips: string[];
   key_preview: string; // last chars
-  key_full: string; // mock secret
 };
 
 export const TOKENS: Token[] = [
@@ -71,10 +68,7 @@ export const TOKENS: Token[] = [
     unlimited_quota: false,
     used: 187.42,
     last_used_at: "2026-05-10T11:32:14Z",
-    model_limits: [],
-    allow_ips: ["10.0.0.0/8", "172.16.0.0/12"],
-    key_preview: "•••• 7c4f",
-    key_full: "sk-FlntKai9pLqXrYz3M7TbU2WvN5BcD8eF1gHj4kRsA6t7c4f",
+    key_preview: "sk-flb-v1-...7c4f",
   },
   {
     id: 80,
@@ -88,10 +82,7 @@ export const TOKENS: Token[] = [
     unlimited_quota: false,
     used: 23.18,
     last_used_at: "2026-05-09T22:48:00Z",
-    model_limits: ["claude-haiku-4-5", "gpt-5-mini"],
-    allow_ips: [],
-    key_preview: "•••• a91e",
-    key_full: "sk-FlntKai2bC8dE7fG4hJ1kL5mN3pQ6rS9tU0vW2xY8zAa91e",
+    key_preview: "sk-flb-v1-...a91e",
   },
   {
     id: 78,
@@ -105,10 +96,7 @@ export const TOKENS: Token[] = [
     unlimited_quota: true,
     used: 4.81,
     last_used_at: "2026-05-10T08:51:11Z",
-    model_limits: [],
-    allow_ips: [],
-    key_preview: "•••• 1b23",
-    key_full: "sk-FlntKaiZ9yW8vU7tS6rP5qO4nM3lK2jI1hG0fE9dC8bA1b23",
+    key_preview: "sk-flb-v1-...1b23",
   },
   {
     id: 75,
@@ -122,10 +110,7 @@ export const TOKENS: Token[] = [
     unlimited_quota: false,
     used: 12.05,
     last_used_at: "2026-04-29T19:00:00Z",
-    model_limits: [],
-    allow_ips: [],
-    key_preview: "•••• d4e2",
-    key_full: "sk-FlntKaiM3nB2vC1xZ9yW8aQ7sE6rT5dF4gH3jK2lP0iO9d4e2",
+    key_preview: "sk-flb-v1-...d4e2",
   },
 ];
 
@@ -299,7 +284,7 @@ export const LOGS: LogEntry[] = [
     latency_ms: 22,
     channel: "—",
     status: "warn",
-    message: "blocked: ip 203.0.113.41 not in token allowlist",
+    message: "blocked: request policy rejected this call",
     ip: "203.0.113.41",
   },
   {

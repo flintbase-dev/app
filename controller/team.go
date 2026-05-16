@@ -168,7 +168,7 @@ type updateTeamPolicyRequest struct {
 	GroupPolicy model.PolicyToggleSet `json:"group_policy"`
 }
 
-type teamTokenBatch struct {
+type teamAPIKeyBatch struct {
 	TeamId string   `json:"team_id"`
 	Ids    []string `json:"ids"`
 }
@@ -803,34 +803,43 @@ func CreateTeamToken(c *gin.Context) {
 		common.ApiError(c, errors.New("team token limit reached"))
 		return
 	}
-	key, err := common.GenerateKey()
+	fullKey, err := common.GenerateAPIKey()
 	if err != nil {
 		common.ApiError(c, err)
 		return
 	}
 	cleanToken := model.Token{
-		UserId:             currentUserId(c),
-		CreatedByUserId:    currentUserId(c),
-		AccountType:        model.AccountTypeTeam,
-		AccountId:          teamId,
-		Name:               token.Name,
-		Key:                key,
-		CreatedTime:        common.GetTimestamp(),
-		AccessedTime:       common.GetTimestamp(),
-		ExpiredTime:        token.ExpiredTime,
-		RemainQuota:        token.RemainQuota,
-		UnlimitedQuota:     token.UnlimitedQuota,
-		ModelLimitsEnabled: token.ModelLimitsEnabled,
-		ModelLimits:        token.ModelLimits,
-		AllowIps:           token.AllowIps,
-		Group:              token.Group,
-		CrossGroupRetry:    token.CrossGroupRetry,
+		UserId:          currentUserId(c),
+		CreatedByUserId: currentUserId(c),
+		AccountType:     model.AccountTypeTeam,
+		AccountId:       teamId,
+		Name:            token.Name,
+		CreatedTime:     common.GetTimestamp(),
+		AccessedTime:    common.GetTimestamp(),
+		ExpiredTime:     token.ExpiredTime,
+		RemainQuota:     token.RemainQuota,
+		UnlimitedQuota:  token.UnlimitedQuota,
+		Group:           token.Group,
+		CrossGroupRetry: token.CrossGroupRetry,
 	}
+	cleanToken.SetAPIKey(fullKey)
 	if err := cleanToken.Insert(); err != nil {
 		common.ApiError(c, err)
 		return
 	}
-	common.ApiSuccess(c, buildMaskedTokenResponse(&cleanToken))
+	model.RecordAuditEventWithContext(c, model.LogEventParams{
+		UserId:       currentUserId(c),
+		AccountType:  model.AccountTypeTeam,
+		AccountId:    teamId,
+		Event:        "team.api_key.create",
+		Content:      "Team API key created",
+		ResourceType: "api_key",
+		ResourceId:   cleanToken.Id,
+		Other: map[string]interface{}{
+			"api_key_name": cleanToken.Name,
+		},
+	})
+	common.ApiSuccess(c, buildAPIKeyCreateResponse(&cleanToken, fullKey))
 }
 
 func GetTeamToken(c *gin.Context) {
@@ -908,9 +917,6 @@ func UpdateTeamToken(c *gin.Context) {
 		cleanToken.ExpiredTime = token.ExpiredTime
 		cleanToken.RemainQuota = token.RemainQuota
 		cleanToken.UnlimitedQuota = token.UnlimitedQuota
-		cleanToken.ModelLimitsEnabled = token.ModelLimitsEnabled
-		cleanToken.ModelLimits = token.ModelLimits
-		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
 	}
@@ -942,7 +948,7 @@ func DeleteTeamToken(c *gin.Context) {
 }
 
 func DeleteTeamTokens(c *gin.Context) {
-	var req teamTokenBatch
+	var req teamAPIKeyBatch
 	if err := c.ShouldBindJSON(&req); err != nil {
 		common.ApiError(c, err)
 		return
@@ -957,79 +963,6 @@ func DeleteTeamTokens(c *gin.Context) {
 		return
 	}
 	common.ApiSuccess(c, count)
-}
-
-func GetTeamTokenKey(c *gin.Context) {
-	teamId := teamIdFromRequest(c)
-	membership, ok := requireTeamMemberContext(c, teamId)
-	if !ok {
-		return
-	}
-	tokenId := strings.TrimSpace(c.Param("id"))
-	if tokenId == "" {
-		tokenId = strings.TrimSpace(c.Query("id"))
-	}
-	token, err := model.GetTokenByIdForAccount(tokenId, model.TeamAccountContext(teamId))
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	if membership.Role != model.TeamRoleAdmin && token.CreatedByUserId != currentUserId(c) {
-		common.ApiError(c, errors.New("team members can only reveal their own team tokens"))
-		return
-	}
-	model.RecordSecurityEventWithContext(c, model.LogEventParams{
-		UserId:       currentUserId(c),
-		AccountType:  model.AccountTypeTeam,
-		AccountId:    teamId,
-		Event:        "team.token.secret.view",
-		Severity:     "warning",
-		Content:      "Team API token secret viewed",
-		ResourceType: "token",
-		ResourceId:   token.Id,
-		Other: map[string]interface{}{
-			"token_name": token.Name,
-		},
-	})
-	common.ApiSuccess(c, gin.H{"key": token.GetFullKey()})
-}
-
-func GetTeamTokenKeysBatch(c *gin.Context) {
-	var req teamTokenBatch
-	if err := c.ShouldBindJSON(&req); err != nil || len(req.Ids) == 0 {
-		common.ApiError(c, errors.New("invalid team token batch"))
-		return
-	}
-	if len(req.Ids) > 100 {
-		common.ApiError(c, errors.New("too many token ids"))
-		return
-	}
-	membership, ok := requireTeamMemberContext(c, req.TeamId)
-	if !ok {
-		return
-	}
-	tokens, err := model.GetTokenKeysByIdsForAccount(req.Ids, model.TeamAccountContext(req.TeamId), currentUserId(c), membership.Role == model.TeamRoleAdmin)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	model.RecordSecurityEventWithContext(c, model.LogEventParams{
-		UserId:       currentUserId(c),
-		AccountType:  model.AccountTypeTeam,
-		AccountId:    req.TeamId,
-		Event:        "team.token.secret.batch_view",
-		Severity:     "warning",
-		Content:      "Team API token secrets viewed in batch",
-		ResourceType: "token",
-		Other: map[string]interface{}{
-			"count": len(tokens),
-		},
-	})
-	keysMap := make(map[string]string)
-	for _, token := range tokens {
-		keysMap[token.Id] = token.GetFullKey()
-	}
-	common.ApiSuccess(c, gin.H{"keys": keysMap})
 }
 
 func GetTeamUsage(c *gin.Context) {

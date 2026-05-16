@@ -396,7 +396,7 @@ export default function SettingsChats(props) {
           <Banner
             type='info'
             description={t(
-              '链接中的{key}将自动替换为sk-xxxx，{address}将自动替换为系统设置的服务器地址，末尾不带/和/v1',
+              '完整 API 密钥仅在创建时显示一次，不再自动填入聊天链接。请让用户创建新的 API 密钥后手动填入目标客户端。',
             )}
           />
 
@@ -563,7 +563,7 @@ export default function SettingsChats(props) {
           <Banner
             type='info'
             description={t(
-              '提示：链接中的{key}将被替换为API密钥，{address}将被替换为服务器地址',
+              '提示：完整 API 密钥不会自动填入链接。请将链接作为客户端入口，并让用户手动粘贴新创建的 API 密钥。',
             )}
             style={{ marginTop: 16 }}
           />

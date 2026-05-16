@@ -17,7 +17,7 @@ export function GlobalSearch({ defaultValue = "" }: { defaultValue?: string }) {
         <InputGroupInput
           name="q"
           defaultValue={defaultValue}
-          placeholder="Jump to a page, model, request, invoice, or token id…"
+          placeholder="Jump to a page, model, request, invoice, or API key id..."
         />
         <InputGroupAddon align="inline-end">
           <Kbd>⌘K</Kbd>

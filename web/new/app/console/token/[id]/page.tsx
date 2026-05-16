@@ -4,14 +4,11 @@ import {
   KeyRound,
   Power,
   Save,
-  ShieldCheck,
   Trash2,
 } from "lucide-react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { CurrencyAmountInput } from "@/components/console/currency-amount-input";
-import { TokenSecretButton } from "@/components/console/token-actions";
-import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -50,7 +47,7 @@ export async function EditTokenFormPage({
   id: string;
   teamId?: string;
 }) {
-  const { token, groups, models, status } = await loadTokenEditor(id, {
+  const { token, groups, status } = await loadTokenEditor(id, {
     teamId,
   });
   if (!token) notFound();
@@ -117,7 +114,6 @@ export async function EditTokenFormPage({
           </div>
         </div>
 
-        {/* Secret reveal */}
         <Card className="mt-6">
           <CardContent className="py-5">
             <div className="flex items-center gap-3">
@@ -125,29 +121,18 @@ export async function EditTokenFormPage({
                 <KeyRound aria-hidden="true" className="size-4" />
               </span>
               <div className="flex-1">
-                <p className="text-sm font-medium text-foreground">Secret</p>
+                <p className="text-sm font-medium text-foreground">
+                  API key preview
+                </p>
                 <p className="text-xs text-muted-foreground">
-                  Use this value in the{" "}
-                  <code className="font-mono text-foreground">
-                    Authorization
-                  </code>{" "}
-                  header.
+                  The full secret was only shown when this key was created.
+                  Create a replacement key if the secret was lost.
                 </p>
               </div>
               <div className="flex items-center gap-1.5 rounded-md border border-border bg-muted p-1.5 pl-2.5">
                 <code className="font-mono text-sm text-foreground">
                   {token.keyPreview}
                 </code>
-                <TokenSecretButton
-                  tokenId={token.id}
-                  mode="reveal"
-                  teamId={teamId}
-                />
-                <TokenSecretButton
-                  tokenId={token.id}
-                  mode="copy"
-                  teamId={teamId}
-                />
               </div>
             </div>
           </CardContent>
@@ -220,22 +205,17 @@ export async function EditTokenFormPage({
                 />
               </FieldRow>
               <FieldRow label="Expires">
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="datetime-local"
-                    name="expired_at"
-                    defaultValue={
-                      token.expiredAt > 0
-                        ? new Date(token.expiredAt * 1000)
-                            .toISOString()
-                            .slice(0, 16)
-                        : ""
-                    }
-                  />
-                  <Button variant="outline" size="sm">
-                    Never
-                  </Button>
-                </div>
+                <Input
+                  type="datetime-local"
+                  name="expired_at"
+                  defaultValue={
+                    token.expiredAt > 0
+                      ? new Date(token.expiredAt * 1000)
+                          .toISOString()
+                          .slice(0, 16)
+                      : ""
+                  }
+                />
               </FieldRow>
               <div className="flex items-center justify-between rounded-md bg-muted p-3 text-xs">
                 <span className="text-muted-foreground">Used to date</span>
@@ -243,58 +223,6 @@ export async function EditTokenFormPage({
                   {fmtMoney(token.used, status)}
                 </span>
               </div>
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardContent className="flex flex-col gap-5 py-5">
-              <SectionTitle icon={ShieldCheck} title="Restrictions" />
-              <FieldRow label="Model limits">
-                <Select>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Add a model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {models.map((model) => (
-                      <SelectItem key={model} value={model}>
-                        {model}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <input
-                  type="hidden"
-                  name="model_limits"
-                  value={token.modelLimits.join(",")}
-                />
-                <div className="mt-2 flex flex-wrap gap-1">
-                  {token.modelLimits.length ? (
-                    token.modelLimits.map((m) => (
-                      <Badge key={m} variant="outline" className="px-1.5">
-                        {m}
-                        <button
-                          type="button"
-                          className="ml-1 text-muted-foreground hover:text-foreground"
-                          aria-label="Remove"
-                        >
-                          ×
-                        </button>
-                      </Badge>
-                    ))
-                  ) : (
-                    <span className="text-xs text-muted-foreground">
-                      No restrictions — all models allowed.
-                    </span>
-                  )}
-                </div>
-              </FieldRow>
-              <FieldRow label="Allowed IPs / CIDRs">
-                <Input
-                  name="allow_ips"
-                  defaultValue={token.allowIps.join(", ")}
-                  placeholder="any"
-                />
-              </FieldRow>
             </CardContent>
           </Card>
 

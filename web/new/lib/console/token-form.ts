@@ -1,24 +1,24 @@
 import type { GraphQLOperationField } from "@/lib/api/graphql";
 import { moneyToCredits, toNumber, toText } from "@/lib/console/format";
 
-export function createTokenFieldsFromForm(
+export function createApiKeyFieldsFromForm(
   formData: FormData,
 ): GraphQLOperationField[] {
   const name = requireFormString(
     formData.get("name"),
-    "Token name is required",
+    "API key name is required",
   );
   const count = Math.min(
     Math.max(toNumber(formData.get("tokenCount"), 1), 1),
-    50,
+    10,
   );
   const baseInput = tokenInputFromForm(formData);
   const teamId = toText(formData.get("team_id"));
   const fields: GraphQLOperationField[] = [];
   for (let index = 0; index < count; index++) {
     fields.push({
-      operation: teamId ? "createTeamToken" : "createToken",
-      alias: `createToken${index}`,
+      operation: teamId ? "createTeamApiKey" : "createApiKey",
+      alias: `createApiKey${index}`,
       input: {
         ...baseInput,
         ...(teamId ? { team_id: teamId } : {}),
@@ -32,10 +32,6 @@ export function createTokenFieldsFromForm(
 
 export function tokenInputFromForm(formData: FormData) {
   const { status } = { status: { siteCreditsPerPriceUnit: 1_000_000 } };
-  const modelLimits = toText(formData.get("model_limits"))
-    .split(",")
-    .map((item) => item.trim())
-    .filter(Boolean);
   return {
     name: toText(formData.get("name")),
     group: toText(formData.get("group"), "default"),
@@ -46,15 +42,6 @@ export function tokenInputFromForm(formData: FormData) {
       ? 0
       : moneyToCredits(formData.get("remain_amount"), status),
     unlimited_quota: formData.has("unlimited_quota"),
-    model_limits_enabled: modelLimits.length > 0,
-    model_limits: JSON.stringify(
-      Object.fromEntries(modelLimits.map((m) => [m, true])),
-    ),
-    allow_ips: toText(formData.get("allow_ips"))
-      .split(",")
-      .map((ip) => ip.trim())
-      .filter(Boolean)
-      .join("\n"),
   };
 }
 

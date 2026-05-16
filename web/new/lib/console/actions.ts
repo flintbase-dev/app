@@ -7,10 +7,9 @@ import { redirect } from "next/navigation";
 import {
   assertApiSuccess,
   graphqlMutation,
-  graphqlQuery,
   unwrapApiData,
 } from "@/lib/api/graphql";
-import { loadConsoleLayoutData, requestTokenKey } from "@/lib/console/data";
+import { loadConsoleLayoutData } from "@/lib/console/data";
 import { moneyToCredits, toText } from "@/lib/console/format";
 import { requireFormString } from "@/lib/console/token-form";
 
@@ -52,25 +51,6 @@ export async function markAllInboxReadAction() {
   ]);
   assertApiSuccess(payload.markAllInboxRead);
   revalidatePath("/console/messages");
-}
-
-export async function revealTokenKeyAction(id: string, teamId?: string) {
-  return requestTokenKey(id, teamId);
-}
-
-export async function revealTokenKeysBatchAction(
-  ids: string[],
-  teamId?: string,
-) {
-  const operation = teamId ? "teamTokenKeysBatch" : "tokenKeysBatch";
-  const payload = await graphqlMutation<Record<string, unknown>>([
-    { operation, input: { ids, ...(teamId ? { team_id: teamId } : {}) } },
-  ]);
-  const data = asRecord(unwrapApiData(payload[operation], {}));
-  return Object.entries(asRecord(data.keys)).map(([id, key]) => ({
-    id,
-    key: toText(key),
-  }));
 }
 
 function requirePositiveAmount(amount: number): number {
@@ -360,9 +340,9 @@ export async function updateDisplayNameAction(input: {
 
 export async function createOnboardingTokenAction(input: { name: string }) {
   const name = input.name.trim() || "My first key";
-  const createPayload = await graphqlMutation<{ createToken: unknown }>([
+  const createPayload = await graphqlMutation<{ createApiKey: unknown }>([
     {
-      operation: "createToken",
+      operation: "createApiKey",
       input: {
         name,
         group: "default",
@@ -371,40 +351,14 @@ export async function createOnboardingTokenAction(input: { name: string }) {
         expired_time: -1,
         remain_quota: 0,
         unlimited_quota: true,
-        model_limits_enabled: false,
-        model_limits: "{}",
-        allow_ips: "",
       },
     },
   ]);
-  assertApiSuccess(createPayload.createToken);
-
-  const listPayload = await graphqlQuery<{ tokens: unknown }>([
-    {
-      operation: "tokens",
-      alias: "tokens",
-      params: { p: 1, page_size: 50 },
-    },
-  ]);
-  const tokens = asRecord(unwrapApiData(listPayload.tokens, {}));
-  const items = Array.isArray(tokens.items)
-    ? (tokens.items as unknown[])
-    : Array.isArray(tokens.records)
-      ? (tokens.records as unknown[])
-      : [];
-  const created = items
-    .map((item) => asRecord(item))
-    .filter((item) => toText(item.name) === name)
-    .sort(
-      (a, b) =>
-        Number(b.created_time ?? b.createdTime ?? 0) -
-        Number(a.created_time ?? a.createdTime ?? 0),
-    )[0];
-  if (!created || !created.id) {
-    throw new Error("Created key was not found");
-  }
-  const id = toText(created.id);
-  const key = await requestTokenKey(id);
+  const create = asRecord(unwrapApiData(createPayload.createApiKey, {}));
+  const item = asRecord(create.item);
+  const id = toText(item.id);
+  const key = toText(create.api_key);
+  if (!id || !key) throw new Error("Created API key was not returned");
   revalidatePath("/console/token");
   return { id, key };
 }

@@ -18,26 +18,29 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { useTokenKeys } from '../../hooks/chat/useTokenKeys';
+import { Button, Empty, Typography } from '@douyinfe/semi-ui';
+import { Link } from 'react-router-dom';
+import { useTranslation } from 'react-i18next';
 
 const chat2page = () => {
-  const { keys, chatLink, serverAddress, isLoading } = useTokenKeys();
-
-  const comLink = (key) => {
-    if (!chatLink || !serverAddress || !key) return '';
-    return `${chatLink}/#/?settings={"key":"sk-${key}","url":"${encodeURIComponent(serverAddress)}"}`;
-  };
-
-  if (keys.length > 0) {
-    const redirectLink = comLink(keys[0]);
-    if (redirectLink) {
-      window.location.href = redirectLink;
-    }
-  }
+  const { t } = useTranslation();
 
   return (
-    <div className='mt-[60px] px-2'>
-      <h3>正在加载，请稍候...</h3>
+    <div className='mt-[60px] flex min-h-[calc(100vh-60px)] items-center justify-center px-4'>
+      <Empty
+        title={t('无法自动生成聊天链接')}
+        description={
+          <Typography.Text type='tertiary'>
+            {t(
+              '完整 API 密钥仅在创建时显示一次。请创建新的 API 密钥后，将密钥手动填入目标聊天客户端。',
+            )}
+          </Typography.Text>
+        }
+      >
+        <Link to='/console/token'>
+          <Button type='primary'>{t('前往 API 密钥')}</Button>
+        </Link>
+      </Empty>
     </div>
   );
 };

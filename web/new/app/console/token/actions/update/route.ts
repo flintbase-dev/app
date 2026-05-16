@@ -13,9 +13,9 @@ export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
   const formData = await request.formData();
-  const id = requireFormString(formData.get("id"), "Token id is required");
+  const id = requireFormString(formData.get("id"), "API key id is required");
   const teamId = toText(formData.get("team_id"));
-  const operation = teamId ? "updateTeamToken" : "updateToken";
+  const operation = teamId ? "updateTeamApiKey" : "updateApiKey";
   const payload = await graphqlMutationFromRequest<Record<string, unknown>>(
     request,
     [

@@ -24,7 +24,7 @@ import { IconSearch } from '@douyinfe/semi-icons';
 const TokensFilters = ({
   formInitValues,
   setFormApi,
-  searchTokens,
+  searchApiKeys,
   loading,
   searching,
   t,
@@ -36,7 +36,7 @@ const TokensFilters = ({
     if (!formApiRef.current) return;
     formApiRef.current.reset();
     setTimeout(() => {
-      searchTokens();
+      searchApiKeys();
     }, 100);
   };
 
@@ -47,7 +47,7 @@ const TokensFilters = ({
         setFormApi(api);
         formApiRef.current = api;
       }}
-      onSubmit={() => searchTokens(1)}
+      onSubmit={() => searchApiKeys(1)}
       allowEmpty={true}
       autoComplete='off'
       layout='horizontal'
@@ -71,7 +71,7 @@ const TokensFilters = ({
           <Form.Input
             field='searchToken'
             prefix={<IconSearch />}
-            placeholder={t('密钥')}
+            placeholder={t('API 密钥预览')}
             showClear
             pure
             size='small'

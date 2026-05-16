@@ -21,7 +21,7 @@ test("global search is backed by GraphQL operations", () => {
     "pricing",
     "userLogs",
     "userTopups",
-    "searchTokens",
+    "searchApiKeys",
   ]) {
     assert.match(data, new RegExp(`operation: "${operation}"`));
   }
@@ -307,25 +307,28 @@ test("protected POST forms use route-handler redirects after mutation", () => {
   const redirects = read("lib/console/route-redirect.ts");
 
   assert.match(createPage, /action="\/console\/token\/actions\/create"/);
-  assert.doesNotMatch(createPage, /createTokenAction/);
-  assert.match(tokenPage, /action="\/console\/token\/actions\/delete-batch"/);
-  assert.doesNotMatch(tokenPage, /deleteTokensAction/);
+  assert.doesNotMatch(createPage, /createApiKeyAction/);
+  assert.doesNotMatch(
+    tokenPage,
+    /action="\/console\/token\/actions\/delete-batch"/,
+  );
+  assert.doesNotMatch(tokenPage, /deleteApiKeysAction/);
   assert.match(tokenPage, /action="\/console\/token\/actions\/toggle"/);
-  assert.doesNotMatch(tokenPage, /toggleTokenStatusAction/);
+  assert.doesNotMatch(tokenPage, /toggleApiKeyStatusAction/);
   assert.match(tokenPage, /action="\/console\/token\/actions\/delete"/);
-  assert.doesNotMatch(tokenPage, /deleteTokenAction/);
+  assert.doesNotMatch(tokenPage, /deleteApiKeyAction/);
   assert.match(tokenEditPage, /action="\/console\/token\/actions\/update"/);
-  assert.doesNotMatch(tokenEditPage, /updateTokenAction/);
+  assert.doesNotMatch(tokenEditPage, /updateApiKeyAction/);
   assert.match(tokenEditPage, /action="\/console\/token\/actions\/toggle"/);
-  assert.doesNotMatch(tokenEditPage, /toggleTokenStatusAction/);
+  assert.doesNotMatch(tokenEditPage, /toggleApiKeyStatusAction/);
   assert.match(tokenEditPage, /action="\/console\/token\/actions\/delete"/);
-  assert.doesNotMatch(tokenEditPage, /deleteTokenAction/);
+  assert.doesNotMatch(tokenEditPage, /deleteApiKeyAction/);
   assert.match(redeemPage, /action="\/console\/topup\/redeem\/actions"/);
   assert.doesNotMatch(redeemPage, /redeemCodeAction/);
-  assert.doesNotMatch(actions, /createTokenAction|updateTokenAction/);
+  assert.doesNotMatch(actions, /createApiKeyAction|updateApiKeyAction/);
   assert.doesNotMatch(
     actions,
-    /toggleTokenStatusAction|deleteTokenAction|deleteTokensAction/,
+    /toggleApiKeyStatusAction|deleteApiKeyAction|deleteApiKeysAction/,
   );
   assert.doesNotMatch(actions, /redeemCodeAction/);
 
@@ -437,8 +440,8 @@ test("team account context is implemented across backend and both consoles", () 
     "teamPolicy",
     "teamBillingSummary",
     "teamTopups",
-    "teamTokens",
-    "teamToken",
+    "teamApiKeys",
+    "teamApiKey",
     "teamUsage",
     "createTeam",
     "updateTeam",
@@ -451,10 +454,10 @@ test("team account context is implemented across backend and both consoles", () 
     "teamStripeAmount",
     "teamStripePay",
     "teamStripeBillingPortal",
-    "createTeamToken",
-    "updateTeamToken",
-    "deleteTeamToken",
-    "deleteTeamTokens",
+    "createTeamApiKey",
+    "updateTeamApiKey",
+    "deleteTeamApiKey",
+    "deleteTeamApiKeys",
   ]) {
     assert.match(router, new RegExp(`"${operation}"`));
     assert.match(
@@ -468,8 +471,8 @@ test("team account context is implemented across backend and both consoles", () 
   assert.match(auth, /func TeamAdminAuth\(\)/);
   assert.match(distributor, /enforceTeamTokenPolicy/);
   assert.match(data, /operation: "accountContext"/);
-  assert.match(data, /operation: "teamTokens"/);
-  assert.match(data, /operation: "teamToken"/);
+  assert.match(data, /operation: "teamApiKeys"/);
+  assert.match(data, /operation: "teamApiKey"/);
   assert.match(actions, /operation: "teamStripePay"/);
   assert.match(actions, /disabledFromSwitches/);
   assert.match(classicSettings, /<Switch/);

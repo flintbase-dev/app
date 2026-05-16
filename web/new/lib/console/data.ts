@@ -1,7 +1,6 @@
 import {
   type GraphQLObject,
   type GraphQLOperationField,
-  graphqlMutation,
   graphqlOperation,
   graphqlQuery,
   unwrapApiData,
@@ -145,7 +144,7 @@ export async function loadTeamDashboardData(teamId: string) {
     { operation: "status" },
     { operation: "team", params: { team_id: teamId } },
     {
-      operation: "teamTokens",
+      operation: "teamApiKeys",
       alias: "tokens",
       params: { team_id: teamId, p: 1, page_size: 5 },
     },
@@ -182,10 +181,10 @@ export async function loadTokenList(
   const fields: GraphQLOperationField[] = [
     {
       operation: teamId
-        ? "teamTokens"
+        ? "teamApiKeys"
         : params.keyword || params.token
-          ? "searchTokens"
-          : "tokens",
+          ? "searchApiKeys"
+          : "apiKeys",
       alias: "tokens",
       params: {
         p: 1,
@@ -220,23 +219,21 @@ export async function loadTokenEditor(
   const accountScope = teamId ? { params: { team_id: teamId } } : {};
   const fields: GraphQLOperationField[] = [
     { operation: "selfGroups", alias: "groups", ...accountScope },
-    { operation: "userModels", alias: "models", ...accountScope },
     { operation: "status" },
   ];
   if (id) {
     fields.push(
       teamId
         ? {
-            operation: "teamToken",
+            operation: "teamApiKey",
             alias: "token",
             params: { team_id: teamId, id },
           }
-        : { operation: "token", params: { id } },
+        : { operation: "apiKey", params: { id } },
     );
   }
   const data = await graphqlQuery<{
     groups: unknown;
-    models: unknown;
     status: unknown;
     token?: unknown;
   }>(fields);
@@ -244,7 +241,6 @@ export async function loadTokenEditor(
   return {
     status,
     groups: normalizeGroups(unwrapApiData(data.groups, {})),
-    models: asArray(unwrapApiData(data.models, [])).map((item) => toText(item)),
     token: id ? normalizeToken(data.token, status) : null,
   };
 }
@@ -599,7 +595,7 @@ export async function loadGlobalSearchResults(keyword: string) {
       params: { p: 1, page_size: 6, keyword: query },
     },
     {
-      operation: "searchTokens",
+      operation: "searchApiKeys",
       alias: "tokens",
       params: { p: 1, page_size: 6, keyword: query },
     },
@@ -666,47 +662,13 @@ export async function loadChatLaunchData(id: string) {
   if (!client || !activeToken) {
     return { status, clients, client, activeToken, url: "" };
   }
-  const key = await requestTokenKey(activeToken.id);
   return {
     status,
     clients,
     client,
     activeToken,
-    url: buildChatClientUrl(client.template, status.serverAddress, key),
+    url: "",
   };
-}
-
-export function buildChatClientUrl(
-  template: string,
-  serverAddress: string,
-  key: string,
-): string {
-  const address = serverAddress || "https://api.flint.dev";
-  const apiKey = key.startsWith("sk-") ? key : `sk-${key}`;
-  const encodedAddress = encodeURIComponent(address);
-  const encodedConfig = (value: Record<string, string>) =>
-    encodeURIComponent(Buffer.from(JSON.stringify(value)).toString("base64"));
-  if (template.includes("{cherryConfig}")) {
-    return template.replaceAll(
-      "{cherryConfig}",
-      encodedConfig({ id: "new-api", baseUrl: address, apiKey }),
-    );
-  }
-  if (template.includes("{aionuiConfig}")) {
-    return template.replaceAll(
-      "{aionuiConfig}",
-      encodedConfig({ platform: "new-api", baseUrl: address, apiKey }),
-    );
-  }
-  if (template.includes("{deepchatConfig}")) {
-    return template.replaceAll(
-      "{deepchatConfig}",
-      encodedConfig({ id: "new-api", baseUrl: address, apiKey }),
-    );
-  }
-  return template
-    .replaceAll("{address}", encodedAddress)
-    .replaceAll("{key}", apiKey);
 }
 
 export function normalizeStatus(value: unknown): ConsoleStatus {
@@ -803,8 +765,6 @@ export function normalizeToken(
   context: DisplayContext = {},
 ): Token {
   const item = asRecord(unwrapApiData(value, value));
-  const allowIps = item.allow_ips;
-  const modelLimits = parseModelLimits(item.model_limits);
   return {
     id: toText(item.id),
     name: toText(item.name, "untitled"),
@@ -819,14 +779,6 @@ export function normalizeToken(
     used: creditsToMoney(item.used_quota, context),
     usedCredits: toNumber(item.used_quota),
     lastUsedAt: toNumber(item.accessed_time),
-    modelLimits,
-    allowIps:
-      typeof allowIps === "string"
-        ? allowIps
-            .split(/\n|,/)
-            .map((ip) => ip.trim())
-            .filter(Boolean)
-        : [],
     keyPreview: toText(item.key, "****"),
   };
 }
@@ -1249,23 +1201,6 @@ function normalizePageInfo<T>(
   };
 }
 
-function parseModelLimits(value: unknown): string[] {
-  if (Array.isArray(value)) return value.map((item) => toText(item));
-  const text = toText(value);
-  if (!text) return [];
-  try {
-    const parsed = JSON.parse(text) as unknown;
-    if (Array.isArray(parsed)) return parsed.map((item) => toText(item));
-    if (parsed && typeof parsed === "object") return Object.keys(parsed);
-  } catch {
-    return text
-      .split(",")
-      .map((item) => item.trim())
-      .filter(Boolean);
-  }
-  return [];
-}
-
 function parseMaybeJson(value: unknown): Record<string, unknown> {
   if (typeof value === "string" && value.trim()) {
     try {
@@ -1293,15 +1228,4 @@ function slugify(value: string): string {
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "");
   return slug || "chat";
-}
-
-export async function requestTokenKey(id: string, teamId?: string) {
-  const operation = teamId ? "teamTokenKey" : "tokenKey";
-  const payload = await graphqlMutation<Record<string, unknown>>([
-    {
-      operation,
-      input: { id, ...(teamId ? { team_id: teamId } : {}) },
-    },
-  ]);
-  return toText(asRecord(unwrapApiData(payload[operation], {})).key);
 }

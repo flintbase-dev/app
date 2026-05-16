@@ -172,7 +172,7 @@ export default function GeneralSettings(props) {
             <Col xs={24} sm={12} md={8} lg={8} xl={8}>
               <Form.Switch
                 field={'DisplayTokenStatEnabled'}
-                label={t('额度查询接口返回令牌额度而非用户额度')}
+                label={t('额度查询接口返回 API 密钥额度而非用户额度')}
                 size='default'
                 checkedText='｜'
                 uncheckedText='〇'
@@ -193,12 +193,12 @@ export default function GeneralSettings(props) {
           <Row gutter={16}>
             <Col xs={24} sm={12} md={8} lg={8} xl={8}>
               <Form.InputNumber
-                label={t('用户最大令牌数量')}
+                label={t('用户最大 API 密钥数量')}
                 field={'token_setting.max_user_tokens'}
                 step={1}
                 min={1}
                 extraText={t(
-                  '每个用户最多可创建的令牌数量，默认 1000，设置过大可能会影响性能',
+                  '每个用户最多可创建的 API 密钥数量，默认 1000，设置过大可能会影响性能',
                 )}
                 placeholder={'1000'}
                 onChange={handleFieldChange('token_setting.max_user_tokens')}

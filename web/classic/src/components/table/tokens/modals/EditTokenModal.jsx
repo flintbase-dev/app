@@ -24,8 +24,6 @@ import {
   showSuccess,
   timestamp2string,
   renderGroupOption,
-  getModelCategories,
-  selectFilter,
 } from '../../../../helpers';
 import {
   quotaToDisplayAmount,
@@ -45,10 +43,10 @@ import {
   Form,
   Col,
   Row,
+  Modal,
 } from '@douyinfe/semi-ui';
 import {
   IconCreditCard,
-  IconLink,
   IconSave,
   IconClose,
   IconKey,
@@ -60,11 +58,10 @@ const { Text, Title } = Typography;
 
 const EditTokenModal = (props) => {
   const { t } = useTranslation();
-  const [statusState, statusDispatch] = useContext(StatusContext);
+  const [statusState] = useContext(StatusContext);
   const [loading, setLoading] = useState(false);
   const isMobile = useIsMobile();
   const formApiRef = useRef(null);
-  const [models, setModels] = useState([]);
   const [groups, setGroups] = useState([]);
   const isEdit = props.editingToken.id !== undefined;
 
@@ -74,9 +71,6 @@ const EditTokenModal = (props) => {
     remain_amount: 0,
     expired_time: -1,
     unlimited_quota: true,
-    model_limits_enabled: false,
-    model_limits: [],
-    allow_ips: '',
     group: '',
     cross_group_retry: false,
     tokenCount: 1,
@@ -99,38 +93,6 @@ const EditTokenModal = (props) => {
       formApiRef.current.setValue('expired_time', timestamp2string(timestamp));
     } else {
       formApiRef.current.setValue('expired_time', -1);
-    }
-  };
-
-  const loadModels = async () => {
-    let res = await API.query(
-      'userModels',
-      props.teamId ? { team_id: props.teamId } : {},
-    );
-    const { success, message, data } = res.data;
-    if (success) {
-      const categories = getModelCategories(t);
-      let localModelOptions = data.map((model) => {
-        let icon = null;
-        for (const [key, category] of Object.entries(categories)) {
-          if (key !== 'all' && category.filter({ model_name: model })) {
-            icon = category.icon;
-            break;
-          }
-        }
-        return {
-          label: (
-            <span className='flex items-center gap-1'>
-              {icon}
-              {model}
-            </span>
-          ),
-          value: model,
-        };
-      });
-      setModels(localModelOptions);
-    } else {
-      showError(t(message));
     }
   };
 
@@ -162,7 +124,7 @@ const EditTokenModal = (props) => {
 
   const loadToken = async () => {
     setLoading(true);
-    let res = await API.query(props.teamId ? 'teamToken' : 'token', {
+    let res = await API.query(props.teamId ? 'teamApiKey' : 'apiKey', {
       id: props.editingToken.id,
       ...(props.teamId ? { team_id: props.teamId } : {}),
     });
@@ -170,11 +132,6 @@ const EditTokenModal = (props) => {
     if (success) {
       if (data.expired_time !== -1) {
         data.expired_time = timestamp2string(data.expired_time);
-      }
-      if (data.model_limits !== '') {
-        data.model_limits = data.model_limits.split(',');
-      } else {
-        data.model_limits = [];
       }
       data.remain_amount = quotaToDisplayAmount(data.remain_quota || 0);
       if (formApiRef.current) {
@@ -192,7 +149,6 @@ const EditTokenModal = (props) => {
         formApiRef.current.setValues(getInitValues());
       }
     }
-    loadModels();
     loadGroups();
   }, [props.editingToken.id]);
 
@@ -220,6 +176,30 @@ const EditTokenModal = (props) => {
     return result;
   };
 
+  const showCreatedApiKeys = (createdKeys) => {
+    const content = createdKeys
+      .map((item) => `${item.name}    ${item.apiKey}`)
+      .join('\n');
+
+    Modal.success({
+      title: t('API 密钥已创建'),
+      content: (
+        <div>
+          <Text type='warning'>
+            {t('完整 API 密钥仅显示一次，请立即保存。')}
+          </Text>
+          <pre className='mt-3 max-h-64 overflow-auto rounded-lg bg-gray-50 p-3 text-xs'>
+            {content}
+          </pre>
+          <Typography.Paragraph copyable={{ content }}>
+            {t('复制全部 API 密钥')}
+          </Typography.Paragraph>
+        </div>
+      ),
+      size: 'large',
+    });
+  };
+
   const submit = async (values) => {
     setLoading(true);
     if (isEdit) {
@@ -241,10 +221,8 @@ const EditTokenModal = (props) => {
         }
         localInputs.expired_time = Math.ceil(time / 1000);
       }
-      localInputs.model_limits = localInputs.model_limits.join(',');
-      localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
       let res = await API.mutation(
-        props.teamId ? 'updateTeamToken' : 'updateToken',
+        props.teamId ? 'updateTeamApiKey' : 'updateApiKey',
         {
           ...localInputs,
           id: props.editingToken.id,
@@ -253,7 +231,7 @@ const EditTokenModal = (props) => {
       );
       const { success, message } = res.data;
       if (success) {
-        showSuccess(t('令牌更新成功！'));
+        showSuccess(t('API 密钥更新成功！'));
         props.refresh();
         props.handleClose();
       } else {
@@ -262,6 +240,7 @@ const EditTokenModal = (props) => {
     } else {
       const count = parseInt(values.tokenCount, 10) || 1;
       let successCount = 0;
+      const createdKeys = [];
       for (let i = 0; i < count; i++) {
         let { tokenCount: _tc, ...localInputs } = values;
         const baseName =
@@ -289,25 +268,31 @@ const EditTokenModal = (props) => {
           }
           localInputs.expired_time = Math.ceil(time / 1000);
         }
-        localInputs.model_limits = localInputs.model_limits.join(',');
-        localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
         let res = await API.mutation(
-          props.teamId ? 'createTeamToken' : 'createToken',
+          props.teamId ? 'createTeamApiKey' : 'createApiKey',
           {
             ...localInputs,
             ...(props.teamId ? { team_id: props.teamId } : {}),
           },
         );
-        const { success, message } = res.data;
+        const { success, message, data } = res.data;
         if (success) {
           successCount++;
+          const apiKey = data?.api_key;
+          if (apiKey) {
+            createdKeys.push({ name: localInputs.name, apiKey });
+          }
         } else {
           showError(t(message));
           break;
         }
       }
       if (successCount > 0) {
-        showSuccess(t('令牌创建成功，请在列表页面点击复制获取令牌！'));
+        if (createdKeys.length > 0) {
+          showCreatedApiKeys(createdKeys);
+        } else {
+          showSuccess(t('API 密钥创建成功！'));
+        }
         props.refresh();
         props.handleClose();
       }
@@ -331,7 +316,7 @@ const EditTokenModal = (props) => {
             </Tag>
           )}
           <Title heading={4} className='m-0'>
-            {isEdit ? t('更新令牌信息') : t('创建新的令牌')}
+            {isEdit ? t('更新 API 密钥') : t('创建新的 API 密钥')}
           </Title>
         </Space>
       }
@@ -383,7 +368,7 @@ const EditTokenModal = (props) => {
                   <div>
                     <Text className='text-lg font-medium'>{t('基本信息')}</Text>
                     <div className='text-xs text-gray-600'>
-                      {t('设置令牌的基本信息')}
+                      {t('设置 API 密钥的基本信息')}
                     </div>
                   </div>
                 </div>
@@ -401,8 +386,8 @@ const EditTokenModal = (props) => {
                     {groups.length > 0 ? (
                       <Form.Select
                         field='group'
-                        label={t('令牌分组')}
-                        placeholder={t('令牌分组，默认为用户的分组')}
+                        label={t('API 密钥分组')}
+                        placeholder={t('API 密钥分组，默认为用户的分组')}
                         optionList={groups}
                         renderOptionItem={renderGroupOption}
                         filter={(input, option) => {
@@ -420,7 +405,7 @@ const EditTokenModal = (props) => {
                       <Form.Select
                         placeholder={t('管理员未设置用户可选分组')}
                         disabled
-                        label={t('令牌分组')}
+                        label={t('API 密钥分组')}
                         style={{ width: '100%' }}
                       />
                     )}
@@ -510,7 +495,10 @@ const EditTokenModal = (props) => {
                         field='tokenCount'
                         label={t('新建数量')}
                         min={1}
-                        extraText={t('批量创建时会在名称后自动添加随机后缀')}
+                        max={10}
+                        extraText={t(
+                          '批量创建时会在名称后自动添加随机后缀，最多 10 个',
+                        )}
                         rules={[
                           { required: true, message: t('请输入新建数量') },
                         ]}
@@ -530,7 +518,7 @@ const EditTokenModal = (props) => {
                   <div>
                     <Text className='text-lg font-medium'>{t('额度设置')}</Text>
                     <div className='text-xs text-gray-600'>
-                      {t('设置令牌可用额度和数量')}
+                      {t('设置 API 密钥可用额度和数量')}
                     </div>
                   </div>
                 </div>
@@ -560,60 +548,8 @@ const EditTokenModal = (props) => {
                       label={t('无限额度')}
                       size='default'
                       extraText={t(
-                        '令牌的额度仅用于限制令牌本身的最大额度使用量，实际的使用受到账户的剩余额度限制',
+                        'API 密钥的额度仅用于限制 API 密钥本身的最大额度使用量，实际使用仍受账户剩余额度限制',
                       )}
-                    />
-                  </Col>
-                </Row>
-              </Card>
-
-              {/* 访问限制 */}
-              <Card className='!rounded-2xl shadow-sm border-0'>
-                <div className='flex items-center mb-2'>
-                  <Avatar
-                    size='small'
-                    color='purple'
-                    className='mr-2 shadow-md'
-                  >
-                    <IconLink size={16} />
-                  </Avatar>
-                  <div>
-                    <Text className='text-lg font-medium'>{t('访问限制')}</Text>
-                    <div className='text-xs text-gray-600'>
-                      {t('设置令牌的访问限制')}
-                    </div>
-                  </div>
-                </div>
-                <Row gutter={12}>
-                  <Col span={24}>
-                    <Form.Select
-                      field='model_limits'
-                      label={t('模型限制列表')}
-                      placeholder={t(
-                        '请选择该令牌支持的模型，留空支持所有模型',
-                      )}
-                      multiple
-                      optionList={models}
-                      extraText={t('非必要，不建议启用模型限制')}
-                      filter={selectFilter}
-                      autoClearSearchValue={false}
-                      searchPosition='dropdown'
-                      showClear
-                      style={{ width: '100%' }}
-                    />
-                  </Col>
-                  <Col span={24}>
-                    <Form.TextArea
-                      field='allow_ips'
-                      label={t('IP白名单（支持CIDR表达式）')}
-                      placeholder={t('允许的IP，一行一个，不填写则不限制')}
-                      autosize
-                      rows={1}
-                      extraText={t(
-                        '请勿过度信任此功能，IP可能被伪造，请配合nginx和cdn等网关使用',
-                      )}
-                      showClear
-                      style={{ width: '100%' }}
                     />
                   </Col>
                 </Row>

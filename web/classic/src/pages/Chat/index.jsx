@@ -18,64 +18,31 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
-import { useTokenKeys } from '../../hooks/chat/useTokenKeys';
-import { Spin } from '@douyinfe/semi-ui';
-import { useParams } from 'react-router-dom';
+import { Button, Empty, Typography } from '@douyinfe/semi-ui';
+import { Link, useParams } from 'react-router-dom';
 import { useTranslation } from 'react-i18next';
 
 const ChatPage = () => {
   const { t } = useTranslation();
   const { id } = useParams();
-  const { keys, serverAddress, isLoading } = useTokenKeys(id);
+  const title = id ? t('无法自动打开聊天客户端') : t('未选择聊天客户端');
 
-  const comLink = (key) => {
-    // console.log('chatLink:', chatLink);
-    if (!serverAddress || !key) return '';
-    let link = '';
-    if (id) {
-      let chats = localStorage.getItem('chats');
-      if (chats) {
-        chats = JSON.parse(chats);
-        if (Array.isArray(chats) && chats.length > 0) {
-          for (let k in chats[id]) {
-            link = chats[id][k];
-            link = link.replaceAll(
-              '{address}',
-              encodeURIComponent(serverAddress),
-            );
-            link = link.replaceAll('{key}', 'sk-' + key);
-          }
+  return (
+    <div className='mt-[60px] flex min-h-[calc(100vh-60px)] items-center justify-center px-4'>
+      <Empty
+        title={title}
+        description={
+          <Typography.Text type='tertiary'>
+            {t(
+              '完整 API 密钥仅在创建时显示一次。请创建新的 API 密钥后，将密钥手动填入目标聊天客户端。',
+            )}
+          </Typography.Text>
         }
-      }
-    }
-    return link;
-  };
-
-  const iframeSrc = keys.length > 0 ? comLink(keys[0]) : '';
-
-  return !isLoading && iframeSrc ? (
-    <iframe
-      src={iframeSrc}
-      style={{
-        width: '100%',
-        height: 'calc(100vh - 64px)',
-        border: 'none',
-        marginTop: '64px',
-      }}
-      title='Token Frame'
-      allow='camera;microphone'
-    />
-  ) : (
-    <div className='fixed inset-0 w-screen h-screen flex items-center justify-center bg-white/80 z-[1000] mt-[60px]'>
-      <div className='flex flex-col items-center'>
-        <Spin size='large' spinning={true} tip={null} />
-        <span
-          className='whitespace-nowrap mt-2 text-center'
-          style={{ color: 'var(--semi-color-primary)' }}
-        >
-          {t('正在跳转...')}
-        </span>
-      </div>
+      >
+        <Link to='/console/token'>
+          <Button type='primary'>{t('前往 API 密钥')}</Button>
+        </Link>
+      </Empty>
     </div>
   );
 };

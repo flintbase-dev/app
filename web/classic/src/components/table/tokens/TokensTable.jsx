@@ -38,14 +38,7 @@ const TokensTable = (tokensData) => {
     handlePageSizeChange,
     rowSelection,
     handleRow,
-    showKeys,
-    resolvedTokenKeys,
-    loadingTokenKeys,
-    toggleTokenVisibility,
-    copyTokenKey,
-    copyTokenConnectionString,
     manageToken,
-    onOpenLink,
     setEditingToken,
     setShowEdit,
     refresh,
@@ -57,34 +50,13 @@ const TokensTable = (tokensData) => {
   const columns = useMemo(() => {
     return getTokensColumns({
       t,
-      showKeys,
-      resolvedTokenKeys,
-      loadingTokenKeys,
-      toggleTokenVisibility,
-      copyTokenKey,
-      copyTokenConnectionString,
       manageToken,
-      onOpenLink,
       setEditingToken,
       setShowEdit,
       refresh,
       groupRatios,
     });
-  }, [
-    t,
-    showKeys,
-    resolvedTokenKeys,
-    loadingTokenKeys,
-    toggleTokenVisibility,
-    copyTokenKey,
-    copyTokenConnectionString,
-    manageToken,
-    onOpenLink,
-    setEditingToken,
-    setShowEdit,
-    refresh,
-    groupRatios,
-  ]);
+  }, [t, manageToken, setEditingToken, setShowEdit, refresh, groupRatios]);
 
   // Handle compact mode by removing fixed positioning
   const tableColumns = useMemo(() => {

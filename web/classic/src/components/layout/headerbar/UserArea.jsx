@@ -30,14 +30,7 @@ import {
 import { stringToColor } from '../../../helpers';
 import SkeletonWrapper from '../components/SkeletonWrapper';
 
-const UserArea = ({
-  userState,
-  isLoading,
-  isMobile,
-  logout,
-  navigate,
-  t,
-}) => {
+const UserArea = ({ userState, isLoading, isMobile, logout, navigate, t }) => {
   const dropdownRef = useRef(null);
   if (isLoading) {
     return (
@@ -83,7 +76,7 @@ const UserArea = ({
                     size='small'
                     className='text-gray-500 dark:text-gray-400'
                   />
-                  <span>{t('令牌管理')}</span>
+                  <span>{t('API 密钥管理')}</span>
                 </div>
               </Dropdown.Item>
               <Dropdown.Item

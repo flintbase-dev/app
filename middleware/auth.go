@@ -3,14 +3,12 @@ package middleware
 import (
 	"errors"
 	"fmt"
-	"net"
 	"net/http"
 	"strings"
 
 	"github.com/QuantumNous/new-api/common"
 	"github.com/QuantumNous/new-api/constant"
 	"github.com/QuantumNous/new-api/i18n"
-	"github.com/QuantumNous/new-api/logger"
 	"github.com/QuantumNous/new-api/model"
 	"github.com/QuantumNous/new-api/service"
 	"github.com/QuantumNous/new-api/setting/ratio_setting"
@@ -295,9 +293,15 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 		if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
 			key = strings.TrimSpace(key[7:])
 		}
-		key = strings.TrimPrefix(key, "sk-")
-		parts := strings.Split(key, "-")
-		key = parts[0]
+		key = common.NormalizeAPIKey(key)
+		if !common.IsAPIKey(key) {
+			c.JSON(http.StatusUnauthorized, gin.H{
+				"success": false,
+				"message": common.TranslateMessage(c, i18n.MsgTokenInvalid),
+			})
+			c.Abort()
+			return
+		}
 
 		token, err := model.GetTokenByKey(key, false)
 		if err != nil {
@@ -343,7 +347,7 @@ func TokenAuthReadOnly() func(c *gin.Context) {
 
 		c.Set("id", token.UserId)
 		c.Set("token_id", token.Id)
-		c.Set("token_key", token.Key)
+		c.Set("token_key", token.APIKeyHash)
 		c.Next()
 	}
 }
@@ -352,7 +356,7 @@ func TokenAuth() func(c *gin.Context) {
 	return func(c *gin.Context) {
 		// 先检测是否为ws
 		if c.Request.Header.Get("Sec-WebSocket-Protocol") != "" {
-			// Sec-WebSocket-Protocol: realtime, openai-insecure-api-key.sk-xxx, openai-beta.realtime-v1
+			// Sec-WebSocket-Protocol: realtime, openai-insecure-api-key.sk-flb-v1-xxx, openai-beta.realtime-v1
 			// read sk from Sec-WebSocket-Protocol
 			key := c.Request.Header.Get("Sec-WebSocket-Protocol")
 			parts := strings.Split(key, ",")
@@ -372,30 +376,18 @@ func TokenAuth() func(c *gin.Context) {
 				c.Request.Header.Set("Authorization", "Bearer "+anthropicKey)
 			}
 		}
-		// gemini api 从query中获取key
+		// Gemini-compatible clients may send the key in a header. Query-string
+		// keys are intentionally not accepted because URLs leak through logs.
 		if strings.HasPrefix(c.Request.URL.Path, "/v1beta/models") ||
 			strings.HasPrefix(c.Request.URL.Path, "/v1beta/openai/models") ||
 			strings.HasPrefix(c.Request.URL.Path, "/v1/models/") {
-			skKey := c.Query("key")
-			if skKey != "" {
-				c.Request.Header.Set("Authorization", "Bearer "+skKey)
-			}
-			// 从x-goog-api-key header中获取key
 			xGoogKey := c.Request.Header.Get("x-goog-api-key")
 			if xGoogKey != "" {
 				c.Request.Header.Set("Authorization", "Bearer "+xGoogKey)
 			}
 		}
 		key := c.Request.Header.Get("Authorization")
-		parts := make([]string, 0)
-		if strings.HasPrefix(key, "Bearer ") || strings.HasPrefix(key, "bearer ") {
-			key = strings.TrimSpace(key[7:])
-		}
-		if key != "" {
-			key = strings.TrimPrefix(key, "sk-")
-			parts = strings.Split(key, "-")
-			key = parts[0]
-		}
+		key = common.NormalizeAPIKey(key)
 		token, err := model.ValidateUserToken(key)
 		if token != nil {
 			id := c.GetString("id")
@@ -418,22 +410,6 @@ func TokenAuth() func(c *gin.Context) {
 		if err := validateTokenAccountContext(c, token); err != nil {
 			abortWithOpenAiMessage(c, http.StatusForbidden, err.Error(), types.ErrorCodeAccessDenied)
 			return
-		}
-
-		allowIps := token.GetIpLimits()
-		if len(allowIps) > 0 {
-			clientIp := c.ClientIP()
-			logger.LogDebug(c, "Token has IP restrictions, checking client IP %s", clientIp)
-			ip := net.ParseIP(clientIp)
-			if ip == nil {
-				abortWithOpenAiMessage(c, http.StatusForbidden, "无法解析客户端 IP 地址")
-				return
-			}
-			if common.IsIpInCIDRList(ip, allowIps) == false {
-				abortWithOpenAiMessage(c, http.StatusForbidden, "您的 IP 不在令牌允许访问的列表中", types.ErrorCodeAccessDenied)
-				return
-			}
-			logger.LogDebug(c, "Client IP %s passed the token IP restrictions check", clientIp)
 		}
 
 		userCache, err := model.GetUserCache(token.UserId)
@@ -477,7 +453,7 @@ func TokenAuth() func(c *gin.Context) {
 		}
 		common.SetContextKey(c, constant.ContextKeyUsingGroup, usingGroup)
 
-		err = SetupContextForToken(c, token, parts...)
+		err = SetupContextForToken(c, token)
 		if err != nil {
 			return
 		}
@@ -485,14 +461,14 @@ func TokenAuth() func(c *gin.Context) {
 	}
 }
 
-func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) error {
+func SetupContextForToken(c *gin.Context, token *model.Token) error {
 	if token == nil {
 		return fmt.Errorf("token is nil")
 	}
 	token.NormalizeOwnership()
 	c.Set("id", token.UserId)
 	c.Set("token_id", token.Id)
-	c.Set("token_key", token.Key)
+	c.Set("token_key", token.APIKeyHash)
 	c.Set("token_name", token.Name)
 	common.SetContextKey(c, constant.ContextKeyAccountType, token.AccountType)
 	common.SetContextKey(c, constant.ContextKeyAccountId, token.AccountId)
@@ -500,23 +476,8 @@ func SetupContextForToken(c *gin.Context, token *model.Token, parts ...string) e
 	if !token.UnlimitedQuota {
 		c.Set("token_quota", token.RemainQuota)
 	}
-	if token.ModelLimitsEnabled {
-		c.Set("token_model_limit_enabled", true)
-		c.Set("token_model_limit", token.GetModelLimitsMap())
-	} else {
-		c.Set("token_model_limit_enabled", false)
-	}
 	common.SetContextKey(c, constant.ContextKeyTokenGroup, token.Group)
 	common.SetContextKey(c, constant.ContextKeyTokenCrossGroupRetry, token.CrossGroupRetry)
-	if len(parts) > 1 {
-		if model.IsAdmin(token.UserId) {
-			c.Set("specific_channel_id", parts[1])
-		} else {
-			c.Header("specific_channel_version", "701e3ae1dc3f7975556d354e0675168d004891c8")
-			abortWithOpenAiMessage(c, http.StatusForbidden, "普通用户不支持指定渠道")
-			return fmt.Errorf("普通用户不支持指定渠道")
-		}
-	}
 	return nil
 }
 

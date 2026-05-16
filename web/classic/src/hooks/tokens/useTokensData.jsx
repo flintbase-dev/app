@@ -17,30 +17,13 @@ along with this program. If not, see <https://www.gnu.org/licenses/>.
 For commercial licensing, please contact support@quantumnous.com
 */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useTranslation } from 'react-i18next';
-import { Modal } from '@douyinfe/semi-ui';
-import {
-  API,
-  copy,
-  showError,
-  showSuccess,
-  encodeToBase64,
-} from '../../helpers';
+import { API, showError, showSuccess } from '../../helpers';
 import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
-import {
-  fetchTokenKey as fetchTokenKeyById,
-  fetchTokenKeysBatch,
-  getServerAddress,
-  encodeChannelConnectionString,
-} from '../../helpers/token';
 
-export const useTokensData = (
-  openFluentNotification,
-  openCCSwitchModal,
-  teamId = '',
-) => {
+export const useTokensData = (teamId = '') => {
   const { t } = useTranslation();
   const isTeamContext = Boolean(teamId);
   const withTeam = (payload = {}) =>
@@ -67,10 +50,6 @@ export const useTokensData = (
 
   // UI state
   const [compactMode, setCompactMode] = useTableCompactMode('tokens');
-  const [showKeys, setShowKeys] = useState({});
-  const [resolvedTokenKeys, setResolvedTokenKeys] = useState({});
-  const [loadingTokenKeys, setLoadingTokenKeys] = useState({});
-  const keyRequestsRef = useRef({});
 
   // Form state
   const [formApi, setFormApi] = useState(null);
@@ -104,7 +83,6 @@ export const useTokensData = (
     setTokenCount(payload.total || 0);
     setActivePage(payload.page || 1);
     setPageSize(payload.page_size || pageSize);
-    setShowKeys({});
   };
 
   // Load tokens function
@@ -112,7 +90,7 @@ export const useTokensData = (
     setLoading(true);
     setSearchMode(false);
     const res = await API.query(
-      isTeamContext ? 'teamTokens' : 'tokens',
+      isTeamContext ? 'teamApiKeys' : 'apiKeys',
       withTeam({ p: page, size }),
     );
     const { success, message, data } = res.data;
@@ -130,156 +108,6 @@ export const useTokensData = (
     setSelectedKeys([]);
   };
 
-  // Copy text function
-  const copyText = async (text) => {
-    if (await copy(text)) {
-      showSuccess(t('已复制到剪贴板！'));
-    } else {
-      Modal.error({
-        title: t('无法复制到剪贴板，请手动复制'),
-        content: text,
-        size: 'large',
-      });
-    }
-  };
-
-  const fetchTokenKey = async (tokenOrId, options = {}) => {
-    const { suppressError = false } = options;
-    const tokenId =
-      typeof tokenOrId === 'object' ? tokenOrId?.id : String(tokenOrId || '');
-
-    if (!tokenId) {
-      const error = new Error(t('令牌不存在'));
-      if (!suppressError) {
-        showError(error.message);
-      }
-      throw error;
-    }
-
-    if (resolvedTokenKeys[tokenId]) {
-      return resolvedTokenKeys[tokenId];
-    }
-
-    if (keyRequestsRef.current[tokenId]) {
-      return keyRequestsRef.current[tokenId];
-    }
-
-    const request = (async () => {
-      setLoadingTokenKeys((prev) => ({ ...prev, [tokenId]: true }));
-      try {
-        const fullKey = await fetchTokenKeyById(tokenId, { teamId });
-        setResolvedTokenKeys((prev) => ({ ...prev, [tokenId]: fullKey }));
-        return fullKey;
-      } catch (error) {
-        const normalizedError = new Error(
-          error?.message || t('获取令牌密钥失败'),
-        );
-        if (!suppressError) {
-          showError(normalizedError.message);
-        }
-        throw normalizedError;
-      } finally {
-        delete keyRequestsRef.current[tokenId];
-        setLoadingTokenKeys((prev) => {
-          const next = { ...prev };
-          delete next[tokenId];
-          return next;
-        });
-      }
-    })();
-
-    keyRequestsRef.current[tokenId] = request;
-    return request;
-  };
-
-  const toggleTokenVisibility = async (record) => {
-    const tokenId = record?.id;
-    if (!tokenId) {
-      return;
-    }
-
-    if (showKeys[tokenId]) {
-      setShowKeys((prev) => ({ ...prev, [tokenId]: false }));
-      return;
-    }
-
-    const fullKey = await fetchTokenKey(record);
-    if (fullKey) {
-      setShowKeys((prev) => ({ ...prev, [tokenId]: true }));
-    }
-  };
-
-  const copyTokenKey = async (record) => {
-    const fullKey = await fetchTokenKey(record);
-    await copyText(`sk-${fullKey}`);
-  };
-
-  const copyTokenConnectionString = async (record) => {
-    const fullKey = await fetchTokenKey(record);
-    const serverUrl = getServerAddress();
-    const connStr = encodeChannelConnectionString(`sk-${fullKey}`, serverUrl);
-    await copyText(connStr);
-  };
-
-  // Open link function for chat integrations
-  const onOpenLink = async (type, url, record) => {
-    const fullKey = await fetchTokenKey(record);
-    if (url && url.startsWith('ccswitch')) {
-      openCCSwitchModal(fullKey);
-      return;
-    }
-    if (url && url.startsWith('fluent')) {
-      openFluentNotification(fullKey);
-      return;
-    }
-    let status = localStorage.getItem('status');
-    let serverAddress = '';
-    if (status) {
-      status = JSON.parse(status);
-      serverAddress = status.server_address;
-    }
-    if (serverAddress === '') {
-      serverAddress = window.location.origin;
-    }
-    if (url.includes('{cherryConfig}') === true) {
-      let cherryConfig = {
-        id: 'new-api',
-        baseUrl: serverAddress,
-        apiKey: `sk-${fullKey}`,
-      };
-      let encodedConfig = encodeURIComponent(
-        encodeToBase64(JSON.stringify(cherryConfig)),
-      );
-      url = url.replaceAll('{cherryConfig}', encodedConfig);
-    } else if (url.includes('{aionuiConfig}') === true) {
-      let aionuiConfig = {
-        platform: 'new-api',
-        baseUrl: serverAddress,
-        apiKey: `sk-${fullKey}`,
-      };
-      let encodedConfig = encodeURIComponent(
-        encodeToBase64(JSON.stringify(aionuiConfig)),
-      );
-      url = url.replaceAll('{aionuiConfig}', encodedConfig);
-    } else if (url.includes('{deepchatConfig}') === true) {
-      let deepchatConfig = {
-        id: 'new-api',
-        baseUrl: serverAddress,
-        apiKey: `sk-${fullKey}`,
-      };
-      let encodedConfig = encodeURIComponent(
-        encodeToBase64(JSON.stringify(deepchatConfig)),
-      );
-      url = url.replaceAll('{deepchatConfig}', encodedConfig);
-    } else {
-      let encodedServerAddress = encodeURIComponent(serverAddress);
-      url = url.replaceAll('{address}', encodedServerAddress);
-      url = url.replaceAll('{key}', `sk-${fullKey}`);
-    }
-
-    window.open(url, '_blank');
-  };
-
   // Manage token function (delete, enable, disable)
   const manageToken = async (id, action, record) => {
     setLoading(true);
@@ -288,14 +116,14 @@ export const useTokensData = (
     switch (action) {
       case 'delete':
         res = await API.mutation(
-          isTeamContext ? 'deleteTeamToken' : 'deleteToken',
+          isTeamContext ? 'deleteTeamApiKey' : 'deleteApiKey',
           withTeam({ id }),
         );
         break;
       case 'enable':
         data.status = 1;
         res = await API.mutation(
-          isTeamContext ? 'updateTeamToken' : 'updateToken',
+          isTeamContext ? 'updateTeamApiKey' : 'updateApiKey',
           {
             input: withTeam(data),
             params: isTeamContext
@@ -307,7 +135,7 @@ export const useTokensData = (
       case 'disable':
         data.status = 2;
         res = await API.mutation(
-          isTeamContext ? 'updateTeamToken' : 'updateToken',
+          isTeamContext ? 'updateTeamApiKey' : 'updateApiKey',
           {
             input: withTeam(data),
             params: isTeamContext
@@ -332,8 +160,8 @@ export const useTokensData = (
     setLoading(false);
   };
 
-  // Search tokens function
-  const searchTokens = async (page = 1, size = pageSize) => {
+  // Search API keys function
+  const searchApiKeys = async (page = 1, size = pageSize) => {
     const normalizedPage = Number.isInteger(page) && page > 0 ? page : 1;
     const normalizedSize = Number.isInteger(size) && size > 0 ? size : pageSize;
 
@@ -345,7 +173,7 @@ export const useTokensData = (
     }
     setSearching(true);
     const res = await API.query(
-      isTeamContext ? 'teamTokens' : 'searchTokens',
+      isTeamContext ? 'teamApiKeys' : 'searchApiKeys',
       withTeam({
         keyword: searchKeyword,
         token: searchToken,
@@ -381,7 +209,7 @@ export const useTokensData = (
   // Page handlers
   const handlePageChange = (page) => {
     if (searchMode) {
-      searchTokens(page, pageSize).then();
+      searchApiKeys(page, pageSize).then();
     } else {
       loadTokens(page, pageSize).then();
     }
@@ -390,7 +218,7 @@ export const useTokensData = (
   const handlePageSizeChange = async (size) => {
     setPageSize(size);
     if (searchMode) {
-      await searchTokens(1, size);
+      await searchApiKeys(1, size);
     } else {
       await loadTokens(1, size);
     }
@@ -421,19 +249,19 @@ export const useTokensData = (
   // Batch delete tokens
   const batchDeleteTokens = async () => {
     if (selectedKeys.length === 0) {
-      showError(t('请先选择要删除的令牌！'));
+      showError(t('请先选择要删除的 API 密钥！'));
       return;
     }
     setLoading(true);
     try {
       const ids = selectedKeys.map((token) => token.id);
       const res = await API.mutation(
-        isTeamContext ? 'deleteTeamTokens' : 'deleteTokens',
+        isTeamContext ? 'deleteTeamApiKeys' : 'deleteApiKeys',
         withTeam({ ids }),
       );
       if (res?.data?.success) {
         const count = res.data.data || 0;
-        showSuccess(t('已删除 {{count}} 个令牌！', { count }));
+        showSuccess(t('已删除 {{count}} 个 API 密钥！', { count }));
         await refresh();
         setTimeout(() => {
           if (tokens.length === 0 && activePage > 1) {
@@ -447,34 +275,6 @@ export const useTokensData = (
       showError(error.message);
     } finally {
       setLoading(false);
-    }
-  };
-
-  // Batch copy tokens
-  const batchCopyTokens = async (copyType) => {
-    if (selectedKeys.length === 0) {
-      showError(t('请至少选择一个令牌！'));
-      return;
-    }
-    try {
-      const ids = selectedKeys.map((token) => token.id);
-      const keysMap = await fetchTokenKeysBatch(ids, { teamId });
-
-      setResolvedTokenKeys((prev) => ({ ...prev, ...keysMap }));
-
-      let content = '';
-      for (const token of selectedKeys) {
-        const fullKey = keysMap[token.id];
-        if (!fullKey) continue;
-        if (copyType === 'name+key') {
-          content += `${token.name}    sk-${fullKey}\n`;
-        } else {
-          content += `sk-${fullKey}\n`;
-        }
-      }
-      await copyText(content);
-    } catch (error) {
-      showError(error?.message || t('复制令牌失败'));
     }
   };
 
@@ -522,10 +322,6 @@ export const useTokensData = (
     // UI state
     compactMode,
     setCompactMode,
-    showKeys,
-    setShowKeys,
-    resolvedTokenKeys,
-    loadingTokenKeys,
 
     // Form state
     formApi,
@@ -536,21 +332,14 @@ export const useTokensData = (
     // Functions
     loadTokens,
     refresh,
-    copyText,
-    fetchTokenKey,
-    toggleTokenVisibility,
-    copyTokenKey,
-    copyTokenConnectionString,
-    onOpenLink,
     manageToken,
-    searchTokens,
+    searchApiKeys,
     sortToken,
     handlePageChange,
     handlePageSizeChange,
     rowSelection,
     handleRow,
     batchDeleteTokens,
-    batchCopyTokens,
     syncPageData,
 
     // Translation

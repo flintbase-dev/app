@@ -93,7 +93,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
             : 'tableHiddle',
       },
       {
-        text: t('令牌管理'),
+        text: t('API 密钥管理'),
         itemKey: 'token',
         to: '/token',
       },

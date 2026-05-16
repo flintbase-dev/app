@@ -143,33 +143,3 @@ func TestListModelsIncludesTieredBillingModel(t *testing.T) {
 	require.Empty(t, missingExprPricing.BillingMode)
 	require.Empty(t, missingExprPricing.BillingExpr)
 }
-
-func TestListModelsTokenLimitIncludesTieredBillingModel(t *testing.T) {
-	withTieredBillingConfig(t, map[string]string{
-		"zz-token-tiered-visible-model":      "tiered_expr",
-		"zz-token-tiered-empty-expr-model":   "tiered_expr",
-		"zz-token-tiered-missing-expr-model": "tiered_expr",
-	}, map[string]string{
-		"zz-token-tiered-visible-model":    `tier("base", p * 1 + c * 2)`,
-		"zz-token-tiered-empty-expr-model": "",
-	})
-
-	recorder := httptest.NewRecorder()
-	ctx, _ := gin.CreateTestContext(recorder)
-	ctx.Request = httptest.NewRequest(http.MethodGet, "/v1/models", nil)
-	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimitEnabled, true)
-	common.SetContextKey(ctx, constant.ContextKeyTokenModelLimit, map[string]bool{
-		"zz-token-tiered-visible-model":      true,
-		"zz-token-tiered-empty-expr-model":   true,
-		"zz-token-tiered-missing-expr-model": true,
-		"zz-token-unpriced-model":            true,
-	})
-
-	ListModels(ctx, constant.ChannelTypeOpenAI)
-
-	ids := decodeListModelsResponse(t, recorder)
-	require.Contains(t, ids, "zz-token-tiered-visible-model")
-	require.NotContains(t, ids, "zz-token-tiered-empty-expr-model")
-	require.NotContains(t, ids, "zz-token-tiered-missing-expr-model")
-	require.NotContains(t, ids, "zz-token-unpriced-model")
-}

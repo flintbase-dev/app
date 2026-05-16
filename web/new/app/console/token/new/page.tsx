@@ -4,7 +4,6 @@ import {
   Infinity as InfinityIcon,
   KeyRound,
   Plus,
-  ShieldCheck,
 } from "lucide-react";
 import Link from "next/link";
 
@@ -35,7 +34,7 @@ export default async function CreateTokenPage() {
 }
 
 export async function CreateTokenFormPage({ teamId }: { teamId?: string }) {
-  const { groups, models, status } = await loadTokenEditor(undefined, {
+  const { groups, status } = await loadTokenEditor(undefined, {
     teamId,
   });
   const basePath = teamId ? `/teams/${teamId}/console/token` : "/console/token";
@@ -64,7 +63,7 @@ export async function CreateTokenFormPage({ teamId }: { teamId?: string }) {
         </h1>
         <p className="mt-2 max-w-[60ch] text-sm text-muted-foreground">
           The secret will be shown once after creation. Store it somewhere safe
-          — you can copy it from this page or download it as a text file.
+          before leaving the next page.
         </p>
 
         <form
@@ -113,7 +112,7 @@ export async function CreateTokenFormPage({ teamId }: { teamId?: string }) {
                     name="tokenCount"
                     defaultValue={1}
                     min={1}
-                    max={50}
+                    max={10}
                   />
                   <Hint>
                     Create multiple at once. Names get a random suffix.
@@ -154,46 +153,7 @@ export async function CreateTokenFormPage({ teamId }: { teamId?: string }) {
               </FieldRow>
 
               <FieldRow label="Expires">
-                <div className="flex items-center gap-2">
-                  <Input type="datetime-local" name="expired_at" />
-                  <Button type="reset" variant="outline" size="sm">
-                    Never
-                  </Button>
-                </div>
-              </FieldRow>
-            </CardContent>
-          </Card>
-
-          {/* Restrictions */}
-          <Card>
-            <CardContent className="flex flex-col gap-5 py-5">
-              <SectionTitle icon={ShieldCheck} title="Restrictions" />
-
-              <FieldRow label="Model limits">
-                <Select name="model_limits">
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Any model" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {models.map((m) => (
-                      <SelectItem key={m} value={m}>
-                        {m}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-                <Hint>
-                  Only the models in this list will be reachable from this key.
-                  Empty list means all available models.
-                </Hint>
-              </FieldRow>
-
-              <FieldRow label="Allowed IPs / CIDRs">
-                <Input name="allow_ips" placeholder="10.0.0.0/8, 203.0.113.4" />
-                <Hint>
-                  Comma-separated. Requests from outside the allowlist are
-                  blocked at the edge.
-                </Hint>
+                <Input type="datetime-local" name="expired_at" />
               </FieldRow>
             </CardContent>
           </Card>
@@ -206,15 +166,10 @@ export async function CreateTokenFormPage({ teamId }: { teamId?: string }) {
             >
               Cancel
             </Link>
-            <div className="flex items-center gap-2">
-              <Button type="submit" variant="outline">
-                Create &amp; create another
-              </Button>
-              <Button type="submit" variant="brand">
-                <Plus aria-hidden="true" />
-                Create key
-              </Button>
-            </div>
+            <Button type="submit" variant="brand">
+              <Plus aria-hidden="true" />
+              Create key
+            </Button>
           </div>
         </form>
       </div>

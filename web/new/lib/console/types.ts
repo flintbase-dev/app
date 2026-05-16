@@ -67,8 +67,6 @@ export type Token = {
   used: number;
   usedCredits: number;
   lastUsedAt: number;
-  modelLimits: string[];
-  allowIps: string[];
   keyPreview: string;
 };
 

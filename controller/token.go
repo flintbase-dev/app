@@ -30,6 +30,13 @@ func buildMaskedTokenResponses(tokens []*model.Token) []*model.Token {
 	return maskedTokens
 }
 
+func buildAPIKeyCreateResponse(token *model.Token, apiKey string) gin.H {
+	return gin.H{
+		"api_key": apiKey,
+		"item":    buildMaskedTokenResponse(token),
+	}
+}
+
 func GetAllTokens(c *gin.Context) {
 	userId := c.GetString("id")
 	pageInfo := common.GetPageQuery(c)
@@ -76,34 +83,6 @@ func GetToken(c *gin.Context) {
 	common.ApiSuccess(c, buildMaskedTokenResponse(token))
 }
 
-func GetTokenKey(c *gin.Context) {
-	id := c.Param("id")
-	userId := c.GetString("id")
-	if common.IsEmptyID(id) {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
-		return
-	}
-	token, err := model.GetTokenByIds(id, userId)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	model.RecordSecurityEventWithContext(c, model.LogEventParams{
-		UserId:       userId,
-		Event:        "token.secret.view",
-		Severity:     "warning",
-		Content:      "API token secret viewed",
-		ResourceType: "token",
-		ResourceId:   token.Id,
-		Other: map[string]interface{}{
-			"token_name": token.Name,
-		},
-	})
-	common.ApiSuccess(c, gin.H{
-		"key": token.GetFullKey(),
-	})
-}
-
 func GetTokenStatus(c *gin.Context) {
 	tokenId := c.GetString("token_id")
 	userId := c.GetString("id")
@@ -143,9 +122,16 @@ func GetTokenUsage(c *gin.Context) {
 		})
 		return
 	}
-	tokenKey := parts[1]
+	apiKey := parts[1]
+	if !common.IsAPIKey(apiKey) {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Invalid API key",
+		})
+		return
+	}
 
-	token, err := model.GetTokenByKey(strings.TrimPrefix(tokenKey, "sk-"), false)
+	token, err := model.GetTokenByKey(apiKey, false)
 	if err != nil {
 		common.SysError("failed to get token by key: " + err.Error())
 		common.ApiErrorI18n(c, i18n.MsgTokenGetInfoFailed)
@@ -161,15 +147,13 @@ func GetTokenUsage(c *gin.Context) {
 		"code":    true,
 		"message": "ok",
 		"data": gin.H{
-			"object":               "token_usage",
-			"name":                 token.Name,
-			"total_granted":        token.RemainQuota + token.UsedQuota,
-			"total_used":           token.UsedQuota,
-			"total_available":      token.RemainQuota,
-			"unlimited_quota":      token.UnlimitedQuota,
-			"model_limits":         token.GetModelLimitsMap(),
-			"model_limits_enabled": token.ModelLimitsEnabled,
-			"expires_at":           expiredAt,
+			"object":          "token_usage",
+			"name":            token.Name,
+			"total_granted":   token.RemainQuota + token.UsedQuota,
+			"total_used":      token.UsedQuota,
+			"total_available": token.RemainQuota,
+			"unlimited_quota": token.UnlimitedQuota,
+			"expires_at":      expiredAt,
 		},
 	})
 }
@@ -211,30 +195,27 @@ func AddToken(c *gin.Context) {
 		})
 		return
 	}
-	key, err := common.GenerateKey()
+	fullKey, err := common.GenerateAPIKey()
 	if err != nil {
 		common.ApiErrorI18n(c, i18n.MsgTokenGenerateFailed)
-		common.SysLog("failed to generate token key: " + err.Error())
+		common.SysLog("failed to generate API key: " + err.Error())
 		return
 	}
 	cleanToken := model.Token{
-		UserId:             c.GetString("id"),
-		CreatedByUserId:    c.GetString("id"),
-		AccountType:        model.AccountTypePersonal,
-		AccountId:          c.GetString("id"),
-		Name:               token.Name,
-		Key:                key,
-		CreatedTime:        common.GetTimestamp(),
-		AccessedTime:       common.GetTimestamp(),
-		ExpiredTime:        token.ExpiredTime,
-		RemainQuota:        token.RemainQuota,
-		UnlimitedQuota:     token.UnlimitedQuota,
-		ModelLimitsEnabled: token.ModelLimitsEnabled,
-		ModelLimits:        token.ModelLimits,
-		AllowIps:           token.AllowIps,
-		Group:              token.Group,
-		CrossGroupRetry:    token.CrossGroupRetry,
+		UserId:          c.GetString("id"),
+		CreatedByUserId: c.GetString("id"),
+		AccountType:     model.AccountTypePersonal,
+		AccountId:       c.GetString("id"),
+		Name:            token.Name,
+		CreatedTime:     common.GetTimestamp(),
+		AccessedTime:    common.GetTimestamp(),
+		ExpiredTime:     token.ExpiredTime,
+		RemainQuota:     token.RemainQuota,
+		UnlimitedQuota:  token.UnlimitedQuota,
+		Group:           token.Group,
+		CrossGroupRetry: token.CrossGroupRetry,
 	}
+	cleanToken.SetAPIKey(fullKey)
 	err = cleanToken.Insert()
 	if err != nil {
 		common.ApiError(c, err)
@@ -242,18 +223,19 @@ func AddToken(c *gin.Context) {
 	}
 	model.RecordAuditEventWithContext(c, model.LogEventParams{
 		UserId:       cleanToken.UserId,
-		Event:        "token.create",
-		Content:      "API token created",
-		ResourceType: "token",
+		Event:        "api_key.create",
+		Content:      "API key created",
+		ResourceType: "api_key",
 		ResourceId:   cleanToken.Id,
 		Other: map[string]interface{}{
-			"token_name":      cleanToken.Name,
+			"api_key_name":    cleanToken.Name,
 			"unlimited_quota": cleanToken.UnlimitedQuota,
 		},
 	})
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "",
+		"data":    buildAPIKeyCreateResponse(&cleanToken, fullKey),
 	})
 }
 
@@ -267,9 +249,9 @@ func DeleteToken(c *gin.Context) {
 	}
 	model.RecordAuditEventWithContext(c, model.LogEventParams{
 		UserId:       userId,
-		Event:        "token.delete",
-		Content:      "API token deleted",
-		ResourceType: "token",
+		Event:        "api_key.delete",
+		Content:      "API key deleted",
+		ResourceType: "api_key",
 		ResourceId:   id,
 	})
 	c.JSON(http.StatusOK, gin.H{
@@ -325,9 +307,6 @@ func UpdateToken(c *gin.Context) {
 		cleanToken.ExpiredTime = token.ExpiredTime
 		cleanToken.RemainQuota = token.RemainQuota
 		cleanToken.UnlimitedQuota = token.UnlimitedQuota
-		cleanToken.ModelLimitsEnabled = token.ModelLimitsEnabled
-		cleanToken.ModelLimits = token.ModelLimits
-		cleanToken.AllowIps = token.AllowIps
 		cleanToken.Group = token.Group
 		cleanToken.CrossGroupRetry = token.CrossGroupRetry
 	}
@@ -338,13 +317,13 @@ func UpdateToken(c *gin.Context) {
 	}
 	model.RecordAuditEventWithContext(c, model.LogEventParams{
 		UserId:       userId,
-		Event:        "token.update",
-		Content:      "API token updated",
-		ResourceType: "token",
+		Event:        "api_key.update",
+		Content:      "API key updated",
+		ResourceType: "api_key",
 		ResourceId:   cleanToken.Id,
 		Other: map[string]interface{}{
-			"status_only": statusOnly != "",
-			"token_name":  cleanToken.Name,
+			"status_only":  statusOnly != "",
+			"api_key_name": cleanToken.Name,
 		},
 	})
 	c.JSON(http.StatusOK, gin.H{
@@ -372,9 +351,9 @@ func DeleteTokenBatch(c *gin.Context) {
 	}
 	model.RecordAuditEventWithContext(c, model.LogEventParams{
 		UserId:       userId,
-		Event:        "token.batch_delete",
-		Content:      "API tokens deleted in batch",
-		ResourceType: "token",
+		Event:        "api_key.batch_delete",
+		Content:      "API keys deleted in batch",
+		ResourceType: "api_key",
 		Other: map[string]interface{}{
 			"count": count,
 		},
@@ -384,37 +363,4 @@ func DeleteTokenBatch(c *gin.Context) {
 		"message": "",
 		"data":    count,
 	})
-}
-
-func GetTokenKeysBatch(c *gin.Context) {
-	tokenBatch := TokenBatch{}
-	if err := c.ShouldBindJSON(&tokenBatch); err != nil || len(tokenBatch.Ids) == 0 {
-		common.ApiErrorI18n(c, i18n.MsgInvalidParams)
-		return
-	}
-	if len(tokenBatch.Ids) > 100 {
-		common.ApiErrorI18n(c, i18n.MsgBatchTooMany, map[string]any{"Max": 100})
-		return
-	}
-	userId := c.GetString("id")
-	tokens, err := model.GetTokenKeysByIds(tokenBatch.Ids, userId)
-	if err != nil {
-		common.ApiError(c, err)
-		return
-	}
-	model.RecordSecurityEventWithContext(c, model.LogEventParams{
-		UserId:       userId,
-		Event:        "token.secret.batch_view",
-		Severity:     "warning",
-		Content:      "API token secrets viewed in batch",
-		ResourceType: "token",
-		Other: map[string]interface{}{
-			"count": len(tokens),
-		},
-	})
-	keysMap := make(map[string]string)
-	for _, t := range tokens {
-		keysMap[t.Id] = t.GetFullKey()
-	}
-	common.ApiSuccess(c, gin.H{"keys": keysMap})
 }

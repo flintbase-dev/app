@@ -376,12 +376,11 @@ func TestManageUserDisableDeactivatesWorkOSMembershipsAndLocalTeamMemberships(t 
 	}
 }
 
-func TestTeamTokenSecretRevealPermissionMatrix(t *testing.T) {
+func TestCreateTeamTokenReturnsFullAPIKeyOnceAndStoresOnlyHash(t *testing.T) {
 	gin.SetMode(gin.TestMode)
 	db := setupTeamControllerTestDB(t)
 	admin := seedTeamControllerUser(t, db, "user_team_token_admin", "team-token-admin@example.com", "workos_team_token_admin")
 	member := seedTeamControllerUser(t, db, "user_team_token_member", "team-token-member@example.com", "workos_team_token_member")
-	outsider := seedTeamControllerUser(t, db, "user_team_token_outsider", "team-token-outsider@example.com", "workos_team_token_outsider")
 	team, err := model.CreateTeamWithCreator(model.CreateTeamParams{
 		Name:                 "Token Permission Team",
 		CreatedByUserId:      admin.Id,
@@ -401,59 +400,38 @@ func TestTeamTokenSecretRevealPermissionMatrix(t *testing.T) {
 		t.Fatalf("SyncTeamMembership returned error: %v", err)
 	}
 
-	memberToken := seedTeamControllerToken(t, model.Token{
-		UserId:          member.Id,
-		CreatedByUserId: member.Id,
-		AccountType:     model.AccountTypeTeam,
-		AccountId:       team.Id,
-		Key:             "sk-member-secret",
-		Name:            "member token",
-		Status:          common.TokenStatusEnabled,
-	})
-	adminToken := seedTeamControllerToken(t, model.Token{
-		UserId:          admin.Id,
-		CreatedByUserId: admin.Id,
-		AccountType:     model.AccountTypeTeam,
-		AccountId:       team.Id,
-		Key:             "sk-admin-secret",
-		Name:            "admin token",
-		Status:          common.TokenStatusEnabled,
-	})
-
-	single := performTeamControllerRequest(t, GetTeamTokenKey, http.MethodGet, "/api/teams/tokens/key?team_id="+team.Id+"&id="+memberToken.Id, nil, member.Id)
-	if !single.Success || single.Data["key"] != memberToken.Key {
-		t.Fatalf("member should reveal own token, got %+v", single)
+	body := map[string]any{
+		"team_id":           team.Id,
+		"name":              "member team api key",
+		"status":            common.TokenStatusEnabled,
+		"expired_time":      -1,
+		"remain_quota":      100,
+		"unlimited_quota":   true,
+		"group":             "default",
+		"cross_group_retry": false,
 	}
-	single = performTeamControllerRequest(t, GetTeamTokenKey, http.MethodGet, "/api/teams/tokens/key?team_id="+team.Id+"&id="+adminToken.Id, nil, member.Id)
-	if single.Success {
-		t.Fatalf("member should not reveal another member token")
+	response := performTeamControllerRequest(t, CreateTeamToken, http.MethodPost, "/api/teams/tokens?team_id="+team.Id, body, member.Id)
+	if !response.Success {
+		t.Fatalf("member should create team API key, got %+v", response)
 	}
-	single = performTeamControllerRequest(t, GetTeamTokenKey, http.MethodGet, "/api/teams/tokens/key?team_id="+team.Id+"&id="+memberToken.Id, nil, admin.Id)
-	if !single.Success || single.Data["key"] != memberToken.Key {
-		t.Fatalf("admin should reveal team member token, got %+v", single)
+	apiKey, _ := response.Data["api_key"].(string)
+	if !common.IsAPIKey(apiKey) {
+		t.Fatalf("created team API key has invalid format: %q", apiKey)
 	}
-	single = performTeamControllerRequest(t, GetTeamTokenKey, http.MethodGet, "/api/teams/tokens/key?team_id="+team.Id+"&id="+memberToken.Id, nil, outsider.Id)
-	if single.Success {
-		t.Fatalf("non-member should not reveal team token")
+	item := responseDataMap(t, response, "item")
+	id, _ := item["id"].(string)
+	if id == "" {
+		t.Fatalf("created response missing item id: %+v", response)
 	}
-
-	batchBody := teamTokenBatch{TeamId: team.Id, Ids: []string{memberToken.Id, adminToken.Id}}
-	batch := performTeamControllerRequest(t, GetTeamTokenKeysBatch, http.MethodPost, "/api/teams/tokens/keys", batchBody, member.Id)
-	memberKeys := responseDataMap(t, batch, "keys")
-	if !batch.Success || memberKeys[memberToken.Id] != memberToken.Key {
-		t.Fatalf("member batch should include own token, got %+v", batch)
+	var stored model.Token
+	if err := db.First(&stored, "id = ?", id).Error; err != nil {
+		t.Fatalf("failed to load stored team API key: %v", err)
 	}
-	if _, ok := memberKeys[adminToken.Id]; ok {
-		t.Fatalf("member batch should not include another member token")
+	if stored.APIKeyHash != common.APIKeyHash(apiKey) {
+		t.Fatal("stored team API key hash does not match created key")
 	}
-	batch = performTeamControllerRequest(t, GetTeamTokenKeysBatch, http.MethodPost, "/api/teams/tokens/keys", batchBody, admin.Id)
-	adminKeys := responseDataMap(t, batch, "keys")
-	if !batch.Success || adminKeys[memberToken.Id] != memberToken.Key || adminKeys[adminToken.Id] != adminToken.Key {
-		t.Fatalf("admin batch should include all requested team token secrets, got %+v", batch)
-	}
-	batch = performTeamControllerRequest(t, GetTeamTokenKeysBatch, http.MethodPost, "/api/teams/tokens/keys", batchBody, outsider.Id)
-	if batch.Success {
-		t.Fatalf("non-member batch should not reveal team token secrets")
+	if stored.Key != "" {
+		t.Fatalf("raw team API key should not be stored, got %q", stored.Key)
 	}
 }
 
@@ -468,6 +446,9 @@ func seedTeamControllerToken(t *testing.T, token model.Token) *model.Token {
 	token.CreatedTime = common.GetTimestamp()
 	token.AccessedTime = token.CreatedTime
 	token.ExpiredTime = -1
+	if token.Key != "" {
+		token.SetAPIKey(token.Key)
+	}
 	if err := token.Insert(); err != nil {
 		t.Fatalf("failed to seed token: %v", err)
 	}

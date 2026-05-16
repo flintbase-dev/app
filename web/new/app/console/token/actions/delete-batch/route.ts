@@ -14,8 +14,8 @@ export async function POST(request: Request) {
     .map((id) => toText(id))
     .filter(Boolean);
   const teamId = toText(formData.get("team_id"));
-  if (ids.length === 0) throw new Error("No token ids selected");
-  const operation = teamId ? "deleteTeamTokens" : "deleteTokens";
+  if (ids.length === 0) throw new Error("No API key ids selected");
+  const operation = teamId ? "deleteTeamApiKeys" : "deleteApiKeys";
   const payload = await graphqlMutationFromRequest<Record<string, unknown>>(
     request,
     [

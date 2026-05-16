@@ -12,26 +12,26 @@ import (
 )
 
 type Token struct {
-	Id                 string         `json:"id" gorm:"primaryKey;type:varchar(32)"`
-	UserId             string         `json:"user_id" gorm:"type:varchar(32);index"`
-	CreatedByUserId    string         `json:"created_by_user_id" gorm:"type:varchar(32);index"`
-	AccountType        string         `json:"account_type" gorm:"type:varchar(16);index;default:'personal'"`
-	AccountId          string         `json:"account_id" gorm:"type:varchar(32);index;default:''"`
-	Key                string         `json:"key" gorm:"type:varchar(128);uniqueIndex"`
-	Status             int            `json:"status" gorm:"default:1"`
-	Name               string         `json:"name" gorm:"index" `
-	CreatedTime        int64          `json:"created_time" gorm:"bigint"`
-	AccessedTime       int64          `json:"accessed_time" gorm:"bigint"`
-	ExpiredTime        int64          `json:"expired_time" gorm:"bigint;default:-1"` // -1 means never expired
-	RemainQuota        int            `json:"remain_quota" gorm:"default:0"`
-	UnlimitedQuota     bool           `json:"unlimited_quota"`
-	ModelLimitsEnabled bool           `json:"model_limits_enabled"`
-	ModelLimits        string         `json:"model_limits" gorm:"type:text"`
-	AllowIps           *string        `json:"allow_ips" gorm:"default:''"`
-	UsedQuota          int            `json:"used_quota" gorm:"default:0"` // used quota
-	Group              string         `json:"group" gorm:"default:''"`
-	CrossGroupRetry    bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
-	DeletedAt          gorm.DeletedAt `gorm:"index"`
+	Id              string         `json:"id" gorm:"primaryKey;type:varchar(32)"`
+	UserId          string         `json:"user_id" gorm:"type:varchar(32);index"`
+	CreatedByUserId string         `json:"created_by_user_id" gorm:"type:varchar(32);index"`
+	AccountType     string         `json:"account_type" gorm:"type:varchar(16);index;default:'personal'"`
+	AccountId       string         `json:"account_id" gorm:"type:varchar(32);index;default:''"`
+	Key             string         `json:"key,omitempty" gorm:"-"`
+	APIKeyHash      string         `json:"-" gorm:"column:api_key_hash;type:char(64);uniqueIndex"`
+	APIKeyPrefix    string         `json:"api_key_prefix" gorm:"column:api_key_prefix;type:varchar(32)"`
+	APIKeyLast4     string         `json:"api_key_last4" gorm:"column:api_key_last4;type:varchar(8)"`
+	Status          int            `json:"status" gorm:"default:1"`
+	Name            string         `json:"name" gorm:"index" `
+	CreatedTime     int64          `json:"created_time" gorm:"bigint"`
+	AccessedTime    int64          `json:"accessed_time" gorm:"bigint"`
+	ExpiredTime     int64          `json:"expired_time" gorm:"bigint;default:-1"` // -1 means never expired
+	RemainQuota     int            `json:"remain_quota" gorm:"default:0"`
+	UnlimitedQuota  bool           `json:"unlimited_quota"`
+	UsedQuota       int            `json:"used_quota" gorm:"default:0"` // used quota
+	Group           string         `json:"group" gorm:"default:''"`
+	CrossGroupRetry bool           `json:"cross_group_retry"` // 跨分组重试，仅auto分组有效
+	DeletedAt       gorm.DeletedAt `gorm:"index"`
 }
 
 func (token *Token) Clean() {
@@ -55,47 +55,26 @@ func (token *Token) NormalizeOwnership() {
 	}
 }
 
-func MaskTokenKey(key string) string {
-	if key == "" {
-		return ""
-	}
-	if len(key) <= 4 {
-		return strings.Repeat("*", len(key))
-	}
-	if len(key) <= 8 {
-		return key[:2] + "****" + key[len(key)-2:]
-	}
-	return key[:4] + "**********" + key[len(key)-4:]
+func (token *Token) SetAPIKey(key string) {
+	token.Key = common.NormalizeAPIKey(key)
+	token.APIKeyHash = common.APIKeyHash(token.Key)
+	token.APIKeyPrefix, token.APIKeyLast4 = common.APIKeyDisplayParts(token.Key)
 }
 
-func (token *Token) GetFullKey() string {
-	return token.Key
+func (token *Token) GenerateAPIKey() (string, error) {
+	key, err := common.GenerateAPIKey()
+	if err != nil {
+		return "", err
+	}
+	token.SetAPIKey(key)
+	return key, nil
 }
 
 func (token *Token) GetMaskedKey() string {
-	return MaskTokenKey(token.Key)
-}
-
-func (token *Token) GetIpLimits() []string {
-	// delete empty spaces
-	//split with \n
-	ipLimits := make([]string, 0)
-	if token.AllowIps == nil {
-		return ipLimits
+	if token.Key != "" {
+		return common.MaskAPIKey(token.Key)
 	}
-	cleanIps := strings.ReplaceAll(*token.AllowIps, " ", "")
-	if cleanIps == "" {
-		return ipLimits
-	}
-	ips := strings.Split(cleanIps, "\n")
-	for _, ip := range ips {
-		ip = strings.TrimSpace(ip)
-		ip = strings.ReplaceAll(ip, ",", "")
-		if ip != "" {
-			ipLimits = append(ipLimits, ip)
-		}
-	}
-	return ipLimits
+	return common.MaskAPIKeyFromParts(token.APIKeyPrefix, token.APIKeyLast4)
 }
 
 func GetAllUserTokens(userId string, startIdx int, num int) ([]*Token, error) {
@@ -169,10 +148,6 @@ func SearchUserTokens(userId string, keyword string, token string, offset int, l
 		offset = 0
 	}
 
-	if token != "" {
-		token = strings.TrimPrefix(token, "sk-")
-	}
-
 	// 超量用户（令牌数超过上限）只允许精确搜索，禁止模糊搜索
 	maxTokens := operation_setting.GetMaxUserTokens()
 	hasFuzzy := strings.Contains(keyword, "%") || strings.Contains(token, "%")
@@ -202,7 +177,7 @@ func SearchUserTokens(userId string, keyword string, token string, offset int, l
 		if err != nil {
 			return nil, 0, err
 		}
-		baseQuery = baseQuery.Where(commonKeyCol+" LIKE ? ESCAPE '!'", tokenPattern)
+		baseQuery = baseQuery.Where("api_key_prefix LIKE ? ESCAPE '!' OR api_key_last4 = ?", tokenPattern, strings.TrimLeft(token, "%"))
 	}
 
 	// 先查匹配总数（用于分页，受 maxTokens 上限保护，避免全表 COUNT）
@@ -222,8 +197,12 @@ func SearchUserTokens(userId string, keyword string, token string, offset int, l
 }
 
 func ValidateUserToken(key string) (token *Token, err error) {
+	key = common.NormalizeAPIKey(key)
 	if key == "" {
 		return nil, ErrTokenNotProvided
+	}
+	if !common.IsAPIKey(key) {
+		return nil, ErrTokenInvalid
 	}
 	token, err = GetTokenByKey(key, false)
 	if err == nil {
@@ -298,6 +277,8 @@ func GetTokenById(id string) (*Token, error) {
 }
 
 func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
+	key = common.NormalizeAPIKey(key)
+	keyHash := common.APIKeyHash(key)
 	defer func() {
 		// Update Redis cache asynchronously on successful DB read
 		if shouldUpdateRedis(fromDB, err) && token != nil {
@@ -317,7 +298,17 @@ func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
 		// Don't return error - fall through to DB
 	}
 	fromDB = true
-	err = DB.Where(commonKeyCol+" = ?", key).First(&token).Error
+	err = DB.Where("api_key_hash = ?", keyHash).First(&token).Error
+	return token, err
+}
+
+func GetTokenByHash(apiKeyHash string) (*Token, error) {
+	apiKeyHash = strings.TrimSpace(apiKeyHash)
+	if apiKeyHash == "" {
+		return nil, ErrTokenNotProvided
+	}
+	token := &Token{}
+	err := DB.Where("api_key_hash = ?", apiKeyHash).First(token).Error
 	return token, err
 }
 
@@ -341,7 +332,7 @@ func (token *Token) Update() (err error) {
 		}
 	}()
 	err = DB.Model(token).Select("name", "status", "expired_time", "remain_quota", "unlimited_quota",
-		"model_limits_enabled", "model_limits", "allow_ips", "group", "cross_group_retry").Updates(token).Error
+		"group", "cross_group_retry").Updates(token).Error
 	return err
 }
 
@@ -364,7 +355,7 @@ func (token *Token) Delete() (err error) {
 	defer func() {
 		if shouldUpdateRedis(true, err) {
 			gopool.Go(func() {
-				err := cacheDeleteToken(token.Key)
+				err := cacheDeleteToken(token.APIKeyHash)
 				if err != nil {
 					common.SysLog("failed to delete token cache: " + err.Error())
 				}
@@ -373,36 +364,6 @@ func (token *Token) Delete() (err error) {
 	}()
 	err = DB.Delete(token).Error
 	return err
-}
-
-func (token *Token) IsModelLimitsEnabled() bool {
-	return token.ModelLimitsEnabled
-}
-
-func (token *Token) GetModelLimits() []string {
-	if token.ModelLimits == "" {
-		return []string{}
-	}
-	return strings.Split(token.ModelLimits, ",")
-}
-
-func (token *Token) GetModelLimitsMap() map[string]bool {
-	limits := token.GetModelLimits()
-	limitsMap := make(map[string]bool)
-	for _, limit := range limits {
-		limitsMap[limit] = true
-	}
-	return limitsMap
-}
-
-func DisableModelLimits(tokenId string) error {
-	token, err := GetTokenById(tokenId)
-	if err != nil {
-		return err
-	}
-	token.ModelLimitsEnabled = false
-	token.ModelLimits = ""
-	return token.Update()
 }
 
 func DeleteTokenById(id string, userId string) (err error) {
@@ -433,13 +394,13 @@ func DeleteTokenByIdForAccount(id string, account AccountContext, actorUserId st
 	return token.Delete()
 }
 
-func IncreaseTokenQuota(tokenId string, key string, quota int) (err error) {
+func IncreaseTokenQuota(tokenId string, apiKeyHash string, quota int) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
 	if common.RedisEnabled {
 		gopool.Go(func() {
-			err := cacheIncrTokenQuota(key, int64(quota))
+			err := cacheIncrTokenQuota(apiKeyHash, int64(quota))
 			if err != nil {
 				common.SysLog("failed to increase token quota: " + err.Error())
 			}
@@ -463,13 +424,13 @@ func increaseTokenQuota(id string, quota int) (err error) {
 	return err
 }
 
-func DecreaseTokenQuota(id string, key string, quota int) (err error) {
+func DecreaseTokenQuota(id string, apiKeyHash string, quota int) (err error) {
 	if quota < 0 {
 		return errors.New("quota 不能为负数！")
 	}
 	if common.RedisEnabled {
 		gopool.Go(func() {
-			err := cacheDecrTokenQuota(key, int64(quota))
+			err := cacheDecrTokenQuota(apiKeyHash, int64(quota))
 			if err != nil {
 				common.SysLog("failed to decrease token quota: " + err.Error())
 			}
@@ -542,7 +503,7 @@ func BatchDeleteTokens(ids []string, userId string) (int, error) {
 	if common.RedisEnabled {
 		gopool.Go(func() {
 			for _, t := range tokens {
-				_ = cacheDeleteToken(t.Key)
+				_ = cacheDeleteToken(t.APIKeyHash)
 			}
 		})
 	}
@@ -580,30 +541,11 @@ func BatchDeleteAccountTokens(ids []string, account AccountContext, actorUserId 
 	if common.RedisEnabled {
 		gopool.Go(func() {
 			for _, t := range tokens {
-				_ = cacheDeleteToken(t.Key)
+				_ = cacheDeleteToken(t.APIKeyHash)
 			}
 		})
 	}
 	return len(tokens), nil
-}
-
-func GetTokenKeysByIdsForAccount(ids []string, account AccountContext, actorUserId string, allowAll bool) ([]Token, error) {
-	var tokens []Token
-	query := DB.Select("id", commonKeyCol).
-		Where("account_type = ? AND account_id = ? AND id IN (?)", account.Type, account.Id, ids)
-	if !allowAll {
-		query = query.Where("created_by_user_id = ?", actorUserId)
-	}
-	err := query.Find(&tokens).Error
-	return tokens, err
-}
-
-func GetTokenKeysByIds(ids []string, userId string) ([]Token, error) {
-	var tokens []Token
-	err := DB.Select("id", commonKeyCol).
-		Where("account_type = ? AND account_id = ? AND id IN (?)", AccountTypePersonal, userId, ids).
-		Find(&tokens).Error
-	return tokens, err
 }
 
 // InvalidateUserTokensCache 清理指定用户所有令牌在 Redis 中的缓存，
@@ -618,17 +560,17 @@ func InvalidateUserTokensCache(userId string) error {
 	}
 	var tokens []Token
 	if err := DB.Unscoped().
-		Select("id", commonKeyCol).
+		Select("id", "api_key_hash").
 		Where("user_id = ?", userId).
 		Find(&tokens).Error; err != nil {
 		return err
 	}
 	var firstErr error
 	for _, t := range tokens {
-		if t.Key == "" {
+		if t.APIKeyHash == "" {
 			continue
 		}
-		if err := cacheDeleteToken(t.Key); err != nil && firstErr == nil {
+		if err := cacheDeleteToken(t.APIKeyHash); err != nil && firstErr == nil {
 			firstErr = err
 		}
 	}

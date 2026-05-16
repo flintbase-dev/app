@@ -32,10 +32,6 @@ type tokenResponseItem struct {
 	Status int    `json:"status"`
 }
 
-type tokenKeyResponse struct {
-	Key string `json:"key"`
-}
-
 func openTokenControllerTestDB(t *testing.T) *gorm.DB {
 	t.Helper()
 
@@ -67,7 +63,6 @@ func seedToken(t *testing.T, db *gorm.DB, userID string, name string, rawKey str
 	token := &model.Token{
 		UserId:         userID,
 		Name:           name,
-		Key:            rawKey,
 		Status:         common.TokenStatusEnabled,
 		CreatedTime:    1,
 		AccessedTime:   1,
@@ -76,6 +71,7 @@ func seedToken(t *testing.T, db *gorm.DB, userID string, name string, rawKey str
 		UnlimitedQuota: true,
 		Group:          "default",
 	}
+	token.SetAPIKey(rawKey)
 	if err := db.Create(token).Error; err != nil {
 		t.Fatalf("failed to create token: %v", err)
 	}
@@ -201,15 +197,13 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 	token := seedToken(t, db, "usr_TokenTest01", "editable-token", "yzab1234cdef5678")
 
 	body := map[string]any{
-		"id":                   token.Id,
-		"name":                 "updated-token",
-		"expired_time":         -1,
-		"remain_quota":         100,
-		"unlimited_quota":      true,
-		"model_limits_enabled": false,
-		"model_limits":         "",
-		"group":                "default",
-		"cross_group_retry":    false,
+		"id":                token.Id,
+		"name":              "updated-token",
+		"expired_time":      -1,
+		"remain_quota":      100,
+		"unlimited_quota":   true,
+		"group":             "default",
+		"cross_group_retry": false,
 	}
 
 	ctx, recorder := newAuthenticatedContext(t, http.MethodPut, "/api/token/", body, "usr_TokenTest01")
@@ -232,36 +226,49 @@ func TestUpdateTokenMasksKeyInResponse(t *testing.T) {
 	}
 }
 
-func TestGetTokenKeyRequiresOwnershipAndReturnsFullKey(t *testing.T) {
+func TestAddTokenReturnsFullAPIKeyOnceAndStoresOnlyHash(t *testing.T) {
 	db := setupTokenControllerTestDB(t)
-	token := seedToken(t, db, "usr_TokenTest01", "owned-token", "owner1234token5678")
-
-	authorizedCtx, authorizedRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+token.Id+"/key", nil, "usr_TokenTest01")
-	authorizedCtx.Params = gin.Params{{Key: "id", Value: token.Id}}
-	GetTokenKey(authorizedCtx)
-
-	authorizedResponse := decodeAPIResponse(t, authorizedRecorder)
-	if !authorizedResponse.Success {
-		t.Fatalf("expected authorized key fetch to succeed, got message: %s", authorizedResponse.Message)
+	body := map[string]any{
+		"name":              "created-api-key",
+		"expired_time":      -1,
+		"remain_quota":      100,
+		"unlimited_quota":   true,
+		"group":             "default",
+		"cross_group_retry": false,
 	}
 
-	var keyData tokenKeyResponse
-	if err := common.Unmarshal(authorizedResponse.Data, &keyData); err != nil {
-		t.Fatalf("failed to decode token key response: %v", err)
+	ctx, recorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/", body, "usr_TokenTest01")
+	AddToken(ctx)
+
+	response := decodeAPIResponse(t, recorder)
+	if !response.Success {
+		t.Fatalf("expected create to succeed, got message: %s", response.Message)
 	}
-	if keyData.Key != token.GetFullKey() {
-		t.Fatalf("expected full key %q, got %q", token.GetFullKey(), keyData.Key)
+	var data struct {
+		APIKey string            `json:"api_key"`
+		Item   tokenResponseItem `json:"item"`
+	}
+	if err := common.Unmarshal(response.Data, &data); err != nil {
+		t.Fatalf("failed to decode create response: %v", err)
+	}
+	if !common.IsAPIKey(data.APIKey) {
+		t.Fatalf("created API key has invalid format: %q", data.APIKey)
+	}
+	if data.Item.Key != common.MaskAPIKey(data.APIKey) {
+		t.Fatalf("created item key = %q, want %q", data.Item.Key, common.MaskAPIKey(data.APIKey))
 	}
 
-	unauthorizedCtx, unauthorizedRecorder := newAuthenticatedContext(t, http.MethodPost, "/api/token/"+token.Id+"/key", nil, "usr_TokenTest02")
-	unauthorizedCtx.Params = gin.Params{{Key: "id", Value: token.Id}}
-	GetTokenKey(unauthorizedCtx)
-
-	unauthorizedResponse := decodeAPIResponse(t, unauthorizedRecorder)
-	if unauthorizedResponse.Success {
-		t.Fatalf("expected unauthorized key fetch to fail")
+	var stored model.Token
+	if err := db.First(&stored, "id = ?", data.Item.ID).Error; err != nil {
+		t.Fatalf("failed to load stored token: %v", err)
 	}
-	if strings.Contains(unauthorizedRecorder.Body.String(), token.Key) {
-		t.Fatalf("unauthorized key response leaked raw token key: %s", unauthorizedRecorder.Body.String())
+	if stored.APIKeyHash == "" {
+		t.Fatal("stored API key hash is empty")
+	}
+	if stored.APIKeyHash != common.APIKeyHash(data.APIKey) {
+		t.Fatal("stored API key hash does not match created key")
+	}
+	if stored.Key != "" {
+		t.Fatalf("raw API key should not be stored, got %q", stored.Key)
 	}
 }

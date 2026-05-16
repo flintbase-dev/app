@@ -40,7 +40,9 @@ CREATE TABLE tokens (
     created_by_user_id VARCHAR(32) NOT NULL DEFAULT '',
     account_type VARCHAR(16) NOT NULL DEFAULT 'personal' CHECK (account_type IN ('personal', 'team')),
     account_id VARCHAR(32) NOT NULL DEFAULT '',
-    "key" VARCHAR(128),
+    api_key_hash CHAR(64) NOT NULL,
+    api_key_prefix VARCHAR(32) NOT NULL DEFAULT '',
+    api_key_last4 VARCHAR(8) NOT NULL DEFAULT '',
     status BIGINT DEFAULT 1,
     name TEXT,
     created_time BIGINT,
@@ -48,16 +50,15 @@ CREATE TABLE tokens (
     expired_time BIGINT DEFAULT -1,
     remain_quota BIGINT DEFAULT 0,
     unlimited_quota BOOLEAN DEFAULT false,
-    model_limits_enabled BOOLEAN DEFAULT false,
-    model_limits TEXT,
-    allow_ips TEXT DEFAULT '',
     used_quota BIGINT DEFAULT 0,
     "group" TEXT DEFAULT '',
     cross_group_retry BOOLEAN DEFAULT false,
     deleted_at TIMESTAMPTZ
 );
 
-CREATE UNIQUE INDEX idx_tokens_key ON tokens ("key");
+CREATE UNIQUE INDEX idx_tokens_api_key_hash ON tokens (api_key_hash);
+CREATE INDEX idx_tokens_api_key_prefix ON tokens (api_key_prefix);
+CREATE INDEX idx_tokens_api_key_last4 ON tokens (api_key_last4);
 CREATE INDEX idx_tokens_user_id ON tokens (user_id);
 CREATE INDEX idx_tokens_created_by_user_id ON tokens (created_by_user_id);
 CREATE INDEX idx_tokens_account ON tokens (account_type, account_id);

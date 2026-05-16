@@ -20,32 +20,15 @@ For commercial licensing, please contact support@quantumnous.com
 import React from 'react';
 import {
   Button,
-  Dropdown,
   Space,
-  SplitButtonGroup,
   Tag,
-  AvatarGroup,
-  Avatar,
   Tooltip,
   Progress,
   Popover,
   Typography,
-  Input,
   Modal,
 } from '@douyinfe/semi-ui';
-import {
-  timestamp2string,
-  renderGroup,
-  renderQuota,
-  getModelCategories,
-  showError,
-} from '../../../helpers';
-import {
-  IconTreeTriangleDown,
-  IconCopy,
-  IconEyeOpened,
-  IconEyeClosed,
-} from '@douyinfe/semi-icons';
+import { timestamp2string, renderGroup, renderQuota } from '../../../helpers';
 
 // progress color helper
 const getProgressColor = (pct) => {
@@ -117,181 +100,27 @@ const renderGroupColumn = (text, record, t, groupRatios = {}) => {
   );
 };
 
-// Render token key column with show/hide and copy functionality
-const renderTokenKey = (
-  text,
-  record,
-  showKeys,
-  resolvedTokenKeys,
-  loadingTokenKeys,
-  toggleTokenVisibility,
-  copyTokenKey,
-  copyTokenConnectionString,
-  t,
-) => {
-  const revealed = !!showKeys[record.id];
-  const loading = !!loadingTokenKeys[record.id];
-  const keyValue =
-    revealed && resolvedTokenKeys[record.id]
-      ? resolvedTokenKeys[record.id]
-      : record.key || '';
-  const displayedKey = keyValue ? `sk-${keyValue}` : '';
+// Render API key preview only. Full API keys are shown once at creation.
+const renderApiKeyPreview = (text, record, t) => {
+  const displayedKey =
+    record.key ||
+    (record.api_key_prefix && record.api_key_last4
+      ? `${record.api_key_prefix}...${record.api_key_last4}`
+      : '');
 
   return (
-    <div className='w-[200px]'>
-      <Input
-        readOnly
-        value={displayedKey}
-        size='small'
-        suffix={
-          <div className='flex items-center'>
-            <Button
-              theme='borderless'
-              size='small'
-              type='tertiary'
-              icon={revealed ? <IconEyeClosed /> : <IconEyeOpened />}
-              loading={loading}
-              aria-label='toggle token visibility'
-              onClick={async (e) => {
-                e.stopPropagation();
-                await toggleTokenVisibility(record);
-              }}
-            />
-            <Dropdown
-              trigger='click'
-              position='bottomRight'
-              clickToHide
-              menu={[
-                {
-                  node: 'item',
-                  name: t('复制密钥'),
-                  onClick: () => copyTokenKey(record),
-                },
-                {
-                  node: 'item',
-                  name: t('复制连接信息'),
-                  onClick: () => copyTokenConnectionString(record),
-                },
-              ]}
-            >
-              <Button
-                theme='borderless'
-                size='small'
-                type='tertiary'
-                icon={<IconCopy />}
-                loading={loading}
-                aria-label='copy token key'
-                onClick={async (e) => {
-                  e.stopPropagation();
-                }}
-              />
-            </Dropdown>
-          </div>
-        }
-      />
-    </div>
-  );
-};
-
-// Render model limits column
-const renderModelLimits = (text, record, t) => {
-  if (record.model_limits_enabled && text) {
-    const models = text.split(',').filter(Boolean);
-    const categories = getModelCategories(t);
-
-    const vendorAvatars = [];
-    const matchedModels = new Set();
-    Object.entries(categories).forEach(([key, category]) => {
-      if (key === 'all') return;
-      if (!category.icon || !category.filter) return;
-      const vendorModels = models.filter((m) =>
-        category.filter({ model_name: m }),
-      );
-      if (vendorModels.length > 0) {
-        vendorAvatars.push(
-          <Tooltip
-            key={key}
-            content={vendorModels.join(', ')}
-            position='top'
-            showArrow
-          >
-            <Avatar
-              size='extra-extra-small'
-              alt={category.label}
-              color='transparent'
-            >
-              {category.icon}
-            </Avatar>
-          </Tooltip>,
-        );
-        vendorModels.forEach((m) => matchedModels.add(m));
-      }
-    });
-
-    const unmatchedModels = models.filter((m) => !matchedModels.has(m));
-    if (unmatchedModels.length > 0) {
-      vendorAvatars.push(
-        <Tooltip
-          key='unknown'
-          content={unmatchedModels.join(', ')}
-          position='top'
-          showArrow
-        >
-          <Avatar size='extra-extra-small' alt='unknown'>
-            {t('其他')}
-          </Avatar>
-        </Tooltip>,
-      );
-    }
-
-    return <AvatarGroup size='extra-extra-small'>{vendorAvatars}</AvatarGroup>;
-  } else {
-    return (
-      <Tag color='white' shape='circle'>
-        {t('无限制')}
-      </Tag>
-    );
-  }
-};
-
-// Render IP restrictions column
-const renderAllowIps = (text, t) => {
-  if (!text || text.trim() === '') {
-    return (
-      <Tag color='white' shape='circle'>
-        {t('无限制')}
-      </Tag>
-    );
-  }
-
-  const ips = text
-    .split('\n')
-    .map((ip) => ip.trim())
-    .filter(Boolean);
-
-  const displayIps = ips.slice(0, 1);
-  const extraCount = ips.length - displayIps.length;
-
-  const ipTags = displayIps.map((ip, idx) => (
-    <Tag key={idx} shape='circle'>
-      {ip}
-    </Tag>
-  ));
-
-  if (extraCount > 0) {
-    ipTags.push(
+    <div className='w-[220px]'>
       <Tooltip
-        key='extra'
-        content={ips.slice(1).join(', ')}
+        content={t('完整 API 密钥仅在创建时显示一次')}
         position='top'
         showArrow
       >
-        <Tag shape='circle'>{'+' + extraCount}</Tag>
-      </Tooltip>,
-    );
-  }
-
-  return <Space wrap>{ipTags}</Space>;
+        <Tag color='white' shape='circle' className='font-mono'>
+          {displayedKey || t('仅创建时显示')}
+        </Tag>
+      </Tooltip>
+    </div>
+  );
 };
 
 // Render separate quota usage column
@@ -352,64 +181,14 @@ const renderQuotaUsage = (text, record, t) => {
 const renderOperations = (
   text,
   record,
-  onOpenLink,
   setEditingToken,
   setShowEdit,
   manageToken,
   refresh,
   t,
 ) => {
-  let chatsArray = [];
-  try {
-    const raw = localStorage.getItem('chats');
-    const parsed = JSON.parse(raw);
-    if (Array.isArray(parsed)) {
-      for (let i = 0; i < parsed.length; i++) {
-        const item = parsed[i];
-        const name = Object.keys(item)[0];
-        if (!name) continue;
-        chatsArray.push({
-          node: 'item',
-          key: i,
-          name,
-          value: item[name],
-          onClick: () => onOpenLink(name, item[name], record),
-        });
-      }
-    }
-  } catch (_) {
-    showError(t('聊天链接配置错误，请联系管理员'));
-  }
-
   return (
     <Space wrap>
-      <SplitButtonGroup
-        className='overflow-hidden'
-        aria-label={t('项目操作按钮组')}
-      >
-        <Button
-          size='small'
-          type='tertiary'
-          onClick={() => {
-            if (chatsArray.length === 0) {
-              showError(t('请联系管理员配置聊天链接'));
-            } else {
-              const first = chatsArray[0];
-              onOpenLink(first.name, first.value, record);
-            }
-          }}
-        >
-          {t('聊天')}
-        </Button>
-        <Dropdown trigger='click' position='bottomRight' menu={chatsArray}>
-          <Button
-            type='tertiary'
-            icon={<IconTreeTriangleDown />}
-            size='small'
-          ></Button>
-        </Dropdown>
-      </SplitButtonGroup>
-
       {record.status === 1 ? (
         <Button
           type='danger'
@@ -449,7 +228,7 @@ const renderOperations = (
         size='small'
         onClick={() => {
           Modal.confirm({
-            title: t('确定是否要删除此令牌？'),
+            title: t('确定是否要删除此 API 密钥？'),
             content: t('此修改将不可逆'),
             onOk: () => {
               (async () => {
@@ -468,14 +247,7 @@ const renderOperations = (
 
 export const getTokensColumns = ({
   t,
-  showKeys,
-  resolvedTokenKeys,
-  loadingTokenKeys,
-  toggleTokenVisibility,
-  copyTokenKey,
-  copyTokenConnectionString,
   manageToken,
-  onOpenLink,
   setEditingToken,
   setShowEdit,
   refresh,
@@ -504,30 +276,9 @@ export const getTokensColumns = ({
       render: (text, record) => renderGroupColumn(text, record, t, groupRatios),
     },
     {
-      title: t('密钥'),
-      key: 'token_key',
-      render: (text, record) =>
-        renderTokenKey(
-          text,
-          record,
-          showKeys,
-          resolvedTokenKeys,
-          loadingTokenKeys,
-          toggleTokenVisibility,
-          copyTokenKey,
-          copyTokenConnectionString,
-          t,
-        ),
-    },
-    {
-      title: t('可用模型'),
-      dataIndex: 'model_limits',
-      render: (text, record) => renderModelLimits(text, record, t),
-    },
-    {
-      title: t('IP限制'),
-      dataIndex: 'allow_ips',
-      render: (text) => renderAllowIps(text, t),
+      title: t('API 密钥预览'),
+      key: 'api_key_preview',
+      render: (text, record) => renderApiKeyPreview(text, record, t),
     },
     {
       title: t('创建时间'),
@@ -562,7 +313,6 @@ export const getTokensColumns = ({
         renderOperations(
           text,
           record,
-          onOpenLink,
           setEditingToken,
           setShowEdit,
           manageToken,

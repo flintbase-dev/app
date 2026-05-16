@@ -191,7 +191,7 @@ export default function GroupRatioSettings(props) {
           style={{ display: 'block', marginBottom: 12 }}
         >
           {t(
-            '倍率用于计费乘数，勾选「用户可选」后用户可在创建令牌时选择该分组',
+            '倍率用于计费乘数，勾选「用户可选」后用户可在创建 API 密钥时选择该分组',
           )}
         </Text>
         <GroupTable
@@ -209,7 +209,7 @@ export default function GroupRatioSettings(props) {
           style={{ display: 'block', marginBottom: 12 }}
         >
           {t(
-            '令牌分组设为 auto 时，按以下顺序依次尝试选择可用分组，排在前面的优先级更高',
+            'API 密钥分组设为 auto 时，按以下顺序依次尝试选择可用分组，排在前面的优先级更高',
           )}
         </Text>
         <Row gutter={16}>
@@ -230,7 +230,9 @@ export default function GroupRatioSettings(props) {
                 />
               </div>
               <Text type='tertiary' size='small' style={{ marginTop: 4 }}>
-                {t('开启后创建令牌默认选择auto分组，初始令牌也将设为auto')}
+                {t(
+                  '开启后创建 API 密钥默认选择 auto 分组，初始 API 密钥也将设为 auto',
+                )}
               </Text>
             </Form.Slot>
           </Col>
@@ -250,7 +252,7 @@ export default function GroupRatioSettings(props) {
           style={{ display: 'block', marginBottom: 12 }}
         >
           {t(
-            '当某个分组的用户使用另一个分组的令牌时，可设置特殊倍率覆盖基础倍率。例如：vip 分组的用户使用 default 分组时倍率为 0.5',
+            '当某个分组的用户使用另一个分组的 API 密钥时，可设置特殊倍率覆盖基础倍率。例如：vip 分组的用户使用 default 分组时倍率为 0.5',
           )}
         </Text>
         <GroupGroupRatioRules
@@ -325,7 +327,7 @@ export default function GroupRatioSettings(props) {
               label={t('用户可选分组')}
               placeholder={t('为一个 JSON 文本，键为分组名称，值为分组描述')}
               extraText={t(
-                '用户新建令牌时可选的分组，格式为 JSON 字符串，例如：{"vip": "VIP 用户", "test": "测试"}，表示用户可以选择 vip 分组和 test 分组',
+                '用户新建 API 密钥时可选的分组，格式为 JSON 字符串，例如：{"vip": "VIP 用户", "test": "测试"}，表示用户可以选择 vip 分组和 test 分组',
               )}
               field={'UserUsableGroups'}
               autosize={{ minRows: 6, maxRows: 12 }}
@@ -349,7 +351,7 @@ export default function GroupRatioSettings(props) {
               label={t('分组特殊倍率')}
               placeholder={t('为一个 JSON 文本')}
               extraText={t(
-                '键为分组名称，值为另一个 JSON 对象，键为分组名称，值为该分组的用户的特殊分组倍率，例如：{"vip": {"default": 0.5, "test": 1}}，表示 vip 分组的用户在使用default分组的令牌时倍率为0.5，使用test分组时倍率为1',
+                '键为分组名称，值为另一个 JSON 对象，键为分组名称，值为该分组的用户的特殊分组倍率，例如：{"vip": {"default": 0.5, "test": 1}}，表示 vip 分组的用户在使用 default 分组的 API 密钥时倍率为 0.5，使用 test 分组时倍率为 1',
               )}
               field={'GroupGroupRatio'}
               autosize={{ minRows: 6, maxRows: 12 }}
@@ -428,7 +430,7 @@ export default function GroupRatioSettings(props) {
           <Col span={16}>
             <Form.Switch
               label={t(
-                '创建令牌默认选择auto分组，初始令牌也将设为auto（否则留空，为用户默认分组）',
+                '创建 API 密钥默认选择 auto 分组，初始 API 密钥也将设为 auto（否则留空，为用户默认分组）',
               )}
               field={'DefaultUseAutoGroup'}
               onChange={(value) =>
@@ -506,7 +508,7 @@ export default function GroupRatioSettings(props) {
             <Title heading={5}>{t('什么是分组？')}</Title>
             <Paragraph style={{ marginTop: 12, lineHeight: 1.8 }}>
               {t(
-                '分组是用于控制计费倍率和模型访问权限的核心概念。每个用户属于一个分组，每个令牌也可以指定使用某个分组。',
+                '分组是用于控制计费倍率和模型访问权限的核心概念。每个用户属于一个分组，每个 API 密钥也可以指定使用某个分组。',
               )}
             </Paragraph>
             <Paragraph style={{ marginTop: 8, lineHeight: 1.8 }}>
@@ -522,10 +524,10 @@ export default function GroupRatioSettings(props) {
                 {t('由管理员分配，决定用户身份等级（如 default、vip）。')}
               </Paragraph>
               <Paragraph style={{ lineHeight: 1.8, marginTop: 4 }}>
-                <Text strong>{t('令牌分组')}</Text>
+                <Text strong>{t('API 密钥分组')}</Text>
                 {' — '}
                 {t(
-                  '用户创建令牌时选择的分组，决定该令牌的实际计费倍率。一个用户可以创建多个令牌，使用不同分组。',
+                  '用户创建 API 密钥时选择的分组，决定该 API 密钥的实际计费倍率。一个用户可以创建多个 API 密钥，使用不同分组。',
                 )}
               </Paragraph>
               <Paragraph style={{ lineHeight: 1.8, marginTop: 4 }}>
@@ -537,14 +539,14 @@ export default function GroupRatioSettings(props) {
                 <Text strong>{t('用户可选')}</Text>
                 {' — '}
                 {t(
-                  '勾选后，该分组会出现在用户创建令牌时的下拉菜单中。未勾选的分组只能由管理员分配，用户自己无法选择。',
+                  '勾选后，该分组会出现在用户创建 API 密钥时的下拉菜单中。未勾选的分组只能由管理员分配，用户自己无法选择。',
                 )}
               </Paragraph>
               <Paragraph style={{ lineHeight: 1.8, marginTop: 4 }}>
                 <Text strong>{t('自动分组')}</Text>
                 {' — '}
                 {t(
-                  '令牌分组设为 auto 时，系统按优先级顺序自动选择一个可用分组。',
+                  'API 密钥分组设为 auto 时，系统按优先级顺序自动选择一个可用分组。',
                 )}
               </Paragraph>
             </GuideSection>
@@ -576,11 +578,11 @@ export default function GroupRatioSettings(props) {
                 style={{ marginTop: 10, lineHeight: 1.8 }}
               >
                 {t(
-                  '两个分组都勾选了「用户可选」，所以用户创建令牌时可以看到这两个选项：',
+                  '两个分组都勾选了「用户可选」，所以用户创建 API 密钥时可以看到这两个选项：',
                 )}
               </Paragraph>
               <CodeBlock>
-                {t('用户创建令牌 → 选择分组下拉框：')}
+                {t('用户创建 API 密钥 → 选择分组下拉框：')}
                 {'\n'}
                 {`  ├─ standard (${t('标准价格')})`}
                 {'\n'}
@@ -591,7 +593,7 @@ export default function GroupRatioSettings(props) {
                 style={{ marginTop: 10, lineHeight: 1.8 }}
               >
                 {t(
-                  '选择 premium 创建的令牌，调用 API 时费用为 standard 的 50%。',
+                  '选择 premium 创建的 API 密钥，调用 API 时费用为 standard 的 50%。',
                 )}
               </Paragraph>
               <Paragraph
@@ -607,10 +609,10 @@ export default function GroupRatioSettings(props) {
                 {`${t('分组名')}      ${t('倍率')}    ${t('用户可选')}    ${t('说明')}\n──────────────────────────────────────\ndefault   1.0     ${t('否')}        ${t('管理员分配的基础分组')}\nvip       0.5     ${t('否')}        ${t('管理员分配的优惠分组')}\nstandard  1.0     ${t('是')}        ${t('标准价格')}\npremium   0.5     ${t('是')}        ${t('高级套餐，半价优惠')}`}
               </CodeBlock>
               <Paragraph size='small' style={{ marginTop: 8, lineHeight: 1.8 }}>
-                {t('此时用户创建令牌时只能看到 standard 和 premium：')}
+                {t('此时用户创建 API 密钥时只能看到 standard 和 premium：')}
               </Paragraph>
               <CodeBlock>
-                {t('用户创建令牌 → 选择分组下拉框：')}
+                {t('用户创建 API 密钥 → 选择分组下拉框：')}
                 {'\n'}
                 {`  ├─ standard (${t('标准价格')})`}
                 {'\n'}
@@ -639,7 +641,7 @@ export default function GroupRatioSettings(props) {
                 <Text strong>{t('特殊倍率')}</Text>
                 {' — '}
                 {t(
-                  '可以根据用户分组设置不同的计费倍率。例如 vip 用户使用 standard 令牌时倍率从 1.0 降为 0.8。',
+                  '可以根据用户分组设置不同的计费倍率。例如 vip 用户使用 standard API 密钥时倍率从 1.0 降为 0.8。',
                 )}
               </Paragraph>
               <Paragraph size='small' style={{ lineHeight: 1.8, marginTop: 2 }}>
@@ -647,7 +649,7 @@ export default function GroupRatioSettings(props) {
                 <Text strong>{t('可用分组')}</Text>
                 {' — '}
                 {t(
-                  '可以根据用户分组增减令牌可选的分组范围。例如 vip 用户额外开放 premium 分组，或移除某个分组的选择权。',
+                  '可以根据用户分组增减 API 密钥可选的分组范围。例如 vip 用户额外开放 premium 分组，或移除某个分组的选择权。',
                 )}
               </Paragraph>
               <Paragraph
@@ -685,7 +687,7 @@ export default function GroupRatioSettings(props) {
             <Title heading={5}>{t('自动分组选择')}</Title>
             <Paragraph style={{ marginTop: 12, lineHeight: 1.8 }}>
               {t(
-                '当令牌分组设为 auto 时，系统按列表顺序依次选择可用分组。排在前面的优先级更高。',
+                '当 API 密钥分组设为 auto 时，系统按列表顺序依次选择可用分组。排在前面的优先级更高。',
               )}
             </Paragraph>
 
@@ -702,7 +704,7 @@ export default function GroupRatioSettings(props) {
               </CodeBlock>
               <Paragraph size='small' style={{ marginTop: 6, lineHeight: 1.6 }}>
                 {t(
-                  '开启「默认使用 auto 分组」后，新建令牌和初始令牌都会自动设为 auto。',
+                  '开启「默认使用 auto 分组」后，新建 API 密钥和初始 API 密钥都会自动设为 auto。',
                 )}
               </Paragraph>
             </GuideSection>
@@ -725,12 +727,12 @@ export default function GroupRatioSettings(props) {
             <Title heading={5}>{t('跨分组特殊倍率')}</Title>
             <Paragraph style={{ marginTop: 12, lineHeight: 1.8 }}>
               {t(
-                '正常情况下，令牌的计费倍率由令牌所选的分组决定。特殊倍率可以根据「用户所在分组」进一步覆盖这个倍率。',
+                '正常情况下，API 密钥的计费倍率由 API 密钥所选的分组决定。特殊倍率可以根据「用户所在分组」进一步覆盖这个倍率。',
               )}
             </Paragraph>
             <Paragraph style={{ marginTop: 8, lineHeight: 1.8 }}>
               {t(
-                '简单来说：同一个令牌分组，不同等级的用户可以享受不同的价格。',
+                '简单来说：同一个 API 密钥分组，不同等级的用户可以享受不同的价格。',
               )}
             </Paragraph>
 
@@ -741,7 +743,7 @@ export default function GroupRatioSettings(props) {
                 style={{ marginBottom: 8 }}
               >
                 {t(
-                  '场景：站点有 standard（倍率 1.0）和 premium（倍率 0.5）两个分组，希望 vip 用户使用 standard 令牌时也能享受折扣',
+                  '场景：站点有 standard（倍率 1.0）和 premium（倍率 0.5）两个分组，希望 vip 用户使用 standard API 密钥时也能享受折扣',
                 )}
               </Paragraph>
               <Paragraph
@@ -751,7 +753,7 @@ export default function GroupRatioSettings(props) {
                 <Text strong>{t('不配置特殊倍率时：')}</Text>
               </Paragraph>
               <CodeBlock>
-                {`${t('普通用户')} + standard ${t('令牌')} → ${t('倍率')} 1.0  (${t('原价')})\nvip ${t('用户')}  + standard ${t('令牌')} → ${t('倍率')} 1.0  (${t('原价，和普通用户一样')})`}
+                {`${t('普通用户')} + standard ${t('API 密钥')} → ${t('倍率')} 1.0  (${t('原价')})\nvip ${t('用户')}  + standard ${t('API 密钥')} → ${t('倍率')} 1.0  (${t('原价，和普通用户一样')})`}
               </CodeBlock>
               <Paragraph
                 size='small'
@@ -769,7 +771,7 @@ export default function GroupRatioSettings(props) {
                 {t('配置后的效果：')}
               </Paragraph>
               <CodeBlock>
-                {`${t('普通用户')} + standard ${t('令牌')} → ${t('倍率')} 1.0  (${t('不变')})\nvip ${t('用户')}  + standard ${t('令牌')} → ${t('倍率')} 0.8  (${t('享受 8 折')})\nvip ${t('用户')}  + premium  ${t('令牌')} → ${t('倍率')} 0.3  (${t('从 0.5 降到 0.3')})`}
+                {`${t('普通用户')} + standard ${t('API 密钥')} → ${t('倍率')} 1.0  (${t('不变')})\nvip ${t('用户')}  + standard ${t('API 密钥')} → ${t('倍率')} 0.8  (${t('享受 8 折')})\nvip ${t('用户')}  + premium  ${t('API 密钥')} → ${t('倍率')} 0.3  (${t('从 0.5 降到 0.3')})`}
               </CodeBlock>
               <Paragraph
                 size='small'
@@ -777,7 +779,7 @@ export default function GroupRatioSettings(props) {
                 style={{ marginTop: 10, lineHeight: 1.8 }}
               >
                 {t(
-                  '只有配置了规则的组合才会覆盖，未配置的组合仍使用令牌分组的基础倍率。',
+                  '只有配置了规则的组合才会覆盖，未配置的组合仍使用 API 密钥分组的基础倍率。',
                 )}
               </Paragraph>
             </GuideSection>
@@ -800,7 +802,7 @@ export default function GroupRatioSettings(props) {
             <Title heading={5}>{t('特殊可用分组规则')}</Title>
             <Paragraph style={{ marginTop: 12, lineHeight: 1.8 }}>
               {t(
-                '默认情况下，所有用户创建令牌时看到的可选分组列表是一样的（即「用户可选」列勾选的分组）。',
+                '默认情况下，所有用户创建 API 密钥时看到的可选分组列表是一样的（即「用户可选」列勾选的分组）。',
               )}
             </Paragraph>
             <Paragraph style={{ marginTop: 8, lineHeight: 1.8 }}>
@@ -828,7 +830,7 @@ export default function GroupRatioSettings(props) {
                 </Text>
               </Paragraph>
               <CodeBlock>
-                {`${t('所有用户')} → ${t('创建令牌可选')}:\n  ├─ standard\n  └─ premium`}
+                {`${t('所有用户')} → ${t('创建 API 密钥可选')}:\n  ├─ standard\n  └─ premium`}
               </CodeBlock>
               <Paragraph
                 size='small'
@@ -846,7 +848,7 @@ export default function GroupRatioSettings(props) {
                 {t('配置后的效果：')}
               </Paragraph>
               <CodeBlock>
-                {`${t('普通用户')} → ${t('创建令牌可选')}:\n  ├─ standard\n  └─ premium\n\nvip ${t('用户')} → ${t('创建令牌可选')}:\n  ├─ premium     (${t('保留')})\n  └─ exclusive   (${t('新增')})\n\n  ${t('standard 已被移除，vip 用户看不到')}`}
+                {`${t('普通用户')} → ${t('创建 API 密钥可选')}:\n  ├─ standard\n  └─ premium\n\nvip ${t('用户')} → ${t('创建 API 密钥可选')}:\n  ├─ premium     (${t('保留')})\n  └─ exclusive   (${t('新增')})\n\n  ${t('standard 已被移除，vip 用户看不到')}`}
               </CodeBlock>
 
               <Paragraph

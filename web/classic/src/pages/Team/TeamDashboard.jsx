@@ -46,7 +46,7 @@ const TeamDashboard = () => {
       try {
         const [teamRes, tokensRes] = await Promise.all([
           API.query('team', { team_id: teamId }),
-          API.query('teamTokens', { team_id: teamId, p: 1, page_size: 5 }),
+          API.query('teamApiKeys', { team_id: teamId, p: 1, page_size: 5 }),
         ]);
         if (teamRes.data?.success) {
           setTeam(teamRes.data.data);

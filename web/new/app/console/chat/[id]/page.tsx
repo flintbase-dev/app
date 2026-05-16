@@ -19,10 +19,11 @@ export default async function ChatRunnerPage({
       <div className="flex flex-1 items-center justify-center px-4 py-10">
         <div className="max-w-sm text-center">
           <h1 className="font-heading text-2xl font-medium tracking-tight">
-            No active key
+            API key setup required
           </h1>
           <p className="mt-2 text-sm text-muted-foreground">
-            Create or enable an API key before opening a chat client.
+            Full API keys are shown only once when created. Create a new key and
+            paste it into the target chat client.
           </p>
           <Link
             href="/console/token/new"

@@ -11,15 +11,9 @@ import {
   XCircle,
 } from "lucide-react";
 import Link from "next/link";
-import { TokenSecretButton } from "@/components/console/token-actions";
-import {
-  TokenBulkCopyButton,
-  TokenBulkDeleteButton,
-} from "@/components/console/token-bulk-actions";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Checkbox } from "@/components/ui/checkbox";
 import {
   Empty,
   EmptyContent,
@@ -91,19 +85,6 @@ export async function TokenListPage({
           </form>
           <FilterButton href={`${basePath}?q=enabled`} label="Status" />
           <FilterButton href={`${basePath}?q=default`} label="Group" />
-          <TokenBulkCopyButton
-            ids={tokens.items.map((token) => token.id)}
-            teamId={teamId}
-          />
-          <form action="/console/token/actions/delete-batch" method="post">
-            {teamId ? (
-              <input type="hidden" name="team_id" value={teamId} />
-            ) : null}
-            {tokens.items.map((token) => (
-              <input key={token.id} type="hidden" name="ids" value={token.id} />
-            ))}
-            <TokenBulkDeleteButton disabled={tokens.items.length === 0} />
-          </form>
           <Link
             href={`${basePath}/new`}
             className={cn(buttonVariants({ variant: "brand", size: "sm" }))}
@@ -118,9 +99,6 @@ export async function TokenListPage({
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead className="w-8 pl-4">
-                  <Checkbox aria-label="Select all" />
-                </TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>Key</TableHead>
                 <TableHead>Group</TableHead>
@@ -135,7 +113,7 @@ export async function TokenListPage({
             <TableBody>
               {tokens.items.length === 0 ? (
                 <TableRow>
-                  <TableCell colSpan={10} className="p-0">
+                  <TableCell colSpan={9} className="p-0">
                     {q ? (
                       <Empty className="border-0 py-12">
                         <EmptyHeader>
@@ -192,9 +170,6 @@ export async function TokenListPage({
               ) : null}
               {tokens.items.map((t) => (
                 <TableRow key={t.id}>
-                  <TableCell className="pl-4">
-                    <Checkbox aria-label={`Select ${t.name}`} />
-                  </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <code className="font-mono text-sm font-medium text-foreground">
@@ -211,21 +186,9 @@ export async function TokenListPage({
                     </span>
                   </TableCell>
                   <TableCell>
-                    <div className="flex items-center gap-1.5">
-                      <code className="font-mono text-xs text-muted-foreground">
-                        {t.keyPreview}
-                      </code>
-                      <TokenSecretButton
-                        tokenId={t.id}
-                        mode="reveal"
-                        teamId={teamId}
-                      />
-                      <TokenSecretButton
-                        tokenId={t.id}
-                        mode="copy"
-                        teamId={teamId}
-                      />
-                    </div>
+                    <code className="font-mono text-xs text-muted-foreground">
+                      {t.keyPreview}
+                    </code>
                   </TableCell>
                   <TableCell>
                     <Badge variant="outline" className="capitalize">
@@ -297,12 +260,6 @@ export async function TokenListPage({
                           <Power aria-hidden="true" />
                         </Button>
                       </form>
-                      <TokenSecretButton
-                        tokenId={t.id}
-                        mode="connection"
-                        connectionBase={status.serverAddress}
-                        teamId={teamId}
-                      />
                       <form
                         action="/console/token/actions/delete"
                         method="post"

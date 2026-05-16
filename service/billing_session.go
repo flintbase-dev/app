@@ -96,7 +96,7 @@ func (s *BillingSession) Refund(c *gin.Context) {
 
 	// 复制需要的值到闭包中
 	tokenId := s.relayInfo.TokenId
-	tokenKey := s.relayInfo.TokenKey
+	apiKeyHash := s.relayInfo.TokenKey
 	isPlayground := s.relayInfo.IsPlayground
 	tokenConsumed := s.tokenConsumed
 	extraReserved := s.extraReserved
@@ -115,7 +115,7 @@ func (s *BillingSession) Refund(c *gin.Context) {
 		}
 		// 2) 退还令牌额度
 		if tokenConsumed > 0 && !isPlayground {
-			if err := model.IncreaseTokenQuota(tokenId, tokenKey, tokenConsumed); err != nil {
+			if err := model.IncreaseTokenQuota(tokenId, apiKeyHash, tokenConsumed); err != nil {
 				common.SysLog("error refunding token quota: " + err.Error())
 			}
 		}

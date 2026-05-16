@@ -76,80 +76,49 @@ func ListModels(c *gin.Context, modelType int) {
 		}
 	}
 
-	modelLimitEnable := common.GetContextKeyBool(c, constant.ContextKeyTokenModelLimitEnabled)
-	if modelLimitEnable {
-		s, ok := common.GetContextKey(c, constant.ContextKeyTokenModelLimit)
-		var tokenModelLimit map[string]bool
-		if ok {
-			tokenModelLimit = s.(map[string]bool)
-		} else {
-			tokenModelLimit = map[string]bool{}
-		}
-		for allowModel, _ := range tokenModelLimit {
-			if !acceptUnsetPriceModel {
-				if !helper.HasModelBillingConfig(allowModel) {
-					continue
+	userGroup, err := model.GetUserGroup(userId, false)
+	if err != nil {
+		c.JSON(http.StatusOK, gin.H{
+			"success": false,
+			"message": "get user group failed",
+		})
+		return
+	}
+	group := userGroup
+	tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
+	if tokenGroup != "" {
+		group = tokenGroup
+	}
+	var models []string
+	if tokenGroup == "auto" {
+		for _, autoGroup := range service.GetUserAutoGroup(userGroup) {
+			groupModels := model.GetGroupEnabledModels(autoGroup)
+			for _, g := range groupModels {
+				if !common.StringsContains(models, g) {
+					models = append(models, g)
 				}
-			}
-			if oaiModel, ok := openAIModelsMap[allowModel]; ok {
-				oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(allowModel)
-				userOpenAiModels = append(userOpenAiModels, oaiModel)
-			} else {
-				userOpenAiModels = append(userOpenAiModels, dto.OpenAIModels{
-					Id:                     allowModel,
-					Object:                 "model",
-					Created:                1626777600,
-					OwnedBy:                "custom",
-					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(allowModel),
-				})
 			}
 		}
 	} else {
-		userId := c.GetString("id")
-		userGroup, err := model.GetUserGroup(userId, false)
-		if err != nil {
-			c.JSON(http.StatusOK, gin.H{
-				"success": false,
-				"message": "get user group failed",
-			})
-			return
-		}
-		group := userGroup
-		tokenGroup := common.GetContextKeyString(c, constant.ContextKeyTokenGroup)
-		if tokenGroup != "" {
-			group = tokenGroup
-		}
-		var models []string
-		if tokenGroup == "auto" {
-			for _, autoGroup := range service.GetUserAutoGroup(userGroup) {
-				groupModels := model.GetGroupEnabledModels(autoGroup)
-				for _, g := range groupModels {
-					if !common.StringsContains(models, g) {
-						models = append(models, g)
-					}
-				}
+		models = model.GetGroupEnabledModels(group)
+	}
+	for _, modelName := range models {
+		if !acceptUnsetPriceModel {
+			if !helper.HasModelBillingConfig(modelName) {
+				continue
 			}
+		}
+		if oaiModel, ok := openAIModelsMap[modelName]; ok {
+			oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
+			userOpenAiModels = append(userOpenAiModels, oaiModel)
 		} else {
-			models = model.GetGroupEnabledModels(group)
-		}
-		for _, modelName := range models {
-			if !acceptUnsetPriceModel {
-				if !helper.HasModelBillingConfig(modelName) {
-					continue
-				}
-			}
-			if oaiModel, ok := openAIModelsMap[modelName]; ok {
-				oaiModel.SupportedEndpointTypes = model.GetModelSupportEndpointTypes(modelName)
-				userOpenAiModels = append(userOpenAiModels, oaiModel)
-			} else {
-				userOpenAiModels = append(userOpenAiModels, dto.OpenAIModels{
-					Id:                     modelName,
-					Object:                 "model",
-					Created:                1626777600,
-					OwnedBy:                "custom",
-					SupportedEndpointTypes: model.GetModelSupportEndpointTypes(modelName),
-				})
-			}
+			userOpenAiModels = append(userOpenAiModels, dto.OpenAIModels{
+				Id:                     modelName,
+				Object:                 "model",
+				Created:                1626777600,
+				OwnedBy:                "custom",
+				SupportedEndpointTypes: model.GetModelSupportEndpointTypes(modelName),
+			})
 		}
 	}
 

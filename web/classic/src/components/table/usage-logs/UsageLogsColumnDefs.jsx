@@ -613,7 +613,7 @@ export const getLogsColumns = ({
     },
     {
       key: COLUMN_KEYS.TOKEN,
-      title: t('令牌'),
+      title: t('API 密钥'),
       dataIndex: 'token_name',
       render: (text, record, index) => {
         return isRequestLog(record) && text ? (
