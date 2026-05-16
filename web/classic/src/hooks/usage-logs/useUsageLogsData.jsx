@@ -42,9 +42,10 @@ import { ITEMS_PER_PAGE } from '../../constants';
 import { useTableCompactMode } from '../common/useTableCompactMode';
 import ParamOverrideEntry from '../../components/table/usage-logs/components/ParamOverrideEntry';
 
-export const useLogsData = () => {
+export const useLogsData = (teamId = '') => {
   const { t } = useTranslation();
   const DEFAULT_LOG_CATEGORY = 'usage';
+  const isTeamContext = Boolean(teamId);
 
   // Define column keys for selection
   const COLUMN_KEYS = {
@@ -322,7 +323,15 @@ export const useLogsData = () => {
       setLoadingStat(false);
       return;
     }
-    if (isAdminUser) {
+    if (isTeamContext) {
+      const res = await API.query('teamBillingSummary', { team_id: teamId });
+      const { success, message, data } = res.data;
+      if (success) {
+        setStat({ quota: data?.used_quota || 0, token: 0 });
+      } else {
+        showError(message);
+      }
+    } else if (isAdminUser) {
       await getLogStat();
     } else {
       await getLogSelfStat();
@@ -772,10 +781,16 @@ export const useLogsData = () => {
 
     let localStartTimestamp = Date.parse(start_timestamp) / 1000;
     let localEndTimestamp = Date.parse(end_timestamp) / 1000;
-    const res = await API.query(isAdminUser ? 'logs' : 'userLogs', {
+    const operation = isTeamContext
+      ? 'teamUsage'
+      : isAdminUser
+        ? 'logs'
+        : 'userLogs';
+    const res = await API.query(operation, {
       p: startIdx,
       page_size: pageSize,
       category: currentLogCategory,
+      ...(isTeamContext ? { team_id: teamId } : {}),
       ...(isAdminUser ? { username, channel } : {}),
       token_name,
       model_name,
@@ -837,19 +852,20 @@ export const useLogsData = () => {
     const localPageSize =
       parseInt(localStorage.getItem('page-size')) || ITEMS_PER_PAGE;
     setPageSize(localPageSize);
-    loadLogs(activePage, localPageSize)
+    setActivePage(1);
+    loadLogs(1, localPageSize)
       .then()
       .catch((reason) => {
         showError(reason);
       });
-  }, []);
+  }, [teamId]);
 
   // Initialize statistics when formApi is available
   useEffect(() => {
     if (formApi) {
       handleEyeClick();
     }
-  }, [formApi]);
+  }, [formApi, teamId]);
 
   // Check if any record has expandable content
   const hasExpandableRows = () => {

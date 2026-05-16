@@ -30,6 +30,8 @@ var ErrInsufficientCreditGrantBalance = errors.New("insufficient active credit g
 type CreditGrant struct {
 	Id              string `json:"id" gorm:"primaryKey;column:id;type:varchar(32)"`
 	UserId          string `json:"user_id" gorm:"column:user_id;type:varchar(32);index"`
+	AccountType     string `json:"account_type" gorm:"column:account_type;type:varchar(16);index;default:'personal'"`
+	AccountId       string `json:"account_id" gorm:"column:account_id;type:varchar(32);index;default:''"`
 	SourceType      string `json:"source_type" gorm:"column:source_type;size:64;index"`
 	SourceId        string `json:"source_id" gorm:"column:source_id;size:128;index"`
 	Amount          int    `json:"amount" gorm:"column:amount"`
@@ -50,6 +52,8 @@ func (CreditGrant) TableName() string {
 type CreditLedgerEntry struct {
 	Id           string  `json:"id" gorm:"primaryKey;column:id;type:varchar(32)"`
 	UserId       string  `json:"user_id" gorm:"column:user_id;type:varchar(32);index"`
+	AccountType  string  `json:"account_type" gorm:"column:account_type;type:varchar(16);index;default:'personal'"`
+	AccountId    string  `json:"account_id" gorm:"column:account_id;type:varchar(32);index;default:''"`
 	GrantId      *string `json:"grant_id" gorm:"column:grant_id;type:varchar(32);index"`
 	EntryType    string  `json:"entry_type" gorm:"column:entry_type;size:32;index"`
 	AmountDelta  int     `json:"amount_delta" gorm:"column:amount_delta"`
@@ -70,6 +74,8 @@ func (CreditLedgerEntry) TableName() string {
 
 type CreditGrantParams struct {
 	UserId      string
+	AccountType string
+	AccountId   string
 	Amount      int
 	SourceType  string
 	SourceId    string
@@ -82,6 +88,8 @@ type CreditGrantParams struct {
 
 type CreditConsumeParams struct {
 	UserId      string
+	AccountType string
+	AccountId   string
 	Amount      int
 	EntryType   string
 	SourceType  string
@@ -122,6 +130,64 @@ func lockUserQuotaTx(tx *gorm.DB, userId string) (*User, error) {
 	return user, nil
 }
 
+func normalizeGrantAccount(params CreditGrantParams) (CreditGrantParams, AccountContext, error) {
+	if params.AccountType == "" {
+		params.AccountType = AccountTypePersonal
+	}
+	if params.AccountId == "" {
+		params.AccountId = params.UserId
+	}
+	ctx, err := NormalizeAccountContext(params.AccountType, params.AccountId)
+	return params, ctx, err
+}
+
+func normalizeConsumeAccount(params CreditConsumeParams) (CreditConsumeParams, AccountContext, error) {
+	if params.AccountType == "" {
+		params.AccountType = AccountTypePersonal
+	}
+	if params.AccountId == "" {
+		params.AccountId = params.UserId
+	}
+	ctx, err := NormalizeAccountContext(params.AccountType, params.AccountId)
+	return params, ctx, err
+}
+
+func lockAccountQuotaTx(tx *gorm.DB, ctx AccountContext) (int, error) {
+	if tx == nil {
+		return 0, errors.New("database transaction is nil")
+	}
+	switch ctx.Type {
+	case AccountTypePersonal:
+		user, err := lockUserQuotaTx(tx, ctx.Id)
+		if err != nil {
+			return 0, err
+		}
+		return user.Quota, nil
+	case AccountTypeTeam:
+		var team Team
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).Select("id, quota").First(&team, "id = ? AND status = ?", ctx.Id, TeamStatusActive).Error; err != nil {
+			return 0, err
+		}
+		return team.Quota, nil
+	default:
+		return 0, errors.New("unsupported account type")
+	}
+}
+
+func updateAccountQuotaProjectionTx(tx *gorm.DB, ctx AccountContext, delta int) error {
+	switch ctx.Type {
+	case AccountTypePersonal:
+		return updateUserQuotaProjectionTx(tx, ctx.Id, delta)
+	case AccountTypeTeam:
+		return tx.Model(&Team{}).Where("id = ?", ctx.Id).Updates(map[string]interface{}{
+			"quota":      gorm.Expr("quota + ?", delta),
+			"updated_at": common.GetTimestamp(),
+		}).Error
+	default:
+		return errors.New("unsupported account type")
+	}
+}
+
 func updateUserQuotaProjectionTx(tx *gorm.DB, userId string, delta int) error {
 	return tx.Model(&User{}).Where("id = ?", userId).Update("quota", gorm.Expr("quota + ?", delta)).Error
 }
@@ -138,13 +204,19 @@ func updateUserQuotaCacheAfterCommit(userId string, balance int) {
 }
 
 func GrantUserCredits(params CreditGrantParams) error {
+	params.AccountType = AccountTypePersonal
+	params.AccountId = params.UserId
+	return GrantAccountCredits(params)
+}
+
+func GrantAccountCredits(params CreditGrantParams) error {
 	var balanceAfter int
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var err error
 		balanceAfter, err = GrantUserCreditsTx(tx, params)
 		return err
 	})
-	if err == nil {
+	if err == nil && params.AccountType == AccountTypePersonal {
 		updateUserQuotaCacheAfterCommit(params.UserId, balanceAfter)
 	}
 	return err
@@ -155,13 +227,19 @@ func GrantUserCreditsTx(tx *gorm.DB, params CreditGrantParams) (int, error) {
 }
 
 func RefundUserCredits(params CreditGrantParams) error {
+	params.AccountType = AccountTypePersonal
+	params.AccountId = params.UserId
+	return RefundAccountCredits(params)
+}
+
+func RefundAccountCredits(params CreditGrantParams) error {
 	var balanceAfter int
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var err error
 		balanceAfter, err = grantUserCreditsWithEntryTypeTx(tx, params, CreditLedgerEntryTypeRefund)
 		return err
 	})
-	if err == nil {
+	if err == nil && params.AccountType == AccountTypePersonal {
 		updateUserQuotaCacheAfterCommit(params.UserId, balanceAfter)
 	}
 	return err
@@ -171,13 +249,19 @@ func grantUserCreditsWithEntryTypeTx(tx *gorm.DB, params CreditGrantParams, entr
 	if params.Amount <= 0 {
 		return 0, errors.New("credit amount must be positive")
 	}
+	var account AccountContext
+	var err error
+	params, account, err = normalizeGrantAccount(params)
+	if err != nil {
+		return 0, err
+	}
 	now := common.GetTimestamp()
 	params.SourceType = normalizeLedgerLabel(params.SourceType, entryType)
-	params.SourceId = normalizeLedgerLabel(params.SourceId, newLedgerSourceId(params.SourceType, params.UserId))
+	params.SourceId = normalizeLedgerLabel(params.SourceId, newLedgerSourceId(params.SourceType, account.Id))
 	params.RequestId = normalizeLedgerLabel(params.RequestId, common.NewRequestID())
 	params.Reason = normalizeLedgerLabel(params.Reason, params.SourceType)
 
-	user, err := lockUserQuotaTx(tx, params.UserId)
+	accountBalance, err := lockAccountQuotaTx(tx, account)
 	if err != nil {
 		return 0, err
 	}
@@ -185,8 +269,8 @@ func grantUserCreditsWithEntryTypeTx(tx *gorm.DB, params CreditGrantParams, entr
 	var existingGrant CreditGrant
 	err = tx.Where("source_type = ? AND source_id = ?", params.SourceType, params.SourceId).First(&existingGrant).Error
 	if err == nil {
-		if existingGrant.UserId == params.UserId && existingGrant.Amount == params.Amount {
-			return user.Quota, nil
+		if existingGrant.AccountType == account.Type && existingGrant.AccountId == account.Id && existingGrant.Amount == params.Amount {
+			return accountBalance, nil
 		}
 		return 0, errors.New("credit grant source already exists with different attributes")
 	}
@@ -196,6 +280,8 @@ func grantUserCreditsWithEntryTypeTx(tx *gorm.DB, params CreditGrantParams, entr
 
 	grant := CreditGrant{
 		UserId:          params.UserId,
+		AccountType:     account.Type,
+		AccountId:       account.Id,
 		SourceType:      params.SourceType,
 		SourceId:        params.SourceId,
 		Amount:          params.Amount,
@@ -212,9 +298,11 @@ func grantUserCreditsWithEntryTypeTx(tx *gorm.DB, params CreditGrantParams, entr
 		return 0, err
 	}
 
-	balanceAfter := user.Quota + params.Amount
+	balanceAfter := accountBalance + params.Amount
 	entry := CreditLedgerEntry{
 		UserId:       params.UserId,
+		AccountType:  account.Type,
+		AccountId:    account.Id,
 		GrantId:      &grant.Id,
 		EntryType:    entryType,
 		AmountDelta:  params.Amount,
@@ -230,20 +318,26 @@ func grantUserCreditsWithEntryTypeTx(tx *gorm.DB, params CreditGrantParams, entr
 	if err := tx.Create(&entry).Error; err != nil {
 		return 0, err
 	}
-	if err := updateUserQuotaProjectionTx(tx, params.UserId, params.Amount); err != nil {
+	if err := updateAccountQuotaProjectionTx(tx, account, params.Amount); err != nil {
 		return 0, err
 	}
 	return balanceAfter, nil
 }
 
 func ConsumeUserCredits(params CreditConsumeParams) error {
+	params.AccountType = AccountTypePersonal
+	params.AccountId = params.UserId
+	return ConsumeAccountCredits(params)
+}
+
+func ConsumeAccountCredits(params CreditConsumeParams) error {
 	var balanceAfter int
 	err := DB.Transaction(func(tx *gorm.DB) error {
 		var err error
 		balanceAfter, err = ConsumeUserCreditsTx(tx, params)
 		return err
 	})
-	if err == nil {
+	if err == nil && params.AccountType == AccountTypePersonal {
 		updateUserQuotaCacheAfterCommit(params.UserId, balanceAfter)
 	}
 	return err
@@ -253,7 +347,13 @@ func ConsumeUserCreditsTx(tx *gorm.DB, params CreditConsumeParams) (int, error) 
 	if params.Amount <= 0 {
 		return 0, errors.New("credit amount must be positive")
 	}
-	user, err := lockUserQuotaTx(tx, params.UserId)
+	var account AccountContext
+	var err error
+	params, account, err = normalizeConsumeAccount(params)
+	if err != nil {
+		return 0, err
+	}
+	accountBalance, err := lockAccountQuotaTx(tx, account)
 	if err != nil {
 		return 0, err
 	}
@@ -261,7 +361,7 @@ func ConsumeUserCreditsTx(tx *gorm.DB, params CreditConsumeParams) (int, error) 
 	now := common.GetTimestamp()
 	entryType := normalizeLedgerLabel(params.EntryType, CreditLedgerEntryTypeConsume)
 	params.SourceType = normalizeLedgerLabel(params.SourceType, entryType)
-	params.SourceId = normalizeLedgerLabel(params.SourceId, newLedgerSourceId(params.SourceType, params.UserId))
+	params.SourceId = normalizeLedgerLabel(params.SourceId, newLedgerSourceId(params.SourceType, account.Id))
 	params.RequestId = normalizeLedgerLabel(params.RequestId, common.NewRequestID())
 	params.Reason = normalizeLedgerLabel(params.Reason, params.SourceType)
 
@@ -271,23 +371,23 @@ func ConsumeUserCreditsTx(tx *gorm.DB, params CreditConsumeParams) (int, error) 
 	}
 	if err := tx.Model(&CreditLedgerEntry{}).
 		Select("COUNT(*) AS count, COALESCE(SUM(amount_delta), 0) AS amount_delta").
-		Where("user_id = ? AND entry_type = ? AND source_type = ? AND source_id = ?", params.UserId, entryType, params.SourceType, params.SourceId).
+		Where("account_type = ? AND account_id = ? AND entry_type = ? AND source_type = ? AND source_id = ?", account.Type, account.Id, entryType, params.SourceType, params.SourceId).
 		Scan(&existing).Error; err != nil {
 		return 0, err
 	}
 	if existing.Count > 0 {
 		if existing.AmountDelta == int64(-params.Amount) {
-			return user.Quota, nil
+			return accountBalance, nil
 		}
 		return 0, errors.New("credit ledger source already exists with different amount")
 	}
-	if user.Quota < params.Amount {
+	if accountBalance < params.Amount {
 		return 0, ErrInsufficientCreditGrantBalance
 	}
 
 	var grants []CreditGrant
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-		Where("user_id = ? AND status = ? AND remaining_amount > 0 AND effective_at <= ? AND (expires_at = 0 OR expires_at > ?)", params.UserId, CreditGrantStatusActive, now, now).
+		Where("account_type = ? AND account_id = ? AND status = ? AND remaining_amount > 0 AND effective_at <= ? AND (expires_at = 0 OR expires_at > ?)", account.Type, account.Id, CreditGrantStatusActive, now, now).
 		Order("CASE WHEN expires_at = 0 THEN 9223372036854775807 ELSE expires_at END ASC, effective_at ASC, id ASC").
 		Find(&grants).Error; err != nil {
 		return 0, err
@@ -315,10 +415,12 @@ func ConsumeUserCreditsTx(tx *gorm.DB, params CreditConsumeParams) (int, error) 
 			return 0, err
 		}
 
-		balanceAfter := user.Quota - consumed - delta
+		balanceAfter := accountBalance - consumed - delta
 		grantId := grant.Id
 		entry := CreditLedgerEntry{
 			UserId:       params.UserId,
+			AccountType:  account.Type,
+			AccountId:    account.Id,
 			GrantId:      &grantId,
 			EntryType:    entryType,
 			AmountDelta:  -delta,
@@ -340,10 +442,10 @@ func ConsumeUserCreditsTx(tx *gorm.DB, params CreditConsumeParams) (int, error) 
 	if remaining > 0 {
 		return 0, ErrInsufficientCreditGrantBalance
 	}
-	if err := updateUserQuotaProjectionTx(tx, params.UserId, -params.Amount); err != nil {
+	if err := updateAccountQuotaProjectionTx(tx, account, -params.Amount); err != nil {
 		return 0, err
 	}
-	return user.Quota - params.Amount, nil
+	return accountBalance - params.Amount, nil
 }
 
 func AdjustUserCredits(params CreditConsumeParams, delta int) error {
@@ -351,8 +453,10 @@ func AdjustUserCredits(params CreditConsumeParams, delta int) error {
 		return nil
 	}
 	if delta > 0 {
-		return GrantUserCredits(CreditGrantParams{
+		return GrantAccountCredits(CreditGrantParams{
 			UserId:      params.UserId,
+			AccountType: params.AccountType,
+			AccountId:   params.AccountId,
 			Amount:      delta,
 			SourceType:  normalizeLedgerLabel(params.SourceType, CreditLedgerEntryTypeAdjustment),
 			SourceId:    params.SourceId,
@@ -413,25 +517,57 @@ func SetUserCreditBalance(userId string, targetBalance int, actorUserId string, 
 }
 
 func ConsumeUserCreditsForRequest(userId string, amount int, sourceType string, sourceId string, requestId string, metadata map[string]interface{}) error {
-	return ConsumeUserCredits(CreditConsumeParams{
-		UserId:     userId,
-		Amount:     amount,
-		SourceType: sourceType,
-		SourceId:   sourceId,
-		RequestId:  requestId,
-		Reason:     sourceType,
-		Metadata:   metadata,
+	return ConsumeAccountCredits(CreditConsumeParams{
+		UserId:      userId,
+		AccountType: AccountTypePersonal,
+		AccountId:   userId,
+		Amount:      amount,
+		SourceType:  sourceType,
+		SourceId:    sourceId,
+		RequestId:   requestId,
+		Reason:      sourceType,
+		Metadata:    metadata,
 	})
 }
 
 func RefundUserCreditsForRequest(userId string, amount int, sourceType string, sourceId string, requestId string, metadata map[string]interface{}) error {
-	return RefundUserCredits(CreditGrantParams{
-		UserId:     userId,
-		Amount:     amount,
-		SourceType: sourceType,
-		SourceId:   sourceId,
-		RequestId:  requestId,
-		Reason:     sourceType,
-		Metadata:   metadata,
+	return RefundAccountCredits(CreditGrantParams{
+		UserId:      userId,
+		AccountType: AccountTypePersonal,
+		AccountId:   userId,
+		Amount:      amount,
+		SourceType:  sourceType,
+		SourceId:    sourceId,
+		RequestId:   requestId,
+		Reason:      sourceType,
+		Metadata:    metadata,
+	})
+}
+
+func ConsumeAccountCreditsForRequest(actorUserId string, account AccountContext, amount int, sourceType string, sourceId string, requestId string, metadata map[string]interface{}) error {
+	return ConsumeAccountCredits(CreditConsumeParams{
+		UserId:      actorUserId,
+		AccountType: account.Type,
+		AccountId:   account.Id,
+		Amount:      amount,
+		SourceType:  sourceType,
+		SourceId:    sourceId,
+		RequestId:   requestId,
+		Reason:      sourceType,
+		Metadata:    metadata,
+	})
+}
+
+func RefundAccountCreditsForRequest(actorUserId string, account AccountContext, amount int, sourceType string, sourceId string, requestId string, metadata map[string]interface{}) error {
+	return RefundAccountCredits(CreditGrantParams{
+		UserId:      actorUserId,
+		AccountType: account.Type,
+		AccountId:   account.Id,
+		Amount:      amount,
+		SourceType:  sourceType,
+		SourceId:    sourceId,
+		RequestId:   requestId,
+		Reason:      sourceType,
+		Metadata:    metadata,
 	})
 }

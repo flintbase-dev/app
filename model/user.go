@@ -128,6 +128,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"subscription":      true,
 			"redemption":        true,
 			"user":              true,
+			"team":              true,
 			"messageManagement": true,
 			"setting":           false, // 管理员不能访问系统设置
 		}
@@ -140,6 +141,7 @@ func generateDefaultSidebarConfigForRole(userRole int) string {
 			"subscription":      true,
 			"redemption":        true,
 			"user":              true,
+			"team":              true,
 			"messageManagement": true,
 			"setting":           true,
 		}
@@ -256,6 +258,15 @@ func GetUserById(id string, selectAll bool) (*User, error) {
 	user := User{Id: id}
 	var err error = nil
 	err = DB.First(&user, "id = ?", id).Error
+	return &user, err
+}
+
+func GetUserByWorkOSId(workOSId string) (*User, error) {
+	if strings.TrimSpace(workOSId) == "" {
+		return nil, errors.New("workos id is required")
+	}
+	var user User
+	err := DB.First(&user, "workos_id = ?", strings.TrimSpace(workOSId)).Error
 	return &user, err
 }
 
@@ -511,6 +522,18 @@ func (user *User) FillUserByEmail() error {
 	}
 	DB.Where(User{Email: user.Email}).First(user)
 	return nil
+}
+
+func GetUserByEmail(email string) (*User, error) {
+	email = strings.TrimSpace(email)
+	if email == "" {
+		return nil, errors.New("email 为空！")
+	}
+	var user User
+	if err := DB.Where("email = ?", email).First(&user).Error; err != nil {
+		return nil, err
+	}
+	return &user, nil
 }
 
 func IsEmailAlreadyTaken(email string) bool {

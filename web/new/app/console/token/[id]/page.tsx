@@ -40,15 +40,28 @@ export default async function EditTokenPage({
   params: Promise<{ id: string }>;
 }) {
   const { id } = await params;
-  const { token, groups, models, status } = await loadTokenEditor(id);
+  return <EditTokenFormPage id={id} />;
+}
+
+export async function EditTokenFormPage({
+  id,
+  teamId,
+}: {
+  id: string;
+  teamId?: string;
+}) {
+  const { token, groups, models, status } = await loadTokenEditor(id, {
+    teamId,
+  });
   if (!token) notFound();
+  const basePath = teamId ? `/teams/${teamId}/console/token` : "/console/token";
 
   return (
     <div className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
       <div className="mx-auto w-full max-w-3xl">
         <div className="mb-6 flex items-center gap-2">
           <Link
-            href="/console/token"
+            href={basePath}
             className={cn(
               buttonVariants({ variant: "ghost", size: "sm" }),
               "-ml-2 gap-1.5",
@@ -76,16 +89,27 @@ export default async function EditTokenPage({
           </div>
           <div className="flex items-center gap-1">
             <form action="/console/token/actions/toggle" method="post">
+              {teamId ? (
+                <input type="hidden" name="team_id" value={teamId} />
+              ) : null}
               <input type="hidden" name="id" value={token.id} />
               <input type="hidden" name="status" value={token.status} />
-              <Button variant="outline" size="sm">
+              <Button type="submit" variant="outline" size="sm">
                 <Power aria-hidden="true" />
                 {token.status === 1 ? "Disable" : "Enable"}
               </Button>
             </form>
             <form action="/console/token/actions/delete" method="post">
+              {teamId ? (
+                <input type="hidden" name="team_id" value={teamId} />
+              ) : null}
               <input type="hidden" name="id" value={token.id} />
-              <Button variant="outline" size="sm" className="text-destructive">
+              <Button
+                type="submit"
+                variant="outline"
+                size="sm"
+                className="text-destructive"
+              >
                 <Trash2 aria-hidden="true" />
                 Delete
               </Button>
@@ -114,8 +138,16 @@ export default async function EditTokenPage({
                 <code className="font-mono text-sm text-foreground">
                   {token.keyPreview}
                 </code>
-                <TokenSecretButton tokenId={token.id} mode="reveal" />
-                <TokenSecretButton tokenId={token.id} mode="copy" />
+                <TokenSecretButton
+                  tokenId={token.id}
+                  mode="reveal"
+                  teamId={teamId}
+                />
+                <TokenSecretButton
+                  tokenId={token.id}
+                  mode="copy"
+                  teamId={teamId}
+                />
               </div>
             </div>
           </CardContent>
@@ -126,6 +158,9 @@ export default async function EditTokenPage({
           method="post"
           className="mt-4 flex flex-col gap-6"
         >
+          {teamId ? (
+            <input type="hidden" name="team_id" value={teamId} />
+          ) : null}
           <input type="hidden" name="id" value={token.id} />
           <Card>
             <CardContent className="flex flex-col gap-5 py-5">
@@ -265,7 +300,7 @@ export default async function EditTokenPage({
 
           <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
             <Link
-              href="/console/token"
+              href={basePath}
               className={cn(buttonVariants({ variant: "ghost" }))}
             >
               Cancel

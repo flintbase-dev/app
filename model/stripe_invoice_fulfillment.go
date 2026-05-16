@@ -18,6 +18,8 @@ type StripeInvoiceFulfillment struct {
 	InvoiceId             string `json:"invoice_id" gorm:"type:varchar(128);uniqueIndex"`
 	Kind                  string `json:"kind" gorm:"type:varchar(64);index"`
 	UserId                string `json:"user_id" gorm:"type:varchar(32);index"`
+	AccountType           string `json:"account_type" gorm:"type:varchar(16);index;default:'personal'"`
+	AccountId             string `json:"account_id" gorm:"type:varchar(32);index;default:''"`
 	SourceType            string `json:"source_type" gorm:"type:varchar(64);index"`
 	SourceId              string `json:"source_id" gorm:"type:varchar(128);index"`
 	StripePaymentIntentId string `json:"stripe_payment_intent_id" gorm:"type:varchar(128);index"`
@@ -34,6 +36,8 @@ type StripeInvoiceFulfillmentParams struct {
 	InvoiceId             string
 	Kind                  string
 	UserId                string
+	AccountType           string
+	AccountId             string
 	SourceType            string
 	SourceId              string
 	StripePaymentIntentId string
@@ -48,10 +52,22 @@ func CreateStripeInvoiceFulfillmentTx(tx *gorm.DB, params StripeInvoiceFulfillme
 	if invoiceId == "" {
 		return false, errors.New("stripe invoice id is required")
 	}
+	if params.AccountType == "" {
+		params.AccountType = AccountTypePersonal
+	}
+	if params.AccountId == "" && params.AccountType == AccountTypePersonal {
+		params.AccountId = params.UserId
+	}
+	account, err := NormalizeAccountContext(params.AccountType, params.AccountId)
+	if err != nil {
+		return false, err
+	}
 	fulfillment := StripeInvoiceFulfillment{
 		InvoiceId:             invoiceId,
 		Kind:                  strings.TrimSpace(params.Kind),
 		UserId:                params.UserId,
+		AccountType:           account.Type,
+		AccountId:             account.Id,
 		SourceType:            strings.TrimSpace(params.SourceType),
 		SourceId:              strings.TrimSpace(params.SourceId),
 		StripePaymentIntentId: strings.TrimSpace(params.StripePaymentIntentId),

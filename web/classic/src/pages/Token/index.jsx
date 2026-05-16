@@ -18,12 +18,14 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { useParams } from 'react-router-dom';
 import TokensTable from '../../components/table/tokens';
 
 const Token = () => {
+  const { teamId = '' } = useParams();
   return (
     <div className='mt-[60px] px-2'>
-      <TokensTable />
+      <TokensTable teamId={teamId} />
     </div>
   );
 };

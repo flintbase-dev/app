@@ -123,12 +123,17 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 		return false
 	}
 
+	account, err := ResolveRelayAccountContext(relayInfo)
+	if err != nil {
+		logger.LogError(ctx, fmt.Sprintf("failed to resolve violation fee account context: %s", err.Error()))
+		return false
+	}
 	if err := PostConsumeQuota(relayInfo, feeQuota, 0, true); err != nil {
 		logger.LogError(ctx, fmt.Sprintf("failed to charge violation fee: %s", err.Error()))
 		return false
 	}
 
-	model.UpdateUserUsedQuotaAndRequestCount(relayInfo.UserId, feeQuota)
+	model.UpdateAccountUsedQuotaAndRequestCount(account, relayInfo.UserId, feeQuota)
 	model.UpdateChannelUsedQuota(relayInfo.ChannelId, feeQuota)
 
 	useTimeSeconds := time.Now().Unix() - relayInfo.StartTime.Unix()
@@ -148,6 +153,8 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 	}
 
 	model.RecordConsumeLog(ctx, relayInfo.UserId, model.RecordConsumeLogParams{
+		AccountType:    relayInfo.AccountType,
+		AccountId:      relayInfo.AccountId,
 		ChannelId:      relayInfo.ChannelId,
 		ModelName:      relayInfo.OriginModelName,
 		TokenName:      tokenName,
@@ -161,6 +168,8 @@ func ChargeViolationFeeIfNeeded(ctx *gin.Context, relayInfo *relaycommon.RelayIn
 	})
 	model.RecordSecurityEventWithContext(ctx, model.LogEventParams{
 		UserId:       relayInfo.UserId,
+		AccountType:  relayInfo.AccountType,
+		AccountId:    relayInfo.AccountId,
 		Event:        "relay.policy.violation_fee",
 		Severity:     "warning",
 		Result:       "charged",

@@ -20,6 +20,8 @@ var ErrStripePaymentOrderNotFound = errors.New("stripe payment order not found")
 type StripePaymentOrder struct {
 	Id                      string  `json:"id" gorm:"primaryKey;type:varchar(32)"`
 	UserId                  string  `json:"user_id" gorm:"type:varchar(32);index"`
+	AccountType             string  `json:"account_type" gorm:"type:varchar(16);index;default:'personal'"`
+	AccountId               string  `json:"account_id" gorm:"type:varchar(32);index;default:''"`
 	Kind                    string  `json:"kind" gorm:"type:varchar(64);index"`
 	BusinessOrderId         string  `json:"business_order_id" gorm:"type:varchar(128);index"`
 	Status                  string  `json:"status" gorm:"type:varchar(32);index"`
@@ -46,6 +48,8 @@ func (StripePaymentOrder) TableName() string {
 
 type CreatePendingStripePaymentOrderParams struct {
 	UserId          string
+	AccountType     string
+	AccountId       string
 	Kind            string
 	BusinessOrderId string
 	AmountCents     int64
@@ -59,6 +63,9 @@ type CreatePendingStripePaymentOrderParams struct {
 
 type CompleteStripePaymentOrderParams struct {
 	OrderId                 string
+	UserId                  string
+	AccountType             string
+	AccountId               string
 	StripeCheckoutSessionId string
 	StripeInvoiceId         string
 	StripePaymentIntentId   string
@@ -84,6 +91,15 @@ func CreatePendingStripePaymentOrderTx(tx *gorm.DB, params CreatePendingStripePa
 	if common.IsEmptyID(params.UserId) || strings.TrimSpace(params.Kind) == "" {
 		return nil, errors.New("invalid stripe payment order args")
 	}
+	if params.AccountType == "" {
+		params.AccountType = AccountTypePersonal
+	}
+	if params.AccountId == "" {
+		params.AccountId = params.UserId
+	}
+	if _, err := NormalizeAccountContext(params.AccountType, params.AccountId); err != nil {
+		return nil, err
+	}
 	method := strings.TrimSpace(params.PaymentMethod)
 	if method == "" {
 		method = PaymentMethodStripe
@@ -95,6 +111,8 @@ func CreatePendingStripePaymentOrderTx(tx *gorm.DB, params CreatePendingStripePa
 	now := common.GetTimestamp()
 	order := &StripePaymentOrder{
 		UserId:          params.UserId,
+		AccountType:     params.AccountType,
+		AccountId:       params.AccountId,
 		Kind:            strings.TrimSpace(params.Kind),
 		BusinessOrderId: strings.TrimSpace(params.BusinessOrderId),
 		Status:          common.TopUpStatusPending,
@@ -148,6 +166,18 @@ func GetStripePaymentOrderByCheckoutSessionId(checkoutSessionId string) (*Stripe
 	return &order, nil
 }
 
+func ListStripePaymentOrdersByAccount(account AccountContext, limit int) ([]StripePaymentOrder, error) {
+	if limit <= 0 || limit > 100 {
+		limit = 100
+	}
+	var orders []StripePaymentOrder
+	err := DB.Where("account_type = ? AND account_id = ?", account.Type, account.Id).
+		Order("created_at DESC").
+		Limit(limit).
+		Find(&orders).Error
+	return orders, err
+}
+
 func CompleteStripePaymentOrderTx(tx *gorm.DB, params CompleteStripePaymentOrderParams) (bool, *StripePaymentOrder, error) {
 	if tx == nil {
 		return false, nil, errors.New("database transaction is nil")
@@ -165,6 +195,9 @@ func CompleteStripePaymentOrderTx(tx *gorm.DB, params CompleteStripePaymentOrder
 			return false, nil, ErrStripePaymentOrderNotFound
 		}
 		return false, nil, err
+	}
+	if err := validateStripePaymentOrderAccount(order, params.UserId, params.AccountType, params.AccountId); err != nil {
+		return false, &order, err
 	}
 	if order.Status == common.TopUpStatusSuccess {
 		return false, &order, nil
@@ -221,6 +254,35 @@ func CompleteStripePaymentOrderTx(tx *gorm.DB, params CompleteStripePaymentOrder
 		}
 	}
 	return true, &order, nil
+}
+
+func validateStripePaymentOrderAccount(order StripePaymentOrder, userId string, accountType string, accountId string) error {
+	userId = strings.TrimSpace(userId)
+	accountType = strings.TrimSpace(accountType)
+	accountId = strings.TrimSpace(accountId)
+	if userId == "" && accountType == "" && accountId == "" {
+		return nil
+	}
+	if userId == "" {
+		return errors.New("stripe payment order user mismatch")
+	}
+	if accountType == "" {
+		accountType = AccountTypePersonal
+	}
+	if accountId == "" {
+		accountId = userId
+	}
+	account, err := NormalizeAccountContext(accountType, accountId)
+	if err != nil {
+		return err
+	}
+	if strings.TrimSpace(order.UserId) != userId {
+		return errors.New("stripe payment order user mismatch")
+	}
+	if strings.TrimSpace(order.AccountType) != account.Type || strings.TrimSpace(order.AccountId) != account.Id {
+		return errors.New("stripe payment order account mismatch")
+	}
+	return nil
 }
 
 func FailStripePaymentOrder(orderId string, providerPayload string) error {

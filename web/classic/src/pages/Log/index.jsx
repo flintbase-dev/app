@@ -18,12 +18,16 @@ For commercial licensing, please contact support@quantumnous.com
 */
 
 import React from 'react';
+import { useParams } from 'react-router-dom';
 import UsageLogsTable from '../../components/table/usage-logs';
 
-const Token = () => (
-  <div className='mt-[60px] px-2'>
-    <UsageLogsTable />
-  </div>
-);
+const Token = () => {
+  const { teamId = '' } = useParams();
+  return (
+    <div className='mt-[60px] px-2'>
+      <UsageLogsTable teamId={teamId} />
+    </div>
+  );
+};
 
 export default Token;

@@ -423,7 +423,7 @@ function DangerSection({
               placeholder={user.username}
               className="h-8 w-36"
             />
-            <Button variant="destructive" size="sm">
+            <Button type="submit" variant="destructive" size="sm">
               <Trash2 aria-hidden="true" />
               Delete account
             </Button>

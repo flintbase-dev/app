@@ -37,6 +37,9 @@ CREATE INDEX idx_channels_tag ON channels (tag);
 CREATE TABLE tokens (
     id VARCHAR(32) PRIMARY KEY,
     user_id VARCHAR(32),
+    created_by_user_id VARCHAR(32) NOT NULL DEFAULT '',
+    account_type VARCHAR(16) NOT NULL DEFAULT 'personal' CHECK (account_type IN ('personal', 'team')),
+    account_id VARCHAR(32) NOT NULL DEFAULT '',
     "key" VARCHAR(128),
     status BIGINT DEFAULT 1,
     name TEXT,
@@ -56,6 +59,8 @@ CREATE TABLE tokens (
 
 CREATE UNIQUE INDEX idx_tokens_key ON tokens ("key");
 CREATE INDEX idx_tokens_user_id ON tokens (user_id);
+CREATE INDEX idx_tokens_created_by_user_id ON tokens (created_by_user_id);
+CREATE INDEX idx_tokens_account ON tokens (account_type, account_id);
 CREATE INDEX idx_tokens_name ON tokens (name);
 CREATE INDEX idx_tokens_deleted_at ON tokens (deleted_at);
 
@@ -97,6 +102,73 @@ CREATE UNIQUE INDEX idx_users_aff_code ON users (aff_code);
 CREATE INDEX idx_users_inviter_id ON users (inviter_id);
 CREATE INDEX idx_users_deleted_at ON users (deleted_at);
 CREATE INDEX idx_users_stripe_customer ON users (stripe_customer);
+
+CREATE TABLE teams (
+    id VARCHAR(32) PRIMARY KEY,
+    workos_organization_id TEXT NOT NULL UNIQUE,
+    name TEXT NOT NULL,
+    slug TEXT NOT NULL UNIQUE,
+    "group" VARCHAR(64) NOT NULL DEFAULT 'default',
+    created_by_user_id VARCHAR(32) NOT NULL REFERENCES users(id) ON DELETE RESTRICT,
+    stripe_customer VARCHAR(128) DEFAULT '',
+    quota BIGINT DEFAULT 0,
+    used_quota BIGINT DEFAULT 0,
+    request_count BIGINT DEFAULT 0,
+    status VARCHAR(32) NOT NULL DEFAULT 'active',
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL
+);
+
+CREATE INDEX idx_teams_created_by_user_id ON teams (created_by_user_id);
+CREATE INDEX idx_teams_stripe_customer ON teams (stripe_customer);
+CREATE INDEX idx_teams_status ON teams (status);
+CREATE INDEX idx_teams_created_at ON teams (created_at);
+
+CREATE TABLE team_memberships (
+    id VARCHAR(32) PRIMARY KEY,
+    team_id VARCHAR(32) NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    user_id VARCHAR(32) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    workos_organization_membership_id TEXT NOT NULL UNIQUE,
+    role VARCHAR(16) NOT NULL CHECK (role IN ('admin', 'member')),
+    status VARCHAR(32) NOT NULL DEFAULT 'active',
+    joined_at BIGINT NOT NULL,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL,
+    UNIQUE(team_id, user_id)
+);
+
+CREATE INDEX idx_team_memberships_team_id ON team_memberships (team_id);
+CREATE INDEX idx_team_memberships_user_id ON team_memberships (user_id);
+CREATE INDEX idx_team_memberships_role ON team_memberships (role);
+CREATE INDEX idx_team_memberships_status ON team_memberships (status);
+
+CREATE TABLE team_invitations (
+    id VARCHAR(32) PRIMARY KEY,
+    team_id VARCHAR(32) NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+    email TEXT NOT NULL,
+    role VARCHAR(16) NOT NULL CHECK (role IN ('admin', 'member')),
+    workos_invitation_id TEXT NOT NULL UNIQUE,
+    status VARCHAR(32) NOT NULL,
+    invited_by_user_id VARCHAR(32) NOT NULL REFERENCES users(id),
+    accepted_by_user_id VARCHAR(32) REFERENCES users(id) ON DELETE SET NULL,
+    expires_at BIGINT DEFAULT 0,
+    created_at BIGINT NOT NULL,
+    updated_at BIGINT NOT NULL
+);
+
+CREATE INDEX idx_team_invitations_team_id ON team_invitations (team_id);
+CREATE INDEX idx_team_invitations_email ON team_invitations (email);
+CREATE INDEX idx_team_invitations_status ON team_invitations (status);
+CREATE INDEX idx_team_invitations_invited_by ON team_invitations (invited_by_user_id);
+CREATE INDEX idx_team_invitations_accepted_by ON team_invitations (accepted_by_user_id);
+
+CREATE TABLE team_policies (
+    team_id VARCHAR(32) PRIMARY KEY REFERENCES teams(id) ON DELETE CASCADE,
+    model_policy JSONB NOT NULL DEFAULT '{}',
+    group_policy JSONB NOT NULL DEFAULT '{}',
+    updated_by_user_id VARCHAR(32) NOT NULL REFERENCES users(id),
+    updated_at BIGINT NOT NULL
+);
 
 CREATE TABLE messages (
     id VARCHAR(32) PRIMARY KEY,
@@ -217,6 +289,8 @@ CREATE TABLE audit_logs (
     severity VARCHAR(32) NOT NULL DEFAULT 'info',
     result VARCHAR(32) NOT NULL DEFAULT 'success',
     user_id VARCHAR(32) NOT NULL DEFAULT '',
+    account_type VARCHAR(16) NOT NULL DEFAULT 'personal',
+    account_id VARCHAR(32) NOT NULL DEFAULT '',
     actor_user_id VARCHAR(32) NOT NULL DEFAULT '',
     content TEXT,
     username TEXT DEFAULT '',
@@ -240,6 +314,7 @@ CREATE TABLE audit_logs (
 
 CREATE INDEX idx_audit_logs_created_at ON audit_logs (created_at);
 CREATE INDEX idx_audit_logs_user_created_at ON audit_logs (user_id, created_at);
+CREATE INDEX idx_audit_logs_account_created_at ON audit_logs (account_type, account_id, created_at);
 CREATE INDEX idx_audit_logs_actor_created_at ON audit_logs (actor_user_id, created_at);
 CREATE INDEX idx_audit_logs_event_created_at ON audit_logs (event, created_at);
 CREATE INDEX idx_audit_logs_request_id ON audit_logs (request_id);
@@ -270,7 +345,9 @@ FOR EACH ROW EXECUTE FUNCTION prevent_append_only_mutation();
 
 CREATE TABLE credit_grants (
     id VARCHAR(32) PRIMARY KEY,
-    user_id VARCHAR(32) NOT NULL,
+    user_id VARCHAR(32) NOT NULL DEFAULT '',
+    account_type VARCHAR(16) NOT NULL DEFAULT 'personal' CHECK (account_type IN ('personal', 'team')),
+    account_id VARCHAR(32) NOT NULL DEFAULT '',
     source_type VARCHAR(64) NOT NULL,
     source_id VARCHAR(128) NOT NULL,
     amount BIGINT NOT NULL CHECK (amount > 0),
@@ -288,12 +365,16 @@ CREATE TABLE credit_grants (
 
 CREATE UNIQUE INDEX idx_credit_grants_source ON credit_grants (source_type, source_id);
 CREATE INDEX idx_credit_grants_user_status ON credit_grants (user_id, status, remaining_amount);
+CREATE INDEX idx_credit_grants_account_status ON credit_grants (account_type, account_id, status, remaining_amount);
 CREATE INDEX idx_credit_grants_fifo ON credit_grants (user_id, status, expires_at, effective_at, id);
+CREATE INDEX idx_credit_grants_account_fifo ON credit_grants (account_type, account_id, status, expires_at, effective_at, id);
 CREATE INDEX idx_credit_grants_request_id ON credit_grants (request_id);
 
 CREATE TABLE credit_ledger_entries (
     id VARCHAR(32) PRIMARY KEY,
-    user_id VARCHAR(32) NOT NULL,
+    user_id VARCHAR(32) NOT NULL DEFAULT '',
+    account_type VARCHAR(16) NOT NULL DEFAULT 'personal' CHECK (account_type IN ('personal', 'team')),
+    account_id VARCHAR(32) NOT NULL DEFAULT '',
     grant_id VARCHAR(32) REFERENCES credit_grants(id),
     entry_type VARCHAR(32) NOT NULL CHECK (entry_type IN ('grant', 'consume', 'refund', 'adjustment', 'reversal', 'expire')),
     amount_delta BIGINT NOT NULL CHECK (amount_delta <> 0),
@@ -309,6 +390,7 @@ CREATE TABLE credit_ledger_entries (
 );
 
 CREATE INDEX idx_credit_ledger_user_created_at ON credit_ledger_entries (user_id, created_at);
+CREATE INDEX idx_credit_ledger_account_created_at ON credit_ledger_entries (account_type, account_id, created_at);
 CREATE INDEX idx_credit_ledger_grant_id ON credit_ledger_entries (grant_id);
 CREATE INDEX idx_credit_ledger_request_id ON credit_ledger_entries (request_id);
 CREATE INDEX idx_credit_ledger_source ON credit_ledger_entries (source_type, source_id);
@@ -487,6 +569,8 @@ CREATE UNIQUE INDEX idx_subscription_orders_pending_switch_source ON subscriptio
 CREATE TABLE stripe_payment_orders (
     id VARCHAR(32) PRIMARY KEY,
     user_id VARCHAR(32) NOT NULL DEFAULT '',
+    account_type VARCHAR(16) NOT NULL DEFAULT 'personal' CHECK (account_type IN ('personal', 'team')),
+    account_id VARCHAR(32) NOT NULL DEFAULT '',
     kind VARCHAR(64) NOT NULL DEFAULT '',
     business_order_id VARCHAR(128) NOT NULL DEFAULT '',
     status VARCHAR(32) NOT NULL DEFAULT 'pending',
@@ -509,6 +593,7 @@ CREATE TABLE stripe_payment_orders (
 );
 
 CREATE INDEX idx_stripe_payment_orders_user_id ON stripe_payment_orders (user_id);
+CREATE INDEX idx_stripe_payment_orders_account ON stripe_payment_orders (account_type, account_id);
 CREATE INDEX idx_stripe_payment_orders_kind ON stripe_payment_orders (kind);
 CREATE INDEX idx_stripe_payment_orders_business_order_id ON stripe_payment_orders (business_order_id);
 CREATE INDEX idx_stripe_payment_orders_status ON stripe_payment_orders (status);
@@ -529,6 +614,8 @@ CREATE TABLE stripe_invoice_fulfillments (
     invoice_id VARCHAR(128) NOT NULL,
     kind VARCHAR(64) NOT NULL DEFAULT '',
     user_id VARCHAR(32) NOT NULL DEFAULT '',
+    account_type VARCHAR(16) NOT NULL DEFAULT 'personal',
+    account_id VARCHAR(32) NOT NULL DEFAULT '',
     source_type VARCHAR(64) NOT NULL DEFAULT '',
     source_id VARCHAR(128) NOT NULL DEFAULT '',
     stripe_payment_intent_id VARCHAR(128) NOT NULL DEFAULT '',
@@ -540,6 +627,7 @@ CREATE TABLE stripe_invoice_fulfillments (
 
 CREATE UNIQUE INDEX idx_stripe_invoice_fulfillments_invoice_id ON stripe_invoice_fulfillments (invoice_id);
 CREATE INDEX idx_stripe_invoice_fulfillments_user_id ON stripe_invoice_fulfillments (user_id);
+CREATE INDEX idx_stripe_invoice_fulfillments_account ON stripe_invoice_fulfillments (account_type, account_id);
 CREATE INDEX idx_stripe_invoice_fulfillments_source ON stripe_invoice_fulfillments (source_type, source_id);
 CREATE INDEX idx_stripe_invoice_fulfillments_created_at ON stripe_invoice_fulfillments (created_at);
 

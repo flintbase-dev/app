@@ -13,15 +13,18 @@ export function createTokenFieldsFromForm(
     50,
   );
   const baseInput = tokenInputFromForm(formData);
+  const teamId = toText(formData.get("team_id"));
   const fields: GraphQLOperationField[] = [];
   for (let index = 0; index < count; index++) {
     fields.push({
-      operation: "createToken",
+      operation: teamId ? "createTeamToken" : "createToken",
       alias: `createToken${index}`,
       input: {
         ...baseInput,
+        ...(teamId ? { team_id: teamId } : {}),
         name: count === 1 ? name : `${name}-${randomSuffix(index)}`,
       },
+      ...(teamId ? { params: { team_id: teamId } } : {}),
     });
   }
   return fields;

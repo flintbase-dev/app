@@ -54,19 +54,247 @@ export async function markAllInboxReadAction() {
   revalidatePath("/console/messages");
 }
 
-export async function revealTokenKeyAction(id: string) {
-  return requestTokenKey(id);
+export async function revealTokenKeyAction(id: string, teamId?: string) {
+  return requestTokenKey(id, teamId);
 }
 
-export async function revealTokenKeysBatchAction(ids: string[]) {
-  const payload = await graphqlMutation<{ tokenKeysBatch: unknown }>([
-    { operation: "tokenKeysBatch", input: { ids } },
+export async function revealTokenKeysBatchAction(
+  ids: string[],
+  teamId?: string,
+) {
+  const operation = teamId ? "teamTokenKeysBatch" : "tokenKeysBatch";
+  const payload = await graphqlMutation<Record<string, unknown>>([
+    { operation, input: { ids, ...(teamId ? { team_id: teamId } : {}) } },
   ]);
-  const data = asRecord(unwrapApiData(payload.tokenKeysBatch, {}));
+  const data = asRecord(unwrapApiData(payload[operation], {}));
   return Object.entries(asRecord(data.keys)).map(([id, key]) => ({
     id,
     key: toText(key),
   }));
+}
+
+function requirePositiveAmount(amount: number): number {
+  if (!Number.isFinite(amount) || amount <= 0) {
+    throw new Error("Amount must be a number greater than 0");
+  }
+  return amount;
+}
+
+export async function teamStripeAmountAction(teamId: string, amount: number) {
+  const safeAmount = requirePositiveAmount(amount);
+  const payload = await graphqlMutation<{ teamStripeAmount: unknown }>([
+    {
+      operation: "teamStripeAmount",
+      input: { team_id: teamId, amount: safeAmount, payment_method: "stripe" },
+      params: { team_id: teamId },
+    },
+  ]);
+  const result = assertApiSuccess(payload.teamStripeAmount);
+  return Number(result.data || 0);
+}
+
+export async function teamStripePayAction(
+  teamId: string,
+  amount: number,
+  returnUrl: string,
+) {
+  const safeAmount = requirePositiveAmount(amount);
+  const payload = await graphqlMutation<{ teamStripePay: unknown }>([
+    {
+      operation: "teamStripePay",
+      input: {
+        team_id: teamId,
+        amount: safeAmount,
+        payment_method: "stripe",
+        return_url: returnUrl,
+      },
+      params: { team_id: teamId },
+    },
+  ]);
+  return assertApiSuccess(payload.teamStripePay).data as Record<
+    string,
+    unknown
+  >;
+}
+
+export async function teamStripeBillingPortalAction(
+  teamId: string,
+  returnUrl: string,
+) {
+  const payload = await graphqlMutation<{ teamStripeBillingPortal: unknown }>([
+    {
+      operation: "teamStripeBillingPortal",
+      input: { team_id: teamId, return_url: returnUrl },
+      params: { team_id: teamId },
+    },
+  ]);
+  const data = asRecord(assertApiSuccess(payload.teamStripeBillingPortal).data);
+  return toText(data.url);
+}
+
+export async function createTeamAction(formData: FormData) {
+  const name = requireString(formData.get("name"), "Team name is required");
+  const payload = await graphqlMutation<{ createTeam: unknown }>([
+    { operation: "createTeam", input: { name } },
+  ]);
+  const data = asRecord(assertApiSuccess(payload.createTeam).data);
+  redirect(toText(data.redirect, "/console"));
+}
+
+export async function updateTeamAction(formData: FormData) {
+  const teamId = requireString(formData.get("team_id"), "Team id is required");
+  const name = requireString(formData.get("name"), "Team name is required");
+  const payload = await graphqlMutation<{ updateTeam: unknown }>([
+    {
+      operation: "updateTeam",
+      input: { team_id: teamId, name },
+      params: { team_id: teamId },
+    },
+  ]);
+  assertApiSuccess(payload.updateTeam);
+  revalidatePath(`/teams/${teamId}/console`);
+}
+
+export async function inviteTeamMemberAction(formData: FormData) {
+  const teamId = requireString(formData.get("team_id"), "Team id is required");
+  const email = requireString(formData.get("email"), "Email is required");
+  const role = toText(formData.get("role"), "member");
+  const payload = await graphqlMutation<{ inviteTeamMember: unknown }>([
+    {
+      operation: "inviteTeamMember",
+      input: { team_id: teamId, email, role },
+      params: { team_id: teamId },
+    },
+  ]);
+  assertApiSuccess(payload.inviteTeamMember);
+  revalidatePath(`/teams/${teamId}/console/settings/members`);
+}
+
+export async function inviteTeamMembersAction(formData: FormData) {
+  const teamId = requireString(formData.get("team_id"), "Team id is required");
+  const rawEmails = toText(formData.get("emails"));
+  const role = toText(formData.get("role"), "member");
+  const emails = Array.from(
+    new Set(
+      rawEmails
+        .split(/[\s,;]+/)
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.includes("@")),
+    ),
+  );
+  if (emails.length === 0) {
+    throw new Error("Enter at least one email address.");
+  }
+  for (const email of emails) {
+    const payload = await graphqlMutation<{ inviteTeamMember: unknown }>([
+      {
+        operation: "inviteTeamMember",
+        input: { team_id: teamId, email, role },
+        params: { team_id: teamId },
+      },
+    ]);
+    assertApiSuccess(payload.inviteTeamMember);
+  }
+  revalidatePath(`/teams/${teamId}/console/settings/members`);
+}
+
+export async function updateTeamPolicyAction(formData: FormData) {
+  const teamId = requireString(formData.get("team_id"), "Team id is required");
+  const toList = (value: FormDataEntryValue | null) =>
+    toText(value)
+      .split(/\n|,/)
+      .map((item) => item.trim())
+      .filter(Boolean);
+  const values = (name: string) =>
+    formData
+      .getAll(name)
+      .map((item) => toText(item))
+      .filter(Boolean);
+  const disabledFromSwitches = (
+    allName: string,
+    enabledName: string,
+    fallbackName: string,
+  ) => {
+    const allItems = values(allName);
+    if (allItems.length === 0) {
+      return toList(formData.get(fallbackName));
+    }
+    const enabled = new Set(values(enabledName));
+    return allItems.filter((item) => !enabled.has(item));
+  };
+  const payload = await graphqlMutation<{ updateTeamPolicy: unknown }>([
+    {
+      operation: "updateTeamPolicy",
+      input: {
+        team_id: teamId,
+        model_policy: {
+          default_enabled: true,
+          disabled: disabledFromSwitches(
+            "all_models",
+            "enabled_models",
+            "disabled_models",
+          ),
+        },
+        group_policy: {
+          default_enabled: true,
+          disabled: disabledFromSwitches(
+            "all_groups",
+            "enabled_groups",
+            "disabled_groups",
+          ),
+        },
+      },
+      params: { team_id: teamId },
+    },
+  ]);
+  assertApiSuccess(payload.updateTeamPolicy);
+  revalidatePath(`/teams/${teamId}/console/settings`);
+}
+
+export async function updateTeamMemberRoleAction(formData: FormData) {
+  const teamId = requireString(formData.get("team_id"), "Team id is required");
+  const userId = requireString(formData.get("user_id"), "User id is required");
+  const role = toText(formData.get("role"), "member");
+  const payload = await graphqlMutation<{ updateTeamMemberRole: unknown }>([
+    {
+      operation: "updateTeamMemberRole",
+      input: { team_id: teamId, user_id: userId, role },
+      params: { team_id: teamId },
+    },
+  ]);
+  assertApiSuccess(payload.updateTeamMemberRole);
+  revalidatePath(`/teams/${teamId}/console/settings`);
+}
+
+export async function removeTeamMemberAction(formData: FormData) {
+  const teamId = requireString(formData.get("team_id"), "Team id is required");
+  const userId = requireString(formData.get("user_id"), "User id is required");
+  const payload = await graphqlMutation<{ removeTeamMember: unknown }>([
+    {
+      operation: "removeTeamMember",
+      input: { team_id: teamId, user_id: userId },
+      params: { team_id: teamId },
+    },
+  ]);
+  assertApiSuccess(payload.removeTeamMember);
+  revalidatePath(`/teams/${teamId}/console/settings`);
+}
+
+export async function revokeTeamInvitationAction(formData: FormData) {
+  const teamId = requireString(formData.get("team_id"), "Team id is required");
+  const invitationId = requireString(
+    formData.get("invitation_id"),
+    "Invitation id is required",
+  );
+  const payload = await graphqlMutation<{ revokeTeamInvitation: unknown }>([
+    {
+      operation: "revokeTeamInvitation",
+      input: { team_id: teamId, invitation_id: invitationId },
+      params: { team_id: teamId },
+    },
+  ]);
+  assertApiSuccess(payload.revokeTeamInvitation);
+  revalidatePath(`/teams/${teamId}/console/settings`);
 }
 
 export async function updatePersonalPreferencesAction(formData: FormData) {

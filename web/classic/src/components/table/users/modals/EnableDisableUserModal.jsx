@@ -38,7 +38,9 @@ const EnableDisableUserModal = ({
       onOk={onConfirm}
       type='warning'
     >
-      {isDisable ? t('此操作将禁用用户账户') : t('此操作将启用用户账户')}
+      {isDisable
+        ? t('此操作将从 WorkOS 侧停用用户的团队成员身份，并禁用本地用户账户')
+        : t('此操作将启用用户账户')}
     </Modal>
   );
 };

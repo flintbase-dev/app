@@ -14,6 +14,9 @@ import (
 type Token struct {
 	Id                 string         `json:"id" gorm:"primaryKey;type:varchar(32)"`
 	UserId             string         `json:"user_id" gorm:"type:varchar(32);index"`
+	CreatedByUserId    string         `json:"created_by_user_id" gorm:"type:varchar(32);index"`
+	AccountType        string         `json:"account_type" gorm:"type:varchar(16);index;default:'personal'"`
+	AccountId          string         `json:"account_id" gorm:"type:varchar(32);index;default:''"`
 	Key                string         `json:"key" gorm:"type:varchar(128);uniqueIndex"`
 	Status             int            `json:"status" gorm:"default:1"`
 	Name               string         `json:"name" gorm:"index" `
@@ -33,6 +36,23 @@ type Token struct {
 
 func (token *Token) Clean() {
 	token.Key = ""
+}
+
+func (token *Token) NormalizeOwnership() {
+	if token.CreatedByUserId == "" {
+		token.CreatedByUserId = token.UserId
+	}
+	if token.AccountType == "" {
+		token.AccountType = AccountTypePersonal
+	}
+	if token.AccountId == "" {
+		if token.AccountType == AccountTypePersonal {
+			token.AccountId = token.CreatedByUserId
+		}
+	}
+	if token.UserId == "" {
+		token.UserId = token.CreatedByUserId
+	}
 }
 
 func MaskTokenKey(key string) string {
@@ -81,7 +101,23 @@ func (token *Token) GetIpLimits() []string {
 func GetAllUserTokens(userId string, startIdx int, num int) ([]*Token, error) {
 	var tokens []*Token
 	var err error
-	err = DB.Where("user_id = ?", userId).Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
+	err = DB.Where("account_type = ? AND account_id = ?", AccountTypePersonal, userId).Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
+	return tokens, err
+}
+
+func GetAllAccountTokens(account AccountContext, startIdx int, num int) ([]*Token, error) {
+	var tokens []*Token
+	err := DB.Where("account_type = ? AND account_id = ?", account.Type, account.Id).Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
+	return tokens, err
+}
+
+func GetVisibleAccountTokens(account AccountContext, actorUserId string, allowAll bool, startIdx int, num int) ([]*Token, error) {
+	var tokens []*Token
+	query := DB.Where("account_type = ? AND account_id = ?", account.Type, account.Id)
+	if !allowAll {
+		query = query.Where("created_by_user_id = ?", actorUserId)
+	}
+	err := query.Order("id desc").Limit(num).Offset(startIdx).Find(&tokens).Error
 	return tokens, err
 }
 
@@ -151,7 +187,7 @@ func SearchUserTokens(userId string, keyword string, token string, offset int, l
 		}
 	}
 
-	baseQuery := DB.Model(&Token{}).Where("user_id = ?", userId)
+	baseQuery := DB.Model(&Token{}).Where("account_type = ? AND account_id = ?", AccountTypePersonal, userId)
 
 	// 非空才加 LIKE 条件，空则跳过（不过滤该字段）
 	if keyword != "" {
@@ -231,7 +267,16 @@ func GetTokenByIds(id string, userId string) (*Token, error) {
 	}
 	token := Token{Id: id, UserId: userId}
 	var err error = nil
-	err = DB.First(&token, "id = ? and user_id = ?", id, userId).Error
+	err = DB.First(&token, "id = ? AND account_type = ? AND account_id = ?", id, AccountTypePersonal, userId).Error
+	return &token, err
+}
+
+func GetTokenByIdForAccount(id string, account AccountContext) (*Token, error) {
+	if common.IsEmptyID(id) || account.Id == "" {
+		return nil, errors.New("id or account is empty")
+	}
+	token := Token{Id: id}
+	err := DB.First(&token, "id = ? AND account_type = ? AND account_id = ?", id, account.Type, account.Id).Error
 	return &token, err
 }
 
@@ -277,6 +322,7 @@ func GetTokenByKey(key string, fromDB bool) (token *Token, err error) {
 }
 
 func (token *Token) Insert() error {
+	token.NormalizeOwnership()
 	var err error
 	err = DB.Create(token).Error
 	return err
@@ -364,9 +410,24 @@ func DeleteTokenById(id string, userId string) (err error) {
 	if common.IsEmptyID(id) || common.IsEmptyID(userId) {
 		return errors.New("id 或 userId 为空！")
 	}
-	token := Token{Id: id, UserId: userId}
-	err = DB.Where(token).First(&token).Error
+	token := Token{Id: id}
+	err = DB.First(&token, "id = ? AND account_type = ? AND account_id = ?", id, AccountTypePersonal, userId).Error
 	if err != nil {
+		return err
+	}
+	return token.Delete()
+}
+
+func DeleteTokenByIdForAccount(id string, account AccountContext, actorUserId string, allowAll bool) (err error) {
+	if common.IsEmptyID(id) || account.Id == "" {
+		return errors.New("id or account is empty")
+	}
+	token := Token{Id: id}
+	query := DB.Where("id = ? AND account_type = ? AND account_id = ?", id, account.Type, account.Id)
+	if !allowAll {
+		query = query.Where("created_by_user_id = ?", actorUserId)
+	}
+	if err = query.First(&token).Error; err != nil {
 		return err
 	}
 	return token.Delete()
@@ -435,7 +496,23 @@ func decreaseTokenQuota(id string, quota int) (err error) {
 // CountUserTokens returns total number of tokens for the given user, used for pagination
 func CountUserTokens(userId string) (int64, error) {
 	var total int64
-	err := DB.Model(&Token{}).Where("user_id = ?", userId).Count(&total).Error
+	err := DB.Model(&Token{}).Where("account_type = ? AND account_id = ?", AccountTypePersonal, userId).Count(&total).Error
+	return total, err
+}
+
+func CountAccountTokens(account AccountContext) (int64, error) {
+	var total int64
+	err := DB.Model(&Token{}).Where("account_type = ? AND account_id = ?", account.Type, account.Id).Count(&total).Error
+	return total, err
+}
+
+func CountVisibleAccountTokens(account AccountContext, actorUserId string, allowAll bool) (int64, error) {
+	var total int64
+	query := DB.Model(&Token{}).Where("account_type = ? AND account_id = ?", account.Type, account.Id)
+	if !allowAll {
+		query = query.Where("created_by_user_id = ?", actorUserId)
+	}
+	err := query.Count(&total).Error
 	return total, err
 }
 
@@ -448,12 +525,12 @@ func BatchDeleteTokens(ids []string, userId string) (int, error) {
 	tx := DB.Begin()
 
 	var tokens []Token
-	if err := tx.Where("user_id = ? AND id IN (?)", userId, ids).Find(&tokens).Error; err != nil {
+	if err := tx.Where("account_type = ? AND account_id = ? AND id IN (?)", AccountTypePersonal, userId, ids).Find(&tokens).Error; err != nil {
 		tx.Rollback()
 		return 0, err
 	}
 
-	if err := tx.Where("user_id = ? AND id IN (?)", userId, ids).Delete(&Token{}).Error; err != nil {
+	if err := tx.Where("account_type = ? AND account_id = ? AND id IN (?)", AccountTypePersonal, userId, ids).Delete(&Token{}).Error; err != nil {
 		tx.Rollback()
 		return 0, err
 	}
@@ -473,10 +550,58 @@ func BatchDeleteTokens(ids []string, userId string) (int, error) {
 	return len(tokens), nil
 }
 
+func BatchDeleteAccountTokens(ids []string, account AccountContext, actorUserId string, allowAll bool) (int, error) {
+	if len(ids) == 0 {
+		return 0, errors.New("ids cannot be empty")
+	}
+
+	tx := DB.Begin()
+	query := tx.Where("account_type = ? AND account_id = ? AND id IN (?)", account.Type, account.Id, ids)
+	if !allowAll {
+		query = query.Where("created_by_user_id = ?", actorUserId)
+	}
+
+	var tokens []Token
+	if err := query.Find(&tokens).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+	deleteQuery := tx.Where("account_type = ? AND account_id = ? AND id IN (?)", account.Type, account.Id, ids)
+	if !allowAll {
+		deleteQuery = deleteQuery.Where("created_by_user_id = ?", actorUserId)
+	}
+	if err := deleteQuery.Delete(&Token{}).Error; err != nil {
+		tx.Rollback()
+		return 0, err
+	}
+	if err := tx.Commit().Error; err != nil {
+		return 0, err
+	}
+	if common.RedisEnabled {
+		gopool.Go(func() {
+			for _, t := range tokens {
+				_ = cacheDeleteToken(t.Key)
+			}
+		})
+	}
+	return len(tokens), nil
+}
+
+func GetTokenKeysByIdsForAccount(ids []string, account AccountContext, actorUserId string, allowAll bool) ([]Token, error) {
+	var tokens []Token
+	query := DB.Select("id", commonKeyCol).
+		Where("account_type = ? AND account_id = ? AND id IN (?)", account.Type, account.Id, ids)
+	if !allowAll {
+		query = query.Where("created_by_user_id = ?", actorUserId)
+	}
+	err := query.Find(&tokens).Error
+	return tokens, err
+}
+
 func GetTokenKeysByIds(ids []string, userId string) ([]Token, error) {
 	var tokens []Token
 	err := DB.Select("id", commonKeyCol).
-		Where("user_id = ? AND id IN (?)", userId, ids).
+		Where("account_type = ? AND account_id = ? AND id IN (?)", AccountTypePersonal, userId, ids).
 		Find(&tokens).Error
 	return tokens, err
 }

@@ -82,6 +82,7 @@ const NotificationSettings = ({
       subscription: true,
       redemption: true,
       user: true,
+      team: true,
       messageManagement: true,
       setting: true,
     },
@@ -165,6 +166,7 @@ const NotificationSettings = ({
         subscription: true,
         redemption: true,
         user: true,
+        team: true,
         messageManagement: true,
         setting: true,
       },
@@ -292,6 +294,7 @@ const NotificationSettings = ({
           description: t('兑换码生成管理'),
         },
         { key: 'user', title: t('用户管理'), description: t('用户账户管理') },
+        { key: 'team', title: t('团队管理'), description: t('团队账户管理') },
         {
           key: 'messageManagement',
           title: t('消息管理'),

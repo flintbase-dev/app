@@ -43,13 +43,14 @@ import { useTokensData } from '../../../hooks/tokens/useTokensData';
 import { useIsMobile } from '../../../hooks/common/useIsMobile';
 import { createCardProPagination } from '../../../helpers/utils';
 
-function TokensPage() {
+function TokensPage({ teamId = '' }) {
   // Define the function first, then pass it into the hook to avoid TDZ errors
   const openFluentNotificationRef = useRef(null);
   const openCCSwitchModalRef = useRef(null);
   const tokensData = useTokensData(
     (key) => openFluentNotificationRef.current?.(key),
     (key) => openCCSwitchModalRef.current?.(key),
+    teamId,
   );
   const isMobile = useIsMobile();
   const latestRef = useRef({
@@ -88,7 +89,10 @@ function TokensPage() {
 
   const loadModels = async () => {
     try {
-      const res = await API.query('userModels');
+      const res = await API.query(
+        'userModels',
+        teamId ? { team_id: teamId } : {},
+      );
       const { success, message, data } = res.data || {};
       if (success) {
         const categories = getModelCategories(tokensData.t);
@@ -382,6 +386,7 @@ function TokensPage() {
         editingToken={editingToken}
         visiable={showEdit}
         handleClose={closeEdit}
+        teamId={teamId}
       />
 
       <CCSwitchModal

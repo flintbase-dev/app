@@ -2,6 +2,7 @@ import {
   assertApiSuccess,
   graphqlMutationFromRequest,
 } from "@/lib/api/graphql";
+import { toText } from "@/lib/console/format";
 import { redirectTo } from "@/lib/console/route-redirect";
 import { createTokenFieldsFromForm } from "@/lib/console/token-form";
 
@@ -14,5 +15,11 @@ export async function POST(request: Request) {
     createTokenFieldsFromForm(formData),
   );
   for (const result of Object.values(payload)) assertApiSuccess(result);
-  return redirectTo(request, "/console/token");
+  const teamId = toText(formData.get("team_id")).trim();
+  return redirectTo(
+    request,
+    teamId
+      ? `/teams/${encodeURIComponent(teamId)}/console/token`
+      : "/console/token",
+  );
 }

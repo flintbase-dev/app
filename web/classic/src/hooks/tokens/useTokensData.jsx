@@ -36,8 +36,15 @@ import {
   encodeChannelConnectionString,
 } from '../../helpers/token';
 
-export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
+export const useTokensData = (
+  openFluentNotification,
+  openCCSwitchModal,
+  teamId = '',
+) => {
   const { t } = useTranslation();
+  const isTeamContext = Boolean(teamId);
+  const withTeam = (payload = {}) =>
+    isTeamContext ? { ...payload, team_id: teamId } : payload;
 
   // Basic state
   const [tokens, setTokens] = useState([]);
@@ -104,7 +111,10 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
   const loadTokens = async (page = 1, size = pageSize) => {
     setLoading(true);
     setSearchMode(false);
-    const res = await API.query('tokens', { p: page, size });
+    const res = await API.query(
+      isTeamContext ? 'teamTokens' : 'tokens',
+      withTeam({ p: page, size }),
+    );
     const { success, message, data } = res.data;
     if (success) {
       syncPageData(data);
@@ -157,7 +167,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     const request = (async () => {
       setLoadingTokenKeys((prev) => ({ ...prev, [tokenId]: true }));
       try {
-        const fullKey = await fetchTokenKeyById(tokenId);
+        const fullKey = await fetchTokenKeyById(tokenId, { teamId });
         setResolvedTokenKeys((prev) => ({ ...prev, [tokenId]: fullKey }));
         return fullKey;
       } catch (error) {
@@ -277,21 +287,34 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     let res;
     switch (action) {
       case 'delete':
-        res = await API.mutation('deleteToken', { id });
+        res = await API.mutation(
+          isTeamContext ? 'deleteTeamToken' : 'deleteToken',
+          withTeam({ id }),
+        );
         break;
       case 'enable':
         data.status = 1;
-        res = await API.mutation('updateToken', {
-          input: data,
-          params: { status_only: true },
-        });
+        res = await API.mutation(
+          isTeamContext ? 'updateTeamToken' : 'updateToken',
+          {
+            input: withTeam(data),
+            params: isTeamContext
+              ? { status_only: true, team_id: teamId }
+              : { status_only: true },
+          },
+        );
         break;
       case 'disable':
         data.status = 2;
-        res = await API.mutation('updateToken', {
-          input: data,
-          params: { status_only: true },
-        });
+        res = await API.mutation(
+          isTeamContext ? 'updateTeamToken' : 'updateToken',
+          {
+            input: withTeam(data),
+            params: isTeamContext
+              ? { status_only: true, team_id: teamId }
+              : { status_only: true },
+          },
+        );
         break;
     }
     const { success, message } = res.data;
@@ -321,12 +344,15 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       return;
     }
     setSearching(true);
-    const res = await API.query('searchTokens', {
-      keyword: searchKeyword,
-      token: searchToken,
-      p: normalizedPage,
-      size: normalizedSize,
-    });
+    const res = await API.query(
+      isTeamContext ? 'teamTokens' : 'searchTokens',
+      withTeam({
+        keyword: searchKeyword,
+        token: searchToken,
+        p: normalizedPage,
+        size: normalizedSize,
+      }),
+    );
     const { success, message, data } = res.data;
     if (success) {
       setSearchMode(true);
@@ -401,7 +427,10 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     setLoading(true);
     try {
       const ids = selectedKeys.map((token) => token.id);
-      const res = await API.mutation('deleteTokens', { ids });
+      const res = await API.mutation(
+        isTeamContext ? 'deleteTeamTokens' : 'deleteTokens',
+        withTeam({ ids }),
+      );
       if (res?.data?.success) {
         const count = res.data.data || 0;
         showSuccess(t('已删除 {{count}} 个令牌！', { count }));
@@ -429,7 +458,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
     }
     try {
       const ids = selectedKeys.map((token) => token.id);
-      const keysMap = await fetchTokenKeysBatch(ids);
+      const keysMap = await fetchTokenKeysBatch(ids, { teamId });
 
       setResolvedTokenKeys((prev) => ({ ...prev, ...keysMap }));
 
@@ -456,7 +485,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
       .catch((reason) => {
         showError(reason);
       });
-    API.query('selfGroups')
+    API.query('selfGroups', teamId ? { team_id: teamId } : {})
       .then((res) => {
         if (res.data.success && res.data.data) {
           const ratios = {};
@@ -467,7 +496,7 @@ export const useTokensData = (openFluentNotification, openCCSwitchModal) => {
         }
       })
       .catch(() => {});
-  }, [pageSize]);
+  }, [pageSize, teamId]);
 
   return {
     // Basic state

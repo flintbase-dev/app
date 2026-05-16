@@ -31,21 +31,28 @@ import { loadTokenEditor } from "@/lib/console/data";
 import { cn } from "@/lib/utils";
 
 export default async function CreateTokenPage() {
-  const { groups, models, status } = await loadTokenEditor();
+  return <CreateTokenFormPage />;
+}
+
+export async function CreateTokenFormPage({ teamId }: { teamId?: string }) {
+  const { groups, models, status } = await loadTokenEditor(undefined, {
+    teamId,
+  });
+  const basePath = teamId ? `/teams/${teamId}/console/token` : "/console/token";
   return (
     <div className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
       <div className="mx-auto w-full max-w-3xl">
         {/* Breadcrumb / back */}
         <div className="mb-6 flex items-center gap-2">
           <Link
-            href="/console/token"
+            href={basePath}
             className={cn(
               buttonVariants({ variant: "ghost", size: "sm" }),
               "-ml-2 gap-1.5",
             )}
           >
             <ArrowLeft aria-hidden="true" />
-            API keys
+            {teamId ? "Team API keys" : "API keys"}
           </Link>
         </div>
 
@@ -65,6 +72,9 @@ export default async function CreateTokenPage() {
           method="post"
           className="mt-8 flex flex-col gap-6"
         >
+          {teamId ? (
+            <input type="hidden" name="team_id" value={teamId} />
+          ) : null}
           <input type="hidden" name="status" value={1} />
           {/* Basics */}
           <Card>
@@ -191,7 +201,7 @@ export default async function CreateTokenPage() {
           {/* Footer */}
           <div className="flex items-center justify-between gap-3 border-t border-border pt-4">
             <Link
-              href="/console/token"
+              href={basePath}
               className={cn(buttonVariants({ variant: "ghost" }))}
             >
               Cancel

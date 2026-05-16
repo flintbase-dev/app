@@ -30,9 +30,10 @@ type FundingSource interface {
 
 type WalletFunding struct {
 	userId    string
+	account   model.AccountContext
 	requestId string
 	modelName string
-	consumed  int // 实际预扣的用户额度
+	consumed  int // 实际预扣的账户额度
 }
 
 func (w *WalletFunding) Source() string { return BillingSourceWallet }
@@ -48,7 +49,7 @@ func (w *WalletFunding) PreConsume(amount int) error {
 	if amount <= 0 {
 		return nil
 	}
-	if err := model.ConsumeUserCreditsForRequest(w.userId, amount, "relay.preconsume", walletLedgerSourceId(w.requestId, "preconsume"), w.requestId, map[string]interface{}{
+	if err := model.ConsumeAccountCreditsForRequest(w.userId, w.account, amount, "relay.preconsume", walletLedgerSourceId(w.requestId, "preconsume"), w.requestId, map[string]interface{}{
 		"model": w.modelName,
 		"phase": "preconsume",
 	}); err != nil {
@@ -63,12 +64,12 @@ func (w *WalletFunding) Settle(delta int) error {
 		return nil
 	}
 	if delta > 0 {
-		return model.ConsumeUserCreditsForRequest(w.userId, delta, "relay.settle", walletLedgerSourceId(w.requestId, "settle"), w.requestId, map[string]interface{}{
+		return model.ConsumeAccountCreditsForRequest(w.userId, w.account, delta, "relay.settle", walletLedgerSourceId(w.requestId, "settle"), w.requestId, map[string]interface{}{
 			"model": w.modelName,
 			"phase": "settle",
 		})
 	}
-	return model.RefundUserCreditsForRequest(w.userId, -delta, "relay.refund", walletLedgerSourceId(w.requestId, "settle_refund"), w.requestId, map[string]interface{}{
+	return model.RefundAccountCreditsForRequest(w.userId, w.account, -delta, "relay.refund", walletLedgerSourceId(w.requestId, "settle_refund"), w.requestId, map[string]interface{}{
 		"model": w.modelName,
 		"phase": "settle_refund",
 	})
@@ -80,7 +81,7 @@ func (w *WalletFunding) Refund() error {
 	}
 	// Wallet refund is ledgered as a new grant and should not be retried blindly.
 	// 订阅的 RefundSubscriptionPreConsume 有 requestId 幂等保护所以可以重试。
-	return model.RefundUserCreditsForRequest(w.userId, w.consumed, "relay.refund", walletLedgerSourceId(w.requestId, "preconsume_refund"), w.requestId, map[string]interface{}{
+	return model.RefundAccountCreditsForRequest(w.userId, w.account, w.consumed, "relay.refund", walletLedgerSourceId(w.requestId, "preconsume_refund"), w.requestId, map[string]interface{}{
 		"model": w.modelName,
 		"phase": "preconsume_refund",
 	})

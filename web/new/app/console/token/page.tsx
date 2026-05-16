@@ -50,20 +50,34 @@ export default async function TokenPage({
 }: {
   searchParams: Promise<{ p?: string; q?: string }>;
 }) {
+  return <TokenListPage searchParams={searchParams} />;
+}
+
+export async function TokenListPage({
+  searchParams,
+  teamId,
+}: {
+  searchParams: Promise<{ p?: string; q?: string }>;
+  teamId?: string;
+}) {
   const { p = "1", q = "" } = await searchParams;
   const page = Math.max(Number(p) || 1, 1);
-  const { tokens, status } = await loadTokenList({
-    ...(q ? { keyword: q } : {}),
-    p: page,
-  });
+  const basePath = teamId ? `/teams/${teamId}/console/token` : "/console/token";
+  const { tokens, status } = await loadTokenList(
+    {
+      ...(q ? { keyword: q } : {}),
+      p: page,
+    },
+    { teamId },
+  );
   return (
     <div className="flex-1 px-4 py-6 lg:px-6 lg:py-8">
       <div className="mx-auto w-full max-w-[1200px]">
-        <PageHeader />
+        <PageHeader teamMode={Boolean(teamId)} />
 
         {/* Toolbar */}
         <div className="mt-6 flex flex-wrap items-center gap-2">
-          <form action="/console/token" className="min-w-64 flex-1">
+          <form action={basePath} className="min-w-64 flex-1">
             <InputGroup>
               <InputGroupAddon>
                 <Search aria-hidden="true" />
@@ -75,17 +89,23 @@ export default async function TokenPage({
               />
             </InputGroup>
           </form>
-          <FilterButton href="/console/token?q=enabled" label="Status" />
-          <FilterButton href="/console/token?q=default" label="Group" />
-          <TokenBulkCopyButton ids={tokens.items.map((token) => token.id)} />
+          <FilterButton href={`${basePath}?q=enabled`} label="Status" />
+          <FilterButton href={`${basePath}?q=default`} label="Group" />
+          <TokenBulkCopyButton
+            ids={tokens.items.map((token) => token.id)}
+            teamId={teamId}
+          />
           <form action="/console/token/actions/delete-batch" method="post">
+            {teamId ? (
+              <input type="hidden" name="team_id" value={teamId} />
+            ) : null}
             {tokens.items.map((token) => (
               <input key={token.id} type="hidden" name="ids" value={token.id} />
             ))}
             <TokenBulkDeleteButton disabled={tokens.items.length === 0} />
           </form>
           <Link
-            href="/console/token/new"
+            href={`${basePath}/new`}
             className={cn(buttonVariants({ variant: "brand", size: "sm" }))}
           >
             <Plus aria-hidden="true" />
@@ -130,7 +150,7 @@ export default async function TokenPage({
                         </EmptyHeader>
                         <EmptyContent>
                           <Link
-                            href="/console/token"
+                            href={basePath}
                             className={cn(
                               buttonVariants({
                                 variant: "outline",
@@ -156,7 +176,7 @@ export default async function TokenPage({
                         </EmptyHeader>
                         <EmptyContent>
                           <Link
-                            href="/console/token/new"
+                            href={`${basePath}/new`}
                             className={cn(
                               buttonVariants({ variant: "brand", size: "sm" }),
                             )}
@@ -195,8 +215,16 @@ export default async function TokenPage({
                       <code className="font-mono text-xs text-muted-foreground">
                         {t.keyPreview}
                       </code>
-                      <TokenSecretButton tokenId={t.id} mode="reveal" />
-                      <TokenSecretButton tokenId={t.id} mode="copy" />
+                      <TokenSecretButton
+                        tokenId={t.id}
+                        mode="reveal"
+                        teamId={teamId}
+                      />
+                      <TokenSecretButton
+                        tokenId={t.id}
+                        mode="copy"
+                        teamId={teamId}
+                      />
                     </div>
                   </TableCell>
                   <TableCell>
@@ -240,7 +268,7 @@ export default async function TokenPage({
                   <TableCell className="pr-4 text-right">
                     <div className="inline-flex items-center gap-1">
                       <Link
-                        href={`/console/token/${t.id}`}
+                        href={`${basePath}/${t.id}`}
                         className={cn(
                           buttonVariants({
                             variant: "ghost",
@@ -255,9 +283,13 @@ export default async function TokenPage({
                         action="/console/token/actions/toggle"
                         method="post"
                       >
+                        {teamId ? (
+                          <input type="hidden" name="team_id" value={teamId} />
+                        ) : null}
                         <input type="hidden" name="id" value={t.id} />
                         <input type="hidden" name="status" value={t.status} />
                         <Button
+                          type="submit"
                           variant="ghost"
                           size="icon-sm"
                           aria-label="Toggle status"
@@ -269,13 +301,18 @@ export default async function TokenPage({
                         tokenId={t.id}
                         mode="connection"
                         connectionBase={status.serverAddress}
+                        teamId={teamId}
                       />
                       <form
                         action="/console/token/actions/delete"
                         method="post"
                       >
+                        {teamId ? (
+                          <input type="hidden" name="team_id" value={teamId} />
+                        ) : null}
                         <input type="hidden" name="id" value={t.id} />
                         <Button
+                          type="submit"
                           variant="ghost"
                           size="icon-sm"
                           aria-label="Delete"
@@ -297,13 +334,13 @@ export default async function TokenPage({
           </span>
           <div className="flex items-center gap-2">
             <Link
-              href={`/console/token?p=${Math.max(1, page - 1)}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+              href={`${basePath}?p=${Math.max(1, page - 1)}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
               className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             >
               Previous
             </Link>
             <Link
-              href={`/console/token?p=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
+              href={`${basePath}?p=${page + 1}${q ? `&q=${encodeURIComponent(q)}` : ""}`}
               className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
             >
               Next
@@ -315,15 +352,15 @@ export default async function TokenPage({
   );
 }
 
-function PageHeader() {
+function PageHeader({ teamMode = false }: { teamMode?: boolean }) {
   return (
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <p className="text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
-          Account · API
+          {teamMode ? "Team" : "Account"} · API
         </p>
         <h1 className="mt-1 font-heading text-3xl font-medium tracking-tight">
-          API keys
+          {teamMode ? "Team API keys" : "API keys"}
         </h1>
         <p className="mt-1 max-w-[60ch] text-sm text-muted-foreground">
           Manage the keys your applications use to call the Flint API.{" "}

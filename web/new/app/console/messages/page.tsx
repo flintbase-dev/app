@@ -78,7 +78,12 @@ export default async function MessagesPage({
               <InputGroupInput placeholder="Search…" />
             </InputGroup>
             <form action={markAllInboxReadAction}>
-              <Button variant="ghost" size="icon-sm" aria-label="Mark all read">
+              <Button
+                type="submit"
+                variant="ghost"
+                size="icon-sm"
+                aria-label="Mark all read"
+              >
                 <CheckCheck aria-hidden="true" />
               </Button>
             </form>
@@ -213,7 +218,7 @@ export default async function MessagesPage({
                     name="item_type"
                     value={selected.itemType}
                   />
-                  <Button variant="ghost" size="sm">
+                  <Button type="submit" variant="ghost" size="sm">
                     <Check aria-hidden="true" />
                     Mark read
                   </Button>

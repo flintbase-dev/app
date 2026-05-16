@@ -103,7 +103,10 @@ const EditTokenModal = (props) => {
   };
 
   const loadModels = async () => {
-    let res = await API.query('userModels');
+    let res = await API.query(
+      'userModels',
+      props.teamId ? { team_id: props.teamId } : {},
+    );
     const { success, message, data } = res.data;
     if (success) {
       const categories = getModelCategories(t);
@@ -132,7 +135,10 @@ const EditTokenModal = (props) => {
   };
 
   const loadGroups = async () => {
-    let res = await API.query('selfGroups');
+    let res = await API.query(
+      'selfGroups',
+      props.teamId ? { team_id: props.teamId } : {},
+    );
     const { success, message, data } = res.data;
     if (success) {
       let localGroupOptions = Object.entries(data).map(([group, info]) => ({
@@ -156,8 +162,9 @@ const EditTokenModal = (props) => {
 
   const loadToken = async () => {
     setLoading(true);
-    let res = await API.query('token', {
+    let res = await API.query(props.teamId ? 'teamToken' : 'token', {
       id: props.editingToken.id,
+      ...(props.teamId ? { team_id: props.teamId } : {}),
     });
     const { success, message, data } = res.data;
     if (success) {
@@ -236,10 +243,14 @@ const EditTokenModal = (props) => {
       }
       localInputs.model_limits = localInputs.model_limits.join(',');
       localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
-      let res = await API.mutation('updateToken', {
-        ...localInputs,
-        id: props.editingToken.id,
-      });
+      let res = await API.mutation(
+        props.teamId ? 'updateTeamToken' : 'updateToken',
+        {
+          ...localInputs,
+          id: props.editingToken.id,
+          ...(props.teamId ? { team_id: props.teamId } : {}),
+        },
+      );
       const { success, message } = res.data;
       if (success) {
         showSuccess(t('令牌更新成功！'));
@@ -280,7 +291,13 @@ const EditTokenModal = (props) => {
         }
         localInputs.model_limits = localInputs.model_limits.join(',');
         localInputs.model_limits_enabled = localInputs.model_limits.length > 0;
-        let res = await API.mutation('createToken', localInputs);
+        let res = await API.mutation(
+          props.teamId ? 'createTeamToken' : 'createToken',
+          {
+            ...localInputs,
+            ...(props.teamId ? { team_id: props.teamId } : {}),
+          },
+        );
         const { success, message } = res.data;
         if (success) {
           successCount++;
