@@ -57,6 +57,9 @@ type TeamMembership struct {
 	JoinedAt                       int64  `json:"joined_at" gorm:"not null;index"`
 	CreatedAt                      int64  `json:"created_at" gorm:"not null"`
 	UpdatedAt                      int64  `json:"updated_at" gorm:"not null"`
+	DisplayName                    string `json:"display_name,omitempty" gorm:"-"`
+	Email                          string `json:"email,omitempty" gorm:"-"`
+	Username                       string `json:"username,omitempty" gorm:"-"`
 }
 
 func (TeamMembership) TableName() string {

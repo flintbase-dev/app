@@ -867,6 +867,9 @@ function normalizeTeamMember(value: unknown): TeamMember {
     userId: toText(item.user_id),
     role: role === "admin" ? "admin" : "member",
     status: toText(item.status, "active"),
+    displayName: toText(item.display_name),
+    email: toText(item.email),
+    username: toText(item.username),
   };
 }
 

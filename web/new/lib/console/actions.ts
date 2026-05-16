@@ -167,7 +167,35 @@ export async function inviteTeamMemberAction(formData: FormData) {
     },
   ]);
   assertApiSuccess(payload.inviteTeamMember);
-  revalidatePath(`/teams/${teamId}/console/settings`);
+  revalidatePath(`/teams/${teamId}/console/settings/members`);
+}
+
+export async function inviteTeamMembersAction(formData: FormData) {
+  const teamId = requireString(formData.get("team_id"), "Team id is required");
+  const rawEmails = toText(formData.get("emails"));
+  const role = toText(formData.get("role"), "member");
+  const emails = Array.from(
+    new Set(
+      rawEmails
+        .split(/[\s,;]+/)
+        .map((entry) => entry.trim())
+        .filter((entry) => entry.includes("@")),
+    ),
+  );
+  if (emails.length === 0) {
+    throw new Error("Enter at least one email address.");
+  }
+  for (const email of emails) {
+    const payload = await graphqlMutation<{ inviteTeamMember: unknown }>([
+      {
+        operation: "inviteTeamMember",
+        input: { team_id: teamId, email, role },
+        params: { team_id: teamId },
+      },
+    ]);
+    assertApiSuccess(payload.inviteTeamMember);
+  }
+  revalidatePath(`/teams/${teamId}/console/settings/members`);
 }
 
 export async function updateTeamPolicyAction(formData: FormData) {

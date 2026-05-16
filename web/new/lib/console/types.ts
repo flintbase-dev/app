@@ -92,6 +92,9 @@ export type TeamMember = {
   userId: string;
   role: "admin" | "member";
   status: string;
+  displayName: string;
+  email: string;
+  username: string;
 };
 
 export type TeamInvitation = {

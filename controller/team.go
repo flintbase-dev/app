@@ -374,6 +374,15 @@ func GetTeamMembers(c *gin.Context) {
 		common.ApiError(c, err)
 		return
 	}
+	for i := range members {
+		user, err := model.GetUserById(members[i].UserId, false)
+		if err != nil || user == nil {
+			continue
+		}
+		members[i].DisplayName = user.DisplayName
+		members[i].Email = user.Email
+		members[i].Username = user.Username
+	}
 	common.ApiSuccess(c, members)
 }
 

@@ -3,19 +3,25 @@
 import {
   ArrowLeft,
   BookOpen,
+  Building2,
+  Check,
   ChevronsUpDown,
   CircleUser,
   CreditCard,
   ExternalLink,
+  FileText,
   Flame,
   Inbox,
   Key,
   LayoutDashboard,
+  LogOut,
   Megaphone,
   MessageSquare,
+  Plus,
   RadioTower,
   ScrollText,
   Settings,
+  Shield,
   SlidersHorizontal,
   Sparkles,
   TicketPercent,
@@ -26,7 +32,13 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Button, buttonVariants } from "@/components/ui/button";
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from "@/components/ui/popover";
 import { Separator } from "@/components/ui/separator";
+import { workosLogoutAction } from "@/lib/console/actions";
 import { fmtMoney, initials } from "@/lib/console/format";
 import type {
   AccountContext,
@@ -109,16 +121,27 @@ export function ConsoleSidebar({
   const consoleRoot = teamId ? `/teams/${teamId}/console` : "/console";
   const isTeamAdmin = currentTeam?.role === "admin";
   const isTeamSettingsRoute =
-    Boolean(teamId) && pathname === `${consoleRoot}/settings`;
+    Boolean(teamId) && pathname.startsWith(`${consoleRoot}/settings`);
   const navSections = isTeamSettingsRoute
     ? [
         {
           label: "Org Settings",
           items: [
+            { label: "General", href: "/console/settings", icon: Building2 },
             {
-              label: "Team settings",
-              href: "/console/settings",
-              icon: Settings,
+              label: "Members",
+              href: "/console/settings/members",
+              icon: Users,
+            },
+            {
+              label: "Billing",
+              href: "/console/settings/billing",
+              icon: CreditCard,
+            },
+            {
+              label: "Access policy",
+              href: "/console/settings/policy",
+              icon: Shield,
             },
           ],
         },
@@ -164,6 +187,12 @@ export function ConsoleSidebar({
     teamId && href.startsWith("/console")
       ? href.replace("/console", consoleRoot)
       : href;
+
+  const activeLabel = currentTeam ? currentTeam.name : user.displayName;
+  const activeMeta = currentTeam
+    ? "team context"
+    : fmtMoney(user.balance, status);
+  const activeInitials = initials(activeLabel);
 
   return (
     <aside className="hidden h-dvh w-60 shrink-0 flex-col border-r border-border bg-sidebar lg:sticky lg:top-0 lg:flex">
@@ -278,61 +307,135 @@ export function ConsoleSidebar({
       </nav>
 
       <div className="border-t border-sidebar-border p-3">
-        <Button
-          variant="ghost"
-          className="h-auto w-full justify-start gap-2 p-2 hover:bg-sidebar-accent"
-        >
-          <div className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-subtle font-mono text-xs font-medium text-brand-emphasis">
-            {initials(currentTeam ? currentTeam.name : user.displayName)}
-          </div>
-          <div className="min-w-0 flex-1 text-left">
-            <p className="truncate text-sm font-medium text-foreground">
-              {currentTeam ? currentTeam.name : user.displayName}
-            </p>
-            <p className="truncate font-mono text-[11px] text-muted-foreground tabular-nums">
-              {currentTeam ? "team context" : fmtMoney(user.balance, status)}
-            </p>
-          </div>
-          <ChevronsUpDown
-            aria-hidden="true"
-            className="size-3.5 shrink-0 text-muted-foreground"
-          />
-        </Button>
-        <div className="mt-2 grid gap-1">
-          <Link
-            href="/console"
-            className={cn(
-              buttonVariants({
-                variant: teamId ? "ghost" : "secondary",
-                size: "sm",
-              }),
-              "justify-start",
-            )}
+        <Popover>
+          <PopoverTrigger
+            render={
+              <button
+                type="button"
+                className="flex h-auto w-full items-center gap-2 rounded-md p-2 text-left transition-colors hover:bg-sidebar-accent data-popup-open:bg-sidebar-accent"
+              />
+            }
           >
-            Personal
-          </Link>
-          {accountContext.teams.map((team) => (
-            <Link
-              key={team.id}
-              href={`/teams/${team.id}/console`}
-              className={cn(
-                buttonVariants({
-                  variant: team.id === teamId ? "secondary" : "ghost",
-                  size: "sm",
-                }),
-                "justify-start truncate",
-              )}
-            >
-              {team.name}
-            </Link>
-          ))}
-          <Link
-            href="/console/teams/new"
-            className={cn(buttonVariants({ variant: "outline", size: "sm" }))}
+            <div className="inline-flex size-7 shrink-0 items-center justify-center rounded-full bg-brand-subtle font-mono text-xs font-medium text-brand-emphasis">
+              {activeInitials}
+            </div>
+            <div className="min-w-0 flex-1">
+              <p className="truncate text-sm font-medium text-foreground">
+                {activeLabel}
+              </p>
+              <p className="truncate font-mono text-[11px] text-muted-foreground tabular-nums">
+                {activeMeta}
+              </p>
+            </div>
+            <ChevronsUpDown
+              aria-hidden="true"
+              className="size-3.5 shrink-0 text-muted-foreground"
+            />
+          </PopoverTrigger>
+          <PopoverContent
+            side="top"
+            align="start"
+            sideOffset={8}
+            className="w-72 gap-0 p-0"
           >
-            Create Team
-          </Link>
-        </div>
+            <div className="flex items-center gap-3 border-b border-border px-4 py-3">
+              <div className="inline-flex size-10 shrink-0 items-center justify-center rounded-full bg-brand-subtle font-mono text-sm font-medium text-brand-emphasis">
+                {initials(user.displayName)}
+              </div>
+              <div className="min-w-0">
+                <p className="truncate text-sm font-medium text-foreground">
+                  {user.displayName}
+                </p>
+                <p className="truncate text-xs text-muted-foreground">
+                  {user.email}
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center justify-between border-b border-border px-4 py-2">
+              <span className="text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
+                Balance
+              </span>
+              <span className="font-mono text-xs tabular-nums text-foreground">
+                {fmtMoney(user.balance, status)}
+              </span>
+            </div>
+            <div className="p-2">
+              <p className="mb-1 px-2 text-[11px] font-medium tracking-[0.07em] text-muted-foreground uppercase">
+                Workspaces
+              </p>
+              <div className="flex flex-col gap-0.5">
+                <Link
+                  href="/console"
+                  className={cn(
+                    "flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent",
+                    !teamId && "bg-accent/60 text-foreground",
+                  )}
+                >
+                  <div className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-brand-subtle font-mono text-[10px] font-medium text-brand-emphasis">
+                    {initials(user.displayName)}
+                  </div>
+                  <span className="flex-1 truncate">Personal</span>
+                  {!teamId ? <Check className="size-3.5 text-brand" /> : null}
+                </Link>
+                {accountContext.teams.map((team) => (
+                  <Link
+                    key={team.id}
+                    href={`/teams/${team.id}/console`}
+                    className={cn(
+                      "flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm hover:bg-accent",
+                      team.id === teamId && "bg-accent/60 text-foreground",
+                    )}
+                  >
+                    <div className="inline-flex size-6 shrink-0 items-center justify-center rounded-full bg-muted font-mono text-[10px] font-medium text-muted-foreground">
+                      {initials(team.name)}
+                    </div>
+                    <span className="flex-1 truncate">{team.name}</span>
+                    {team.id === teamId ? (
+                      <Check className="size-3.5 text-brand" />
+                    ) : null}
+                  </Link>
+                ))}
+                <Link
+                  href="/console/teams/new"
+                  className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  <div className="inline-flex size-6 shrink-0 items-center justify-center rounded-full border border-dashed border-border">
+                    <Plus className="size-3" />
+                  </div>
+                  Create team
+                </Link>
+              </div>
+            </div>
+            <div className="border-t border-border p-2">
+              <div className="flex flex-col gap-0.5">
+                <Link
+                  href="/user-agreement"
+                  className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  <FileText className="size-3.5 shrink-0" />
+                  Terms of Service
+                </Link>
+                <Link
+                  href="/privacy-policy"
+                  className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-sm text-muted-foreground hover:bg-accent hover:text-foreground"
+                >
+                  <Shield className="size-3.5 shrink-0" />
+                  Privacy Policy
+                </Link>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void workosLogoutAction();
+                  }}
+                  className="flex items-center gap-2 rounded-sm px-2 py-1.5 text-left text-sm text-destructive hover:bg-danger-bg"
+                >
+                  <LogOut className="size-3.5 shrink-0" />
+                  Log out
+                </button>
+              </div>
+            </div>
+          </PopoverContent>
+        </Popover>
       </div>
     </aside>
   );
