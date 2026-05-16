@@ -94,7 +94,7 @@ export async function EditTokenFormPage({
               ) : null}
               <input type="hidden" name="id" value={token.id} />
               <input type="hidden" name="status" value={token.status} />
-              <Button variant="outline" size="sm">
+              <Button type="submit" variant="outline" size="sm">
                 <Power aria-hidden="true" />
                 {token.status === 1 ? "Disable" : "Enable"}
               </Button>
@@ -104,7 +104,12 @@ export async function EditTokenFormPage({
                 <input type="hidden" name="team_id" value={teamId} />
               ) : null}
               <input type="hidden" name="id" value={token.id} />
-              <Button variant="outline" size="sm" className="text-destructive">
+              <Button
+                type="submit"
+                variant="outline"
+                size="sm"
+                className="text-destructive"
+              >
                 <Trash2 aria-hidden="true" />
                 Delete
               </Button>

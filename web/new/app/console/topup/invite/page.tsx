@@ -130,7 +130,11 @@ export default async function InvitePage() {
             </div>
             <form action={transferAffQuotaAction}>
               <input type="hidden" name="quota" value={user.affQuota} />
-              <Button disabled={user.affQuota <= 0} variant="brand">
+              <Button
+                type="submit"
+                disabled={user.affQuota <= 0}
+                variant="brand"
+              >
                 <ArrowDownRight aria-hidden="true" />
                 Transfer
               </Button>

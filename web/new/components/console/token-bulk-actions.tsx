@@ -38,6 +38,7 @@ export function TokenBulkCopyButton({
 export function TokenBulkDeleteButton({ disabled }: { disabled?: boolean }) {
   return (
     <Button
+      type="submit"
       disabled={disabled}
       variant="outline"
       size="sm"

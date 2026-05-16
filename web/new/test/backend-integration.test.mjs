@@ -411,6 +411,7 @@ test("team account context is implemented across backend and both consoles", () 
   );
   const newTeamDashboard = read("app/teams/[teamId]/console/page.tsx");
   const newSettings = read("app/teams/[teamId]/console/settings/page.tsx");
+  const newCreateTeam = read("app/console/teams/new/page.tsx");
   const newSidebar = read("components/console/console-sidebar.tsx");
   const actions = read("lib/console/actions.ts");
   const data = read("lib/console/data.ts");
@@ -461,7 +462,11 @@ test("team account context is implemented across backend and both consoles", () 
   assert.match(actions, /disabledFromSwitches/);
   assert.match(classicSettings, /<Switch/);
   assert.doesNotMatch(classicSettings, /TextArea/);
+  assert.match(classicSidebar, /confirmLoading=\{teamCreatePending\}/);
+  assert.match(newCreateTeam, /<Button type="submit" variant="brand">/);
   assert.match(newSettings, /PolicySwitchList/);
+  assert.match(newSettings, /<Button type="submit"[^>]*>\s*Save Team/);
+  assert.match(newSettings, /<Button type="submit"[^>]*>\s*<Send/);
   assert.doesNotMatch(newSettings, /Textarea/);
   assert.match(classicTeamDashboard, /team\?\.role === 'admin'/);
   assert.match(newTeamDashboard, /team\.role === "admin"/);

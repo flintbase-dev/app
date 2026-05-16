@@ -289,6 +289,7 @@ export async function TokenListPage({
                         <input type="hidden" name="id" value={t.id} />
                         <input type="hidden" name="status" value={t.status} />
                         <Button
+                          type="submit"
                           variant="ghost"
                           size="icon-sm"
                           aria-label="Toggle status"
@@ -311,6 +312,7 @@ export async function TokenListPage({
                         ) : null}
                         <input type="hidden" name="id" value={t.id} />
                         <Button
+                          type="submit"
                           variant="ghost"
                           size="icon-sm"
                           aria-label="Delete"

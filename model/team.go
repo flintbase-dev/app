@@ -29,7 +29,7 @@ var teamSlugUnsafe = regexp.MustCompile(`[^a-z0-9]+`)
 
 type Team struct {
 	Id                   string `json:"id" gorm:"primaryKey;type:varchar(32)"`
-	WorkOSOrganizationId string `json:"workos_organization_id" gorm:"type:text;not null;uniqueIndex"`
+	WorkOSOrganizationId string `json:"workos_organization_id" gorm:"column:workos_organization_id;type:text;not null;uniqueIndex"`
 	Name                 string `json:"name" gorm:"type:text;not null"`
 	Slug                 string `json:"slug" gorm:"type:text;not null;uniqueIndex"`
 	CreatedByUserId      string `json:"created_by_user_id" gorm:"type:varchar(32);not null;index"`
@@ -51,7 +51,7 @@ type TeamMembership struct {
 	Id                             string `json:"id" gorm:"primaryKey;type:varchar(32)"`
 	TeamId                         string `json:"team_id" gorm:"type:varchar(32);not null;uniqueIndex:idx_team_membership_user;index"`
 	UserId                         string `json:"user_id" gorm:"type:varchar(32);not null;uniqueIndex:idx_team_membership_user;index"`
-	WorkOSOrganizationMembershipId string `json:"workos_organization_membership_id" gorm:"type:text;not null;uniqueIndex"`
+	WorkOSOrganizationMembershipId string `json:"workos_organization_membership_id" gorm:"column:workos_organization_membership_id;type:text;not null;uniqueIndex"`
 	Role                           string `json:"role" gorm:"type:varchar(16);not null;index"`
 	Status                         string `json:"status" gorm:"type:varchar(32);not null;default:'active';index"`
 	JoinedAt                       int64  `json:"joined_at" gorm:"not null;index"`
@@ -68,7 +68,7 @@ type TeamInvitation struct {
 	TeamId             string `json:"team_id" gorm:"type:varchar(32);not null;index"`
 	Email              string `json:"email" gorm:"type:text;not null;index"`
 	Role               string `json:"role" gorm:"type:varchar(16);not null"`
-	WorkOSInvitationId string `json:"workos_invitation_id" gorm:"type:text;not null;uniqueIndex"`
+	WorkOSInvitationId string `json:"workos_invitation_id" gorm:"column:workos_invitation_id;type:text;not null;uniqueIndex"`
 	Status             string `json:"status" gorm:"type:varchar(32);not null;index"`
 	InvitedByUserId    string `json:"invited_by_user_id" gorm:"type:varchar(32);not null;index"`
 	AcceptedByUserId   string `json:"accepted_by_user_id" gorm:"type:varchar(32);default:'';index"`

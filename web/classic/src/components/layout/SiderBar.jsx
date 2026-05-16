@@ -73,6 +73,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
     Boolean(activeTeamId) && location.pathname.endsWith('/settings');
   const [accountContext, setAccountContext] = useState({ teams: [] });
   const [teamCreateOpen, setTeamCreateOpen] = useState(false);
+  const [teamCreatePending, setTeamCreatePending] = useState(false);
   const [teamName, setTeamName] = useState('');
   const activeTeam = (accountContext.teams || []).find(
     (team) => team.id === activeTeamId,
@@ -307,17 +308,25 @@ const SiderBar = ({ onNavigate = () => {} }) => {
   }, []);
 
   const createTeam = async () => {
-    if (!teamName.trim()) {
+    const name = teamName.trim();
+    if (!name) {
       showError(t('请输入名称'));
       return;
     }
-    const res = await API.mutation('createTeam', { name: teamName.trim() });
-    if (res.data?.success) {
-      showSuccess(t('创建成功'));
-      const redirect = res.data.data?.redirect || '/console';
-      window.location.assign(redirect);
-    } else {
-      showError(res.data?.message || t('创建失败'));
+    setTeamCreatePending(true);
+    try {
+      const res = await API.mutation('createTeam', { name });
+      if (res.data?.success) {
+        showSuccess(t('创建成功'));
+        const redirect = res.data.data?.redirect || '/console';
+        window.location.assign(redirect);
+      } else {
+        showError(res.data?.message || t('创建失败'));
+      }
+    } catch (error) {
+      showError(error?.message || t('创建失败'));
+    } finally {
+      setTeamCreatePending(false);
     }
   };
 
@@ -491,6 +500,7 @@ const SiderBar = ({ onNavigate = () => {} }) => {
           visible={teamCreateOpen}
           onOk={createTeam}
           onCancel={() => setTeamCreateOpen(false)}
+          confirmLoading={teamCreatePending}
         >
           <label className='mb-2 block text-sm font-medium' htmlFor='team-name'>
             {t('Team name')}

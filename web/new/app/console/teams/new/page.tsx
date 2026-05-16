@@ -49,7 +49,7 @@ export default function CreateTeamPage() {
                 >
                   Cancel
                 </Link>
-                <Button variant="brand">
+                <Button type="submit" variant="brand">
                   <Plus aria-hidden="true" />
                   Create Team
                 </Button>

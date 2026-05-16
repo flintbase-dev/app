@@ -75,7 +75,7 @@ export default async function TeamSettingsPage({
                 <input type="hidden" name="team_id" value={teamId} />
                 <p className="text-sm font-medium">Profile</p>
                 <Input name="name" defaultValue={team.name} required />
-                <Button className="self-start" variant="brand">
+                <Button type="submit" className="self-start" variant="brand">
                   Save Team
                 </Button>
               </form>
@@ -103,7 +103,7 @@ export default async function TeamSettingsPage({
                   <option value="member">Member</option>
                   <option value="admin">Admin</option>
                 </select>
-                <Button className="self-start" variant="brand">
+                <Button type="submit" className="self-start" variant="brand">
                   <Send aria-hidden="true" />
                   Send invitation
                 </Button>
@@ -215,7 +215,7 @@ export default async function TeamSettingsPage({
                           <option value="member">Member</option>
                           <option value="admin">Admin</option>
                         </select>
-                        <Button size="sm" variant="outline">
+                        <Button type="submit" size="sm" variant="outline">
                           Save
                         </Button>
                       </form>
@@ -230,6 +230,7 @@ export default async function TeamSettingsPage({
                           value={member.userId}
                         />
                         <Button
+                          type="submit"
                           variant="ghost"
                           size="icon-sm"
                           className="text-destructive"
@@ -272,7 +273,7 @@ export default async function TeamSettingsPage({
                             name="invitation_id"
                             value={invitation.id}
                           />
-                          <Button variant="outline" size="sm">
+                          <Button type="submit" variant="outline" size="sm">
                             Revoke
                           </Button>
                         </form>
@@ -317,7 +318,7 @@ export default async function TeamSettingsPage({
                   disabled={disabledGroups}
                 />
               </div>
-              <Button className="self-start" variant="brand">
+              <Button type="submit" className="self-start" variant="brand">
                 Save policy
               </Button>
             </form>
