@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, IBM_Plex_Mono } from "next/font/google";
+import { Agentation } from "agentation";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 
@@ -33,7 +34,10 @@ export default function RootLayout({
         plexMono.variable,
       )}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        {children}
+        {process.env.NODE_ENV === "development" && <Agentation />}
+      </body>
     </html>
   );
 }
